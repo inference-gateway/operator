@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version-file: go.mod
 
@@ -35,10 +35,8 @@ jobs:
 
       - name: Install ctlptl
         run: |
-          cd $(mktemp -d)
-          curl -fsSL https://github.com/tilt-dev/ctlptl/releases/latest/download/ctlptl.linux.x86_64.tar.gz | tar -xzv
-          chmod +x ctlptl
-          sudo mv ctlptl /usr/local/bin/ctlptl
+          CTLPTL_VERSION=0.8.40 \
+          curl -fsSL https://github.com/tilt-dev/ctlptl/releases/download/v${CTLPTL_VERSION}/ctlptl.${CTLPTL_VERSION}.linux.$(dpkg --print-architecture).tar.gz | tar -xzv -C /usr/local/bin ctlptl
 
       - name: Verify k3d and ctlptl installation
         run: |
