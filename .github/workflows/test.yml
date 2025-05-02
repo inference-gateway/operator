@@ -41,8 +41,9 @@ jobs:
           go install sigs.k8s.io/controller-runtime/tools/setup-envtest@${ENVTEST_VERSION}
 
           # Verify installations
-          controller-gen --version || echo "controller-gen installed"
-          kustomize version
+          controller-gen --version || (echo "controller-gen not installed" && exit 1)
+          kustomize version || (echo "kustomize not installed" && exit 1)
+          setup-envtest version || (echo "setup-envtest not installed" && exit 1)
 
       - name: Running Tests
         run: |
