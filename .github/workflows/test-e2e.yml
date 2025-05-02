@@ -32,8 +32,9 @@ jobs:
       - name: Install ctlptl
         run: |
           CTLPTL_VERSION=0.8.40
-          curl -fsSL https://github.com/tilt-dev/ctlptl/releases/download/v${CTLPTL_VERSION}/ctlptl.${CTLPTL_VERSION}.linux.x86_64.tar.gz | \
-            sudo tar -xzC /usr/local/bin ctlptl
+          curl -fsSL -o /tmp/ctlptl.tar.gz https://github.com/tilt-dev/ctlptl/releases/download/v${CTLPTL_VERSION}/ctlptl.${CTLPTL_VERSION}.linux.x86_64.tar.gz
+          tar -xzf /tmp/ctlptl.tar.gz
+          sudo mv ctlptl /usr/local/bin/
           sudo chmod +x /usr/local/bin/ctlptl
 
       - name: Install controller-gen, kustomize, and setup-envtest
