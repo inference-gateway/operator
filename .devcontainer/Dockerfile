@@ -7,7 +7,8 @@ ENV TASK_VERSION=v3.43.3 \
     KUBECTL_VERSION=v1.33.0 \
     GOLANG_CI_LINT_VERSION=v2.1.5 \
     GITHUB_CLI_VERSION=2.72.0 \
-    SEMANTIC_RELEASE_VERSION=v24.2.3
+    SEMANTIC_RELEASE_VERSION=v24.2.3 \
+    KUBEBUILDER_VERSION=v4.5.2
 
 # Install common
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
@@ -32,6 +33,11 @@ RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANG_C
 # Install gh
 RUN curl -fsSL https://github.com/cli/cli/releases/download/v${GITHUB_CLI_VERSION}/gh_${GITHUB_CLI_VERSION}_linux_$(dpkg --print-architecture).tar.gz | tar -xzv -C /usr/local/bin --strip-components=2 gh_${GITHUB_CLI_VERSION}_linux_$(dpkg --print-architecture)/bin/gh
 
+# Install kubebuilder
+RUN curl -L -o kubebuilder https://github.com/kubernetes-sigs/kubebuilder/releases/download/${KUBEBUILDER_VERSION}/kubebuilder_$(go env GOOS)_$(go env GOARCH) && \
+    chmod +x kubebuilder && \
+    mv kubebuilder /usr/local/bin/
+
 # Install semantic-release
 RUN npm install -g semantic-release@${SEMANTIC_RELEASE_VERSION} \
     @semantic-release/changelog \
@@ -54,6 +60,7 @@ RUN echo 'source <(k3d completion zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(task --completion zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(ctlptl completion zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(gh completion -s zsh)' >> /home/vscode/.zshrc
+RUN echo 'source <(kubebuilder completion zsh)' >> /home/vscode/.zshrc
 
 WORKDIR /workspaces/operator
 USER vscode
