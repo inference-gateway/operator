@@ -30,7 +30,7 @@ import (
 	"os/exec"
 	"strings"
 
-	. "github.com/onsi/ginkgo/v2" //nolint:golint,revive,staticcheck
+	. "github.com/onsi/ginkgo/v2" //nolint:revive,staticcheck
 )
 
 const (
@@ -190,7 +190,7 @@ func LoadImageToK3dClusterWithName(name string) error {
 		cluster = v
 	}
 
-	importCmd := exec.Command("k3d", "image", "import", fmt.Sprintf("%s", name), "-c", fmt.Sprintf("%s", cluster))
+	importCmd := exec.Command("k3d", "image", "import", name, "-c", cluster)
 	_, err := Run(importCmd)
 	if err != nil {
 		return fmt.Errorf("failed to import image to k3d cluster: %v", err)

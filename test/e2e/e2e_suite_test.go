@@ -66,10 +66,7 @@ var _ = BeforeSuite(func() {
 	By("ensuring k3d cluster exists")
 	cmd := exec.Command("k3d", "cluster", "list")
 	output, err := utils.Run(cmd)
-	clusterExists := false
-	if err == nil && strings.Contains(output, "k3d-dev") {
-		clusterExists = true
-	}
+	clusterExists := err == nil && strings.Contains(output, "k3d-dev")
 
 	if !clusterExists {
 		By("creating k3d cluster")
