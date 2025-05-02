@@ -50,12 +50,12 @@ type GatewayReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/finalizers,verbs=update
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -103,7 +103,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 }
 
 // generateConfig converts the Gateway spec to a YAML configuration
-func (r *GatewayReconciler) generateConfig(gateway *corev1alpha1.Gateway) (string, error) {
+func (r *GatewayReconciler) generateConfig(gateway *corev1alpha1.Gateway) (string, error) { // nolint:unparam
 	builder := strings.Builder{}
 
 	builder.WriteString(fmt.Sprintf("environment: %s\n", gateway.Spec.Environment))
@@ -131,7 +131,7 @@ func (r *GatewayReconciler) generateConfig(gateway *corev1alpha1.Gateway) (strin
 		}
 	}
 
-	if gateway.Spec.Providers != nil && len(gateway.Spec.Providers) > 0 {
+	if len(gateway.Spec.Providers) > 0 {
 		builder.WriteString("providers:\n")
 		for name, provider := range gateway.Spec.Providers {
 			builder.WriteString(fmt.Sprintf("  %s:\n", name))
