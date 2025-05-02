@@ -4,7 +4,9 @@ A Kubernetes operator for automating the management and operation of application
 
 ## Description
 
-This Kubernetes operator extends the Kubernetes API to create, configure and manage instances of complex applications on behalf of users. It builds upon the basic Kubernetes resource and controller concepts, but includes domain or application-specific knowledge to automate the entire lifecycle of the software it manages.
+This Kubernetes operator extends the Kubernetes API to create, configure and manage Inference Gateway instances within a Kubernetes cluster. It's specifically designed to automate the deployment and management of AI inference gateways that connect with Model Context Protocol (MCP) servers, which may live on remote infrastructure. In its first stage, the operator focuses on controlling in-cluster resources such as deployments, services, and configuration for the gateway components.
+
+The operator handles various aspects of gateway management including authentication configuration, provider service integration, and network endpoint exposure. Future development will extend its capabilities to create and manage the lifecycle of remote MCP servers that the gateway connects to, providing a unified control plane for both the gateway infrastructure and its associated AI workloads.
 
 The operator pattern allows you to codify operational knowledge and workflows that would typically require human operator intervention. This implementation follows best practices for cloud-native applications, including high availability, scalability, and seamless upgrades.
 
@@ -119,9 +121,21 @@ is manually re-applied afterwards.
 
 ## Contributing
 
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+We welcome contributions to the Inference Gateway Operator project!
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
+For detailed information on how to contribute to this project, please see [CONTRIBUTING.md](CONTRIBUTING.md). The document covers:
+
+- Development environment setup
+- Development workflow
+- Code style and guidelines
+- Adding new features
+- Testing requirements
+- Pull request process
+- And more
+
+Your contributions help make the Inference Gateway Operator better for everyone. Thank you for your interest in the project!
+
+**NOTE:** Run `task help` for more information on all potential `task` targets
 
 More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
