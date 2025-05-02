@@ -11,7 +11,9 @@ ENV TASK_VERSION=v3.43.3 \
     GOLANG_CI_LINT_VERSION=v2.1.5 \
     GITHUB_CLI_VERSION=2.72.0 \
     SEMANTIC_RELEASE_VERSION=v24.2.3 \
-    KUBEBUILDER_VERSION=v4.5.2
+    KUBEBUILDER_VERSION=v4.5.2 \
+    CONTROLLER_GEN_VERSION=v0.17.2 \
+    KUSTOMIZE_VERSION=v5.6.0
 
 # Install common
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
@@ -32,6 +34,12 @@ RUN curl -L "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/$(dpkg --pri
 
 # Install golangci-lint
 RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANG_CI_LINT_VERSION}
+
+# Install controller-gen
+RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
+
+# Install kustomize
+RUN go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
 
 # Install gh
 RUN curl -fsSL https://github.com/cli/cli/releases/download/v${GITHUB_CLI_VERSION}/gh_${GITHUB_CLI_VERSION}_linux_$(dpkg --print-architecture).tar.gz | tar -xzv -C /usr/local/bin --strip-components=2 gh_${GITHUB_CLI_VERSION}_linux_$(dpkg --print-architecture)/bin/gh
@@ -69,6 +77,8 @@ RUN echo 'source <(task --completion zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(ctlptl completion zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(gh completion -s zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(kubebuilder completion zsh)' >> /home/vscode/.zshrc
+RUN echo 'source <(controller-gen --help 2>&1 > /dev/null && controller-gen completion zsh)' >> /home/vscode/.zshrc
+RUN echo 'source <(kustomize completion zsh)' >> /home/vscode/.zshrc
 
 WORKDIR /workspaces/operator
 USER vscode

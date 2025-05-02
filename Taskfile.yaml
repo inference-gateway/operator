@@ -19,10 +19,10 @@ vars:
   ENVTEST_K8S_VERSION: "1.32"
   GOLANGCI_LINT_VERSION: v2.1.5
   KUBECTL: kubectl
-  KUSTOMIZE: "{{.LOCALBIN}}/kustomize"
-  CONTROLLER_GEN: "{{.LOCALBIN}}/controller-gen"
-  ENVTEST: "{{.LOCALBIN}}/setup-envtest"
-  GOLANGCI_LINT: "{{.LOCALBIN}}/golangci-lint"
+  KUSTOMIZE: kustomize
+  CONTROLLER_GEN: controller-gen
+  ENVTEST: setup-envtest
+  GOLANGCI_LINT: golangci-lint
   IGNORE_NOT_FOUND: '{{default "false" .IGNORE_NOT_FOUND}}'
   PLATFORMS: linux/arm64,linux/amd64
 
@@ -39,13 +39,11 @@ tasks:
   # Development tasks
   manifests:
     desc: Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects
-    deps: [controller-gen]
     cmds:
       - '{{.CONTROLLER_GEN}} rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases'
 
   generate:
     desc: Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations
-    deps: [controller-gen]
     cmds:
       - '{{.CONTROLLER_GEN}} object:headerFile="hack/boilerplate.go.txt" paths="./..."'
 
@@ -98,19 +96,16 @@ tasks:
 
   lint:
     desc: Run golangci-lint linter
-    deps: [golangci-lint]
     cmds:
       - "{{.GOLANGCI_LINT}} run"
 
   lint-fix:
     desc: Run golangci-lint linter and perform fixes
-    deps: [golangci-lint]
     cmds:
       - "{{.GOLANGCI_LINT}} run --fix"
 
   lint-config:
     desc: Verify golangci-lint linter configuration
-    deps: [golangci-lint]
     cmds:
       - "{{.GOLANGCI_LINT}} config verify"
 
@@ -149,7 +144,7 @@ tasks:
 
   build-installer:
     desc: Generate a consolidated YAML with CRDs and deployment
-    deps: [manifests, generate, kustomize]
+    deps: [manifests, generate]
     cmds:
       - mkdir -p dist
       - cd config/manager && {{.KUSTOMIZE}} edit set image controller={{.IMG}}
@@ -158,26 +153,25 @@ tasks:
   # Deployment tasks
   install:
     desc: Install CRDs into the K8s cluster specified in ~/.kube/config
-    deps: [manifests, kustomize]
+    deps: [manifests]
     cmds:
       - "{{.KUSTOMIZE}} build config/crd | {{.KUBECTL}} apply -f -"
 
   uninstall:
     desc: Uninstall CRDs from the K8s cluster specified in ~/.kube/config
-    deps: [manifests, kustomize]
+    deps: [manifests]
     cmds:
       - "{{.KUSTOMIZE}} build config/crd | {{.KUBECTL}} delete --ignore-not-found={{.IGNORE_NOT_FOUND}} -f -"
 
   deploy:
     desc: Deploy controller to the K8s cluster specified in ~/.kube/config
-    deps: [manifests, kustomize]
+    deps: [manifests]
     cmds:
       - cd config/manager && {{.KUSTOMIZE}} edit set image controller={{.IMG}}
       - "{{.KUSTOMIZE}} build config/default | {{.KUBECTL}} apply -f -"
 
   undeploy:
     desc: Undeploy controller from the K8s cluster specified in ~/.kube/config
-    deps: [kustomize]
     cmds:
       - "{{.KUSTOMIZE}} build config/default | {{.KUBECTL}} delete --ignore-not-found={{.IGNORE_NOT_FOUND}} -f -"
 
@@ -189,91 +183,17 @@ tasks:
     status:
       - test -d {{.LOCALBIN}}
 
-  kustomize:
-    desc: Download kustomize locally if necessary
-    deps: [ensure-bin-dir]
-    status:
-      - test -f {{.KUSTOMIZE}}-{{.KUSTOMIZE_VERSION}}
-    cmds:
-      - |
-        set -e
-        package=sigs.k8s.io/kustomize/kustomize/v5@{{.KUSTOMIZE_VERSION}}
-        echo "Downloading ${package}"
-        rm -f {{.KUSTOMIZE}} || true
-        GOBIN={{.LOCALBIN}} go install ${package}
-        mv {{.KUSTOMIZE}} {{.KUSTOMIZE}}-{{.KUSTOMIZE_VERSION}}
-        ln -sf {{.KUSTOMIZE}}-{{.KUSTOMIZE_VERSION}} {{.KUSTOMIZE}}
-
-  controller-gen:
-    desc: Download controller-gen locally if necessary
-    deps: [ensure-bin-dir]
-    status:
-      - test -f {{.CONTROLLER_GEN}}-{{.CONTROLLER_TOOLS_VERSION}}
-    cmds:
-      - |
-        set -e
-        package=sigs.k8s.io/controller-tools/cmd/controller-gen@{{.CONTROLLER_TOOLS_VERSION}}
-        echo "Downloading ${package}"
-        # Only remove the symlink if it exists, not the versioned binary
-        if [ -L {{.CONTROLLER_GEN}} ]; then
-          rm -f {{.CONTROLLER_GEN}}
-        fi
-        # Check if versioned binary exists
-        if [ ! -f {{.CONTROLLER_GEN}}-{{.CONTROLLER_TOOLS_VERSION}} ]; then
-          GOBIN={{.LOCALBIN}} go install ${package}
-          mv {{.CONTROLLER_GEN}} {{.CONTROLLER_GEN}}-{{.CONTROLLER_TOOLS_VERSION}}
-        fi
-        # Create symlink if it doesn't exist
-        if [ ! -e {{.CONTROLLER_GEN}} ]; then
-          ln -sf {{.CONTROLLER_GEN}}-{{.CONTROLLER_TOOLS_VERSION}} {{.CONTROLLER_GEN}}
-        fi
-
-  envtest:
-    desc: Download setup-envtest locally if necessary
-    deps: [ensure-bin-dir]
-    status:
-      - test -f {{.ENVTEST}}-{{.ENVTEST_VERSION}}
-    cmds:
-      - |
-        set -e
-        package=sigs.k8s.io/controller-runtime/tools/setup-envtest@{{.ENVTEST_VERSION}}
-        echo "Downloading ${package}"
-        # Only remove the symlink if it exists, not the versioned binary
-        if [ -L {{.ENVTEST}} ]; then
-          rm -f {{.ENVTEST}}
-        fi
-        # Check if versioned binary exists
-        if [ ! -f {{.ENVTEST}}-{{.ENVTEST_VERSION}} ]; then
-          GOBIN={{.LOCALBIN}} go install ${package}
-          mv {{.ENVTEST}} {{.ENVTEST}}-{{.ENVTEST_VERSION}}
-        fi
-        # Create symlink if it doesn't exist
-        if [ ! -e {{.ENVTEST}} ]; then
-          ln -sf {{.ENVTEST}}-{{.ENVTEST_VERSION}} {{.ENVTEST}}
-        fi
-
   setup-envtest:
     desc: Download the binaries required for ENVTEST in the local bin directory
-    deps: [envtest]
+    deps: [ensure-bin-dir]
     cmds:
       - |
+        if ! command -v {{.ENVTEST}} &>/dev/null; then
+          echo "Installing setup-envtest locally for K8s tests"
+          GOBIN={{.LOCALBIN}} go install sigs.k8s.io/controller-runtime/tools/setup-envtest@{{.ENVTEST_VERSION}}
+        fi
         echo "Setting up envtest binaries for Kubernetes version {{.ENVTEST_K8S_VERSION}}..."
         {{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} --bin-dir {{.LOCALBIN}} -p path || {
           echo "Error: Failed to set up envtest binaries for version {{.ENVTEST_K8S_VERSION}}."
           exit 1
         }
-
-  golangci-lint:
-    desc: Download golangci-lint locally if necessary
-    deps: [ensure-bin-dir]
-    status:
-      - test -f {{.GOLANGCI_LINT}}-{{.GOLANGCI_LINT_VERSION}}
-    cmds:
-      - |
-        set -e
-        package=github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
-        echo "Downloading ${package}"
-        rm -f {{.GOLANGCI_LINT}} || true
-        GOBIN={{.LOCALBIN}} go install ${package}
-        mv {{.GOLANGCI_LINT}} {{.GOLANGCI_LINT}}-{{.GOLANGCI_LINT_VERSION}}
-        ln -sf {{.GOLANGCI_LINT}}-{{.GOLANGCI_LINT_VERSION}} {{.GOLANGCI_LINT}}
