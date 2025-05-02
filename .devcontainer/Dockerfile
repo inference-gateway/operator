@@ -1,5 +1,8 @@
 FROM mcr.microsoft.com/devcontainers/go:1-1.24-bookworm
 
+ENV GOPATH=/home/vscode/go \
+    PATH="/home/vscode/go/bin:${PATH}"
+
 # Tool Versions
 ENV TASK_VERSION=v3.43.3 \
     CTLPTL_VERSION=0.8.40 \
@@ -51,6 +54,11 @@ RUN npm install -g semantic-release@${SEMANTIC_RELEASE_VERSION} \
 RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git /home/vscode/.oh-my-zsh/custom/themes/powerlevel10k
 RUN echo 'source /home/vscode/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme' >> /home/vscode/.zshrc
 RUN echo 'POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true' >> /home/vscode/.zshrc
+
+# Setup Go environment for vscode user
+RUN mkdir -p /home/vscode/go && chown -R vscode:vscode /home/vscode/go
+RUN echo 'export GOPATH=/home/vscode/go' >> /home/vscode/.zshrc
+RUN echo 'export PATH=$GOPATH/bin:$PATH' >> /home/vscode/.zshrc
 
 # Auto-completions
 RUN echo '# Enable autocompletion' >> /home/vscode/.zshrc
