@@ -57,6 +57,26 @@ tasks:
     cmds:
       - go vet ./...
 
+  setup-pre-commit:
+    desc: Setup Git pre-commit hook to run lint, generate, manifests, and fmt
+    cmds:
+      - mkdir -p .git/hooks
+      - |
+        cat > .git/hooks/pre-commit << 'EOF'
+        #!/bin/sh
+        echo "Running pre-commit hook..."
+
+        # Run required tasks
+        task lint || { echo "Linting failed"; exit 1; }
+        task generate || { echo "Code generation failed"; exit 1; }
+        task manifests || { echo "Manifest generation failed"; exit 1; }
+        task fmt || { echo "Format check failed"; exit 1; }
+
+        echo "Pre-commit hook completed successfully"
+        EOF
+      - chmod +x .git/hooks/pre-commit
+      - echo "Pre-commit hook installed successfully"
+
   delete-cluster:
     desc: Delete a local Kubernetes cluster
     cmds:
