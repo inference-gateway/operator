@@ -31,11 +31,108 @@ import (
 
 // GatewaySpec defines the desired state of Gateway.
 type GatewaySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// General settings
+	// +optional
+	// +kubebuilder:default=production
+	Environment string `json:"environment,omitempty"`
 
-	// Foo is an example field of Gateway. Edit gateway_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// +optional
+	// +kubebuilder:default=false
+	EnableTelemetry bool `json:"enableTelemetry,omitempty"`
+
+	// +optional
+	// +kubebuilder:default=false
+	EnableAuth bool `json:"enableAuth,omitempty"`
+
+	// OIDC configuration
+	// +optional
+	OIDC *OIDCSpec `json:"oidc,omitempty"`
+
+	// Server configuration
+	// +optional
+	Server *ServerSpec `json:"server,omitempty"`
+
+	// Provider configurations
+	// +optional
+	Providers map[string]*ProviderSpec `json:"providers,omitempty"`
+}
+
+// OIDCSpec contains OIDC authentication configuration
+type OIDCSpec struct {
+	// +optional
+	// +kubebuilder:default="http://keycloak:8080/realms/inference-gateway-realm"
+	IssuerURL string `json:"issuerUrl,omitempty"`
+
+	// +optional
+	// +kubebuilder:default="inference-gateway-client"
+	ClientID string `json:"clientId,omitempty"`
+
+	// Reference to a secret containing the client secret
+	// +optional
+	ClientSecretRef *SecretKeySelector `json:"clientSecretRef,omitempty"`
+}
+
+// ServerSpec contains server configuration settings
+type ServerSpec struct {
+	// +optional
+	// +kubebuilder:default="0.0.0.0"
+	Host string `json:"host,omitempty"`
+
+	// +optional
+	// +kubebuilder:default="8080"
+	Port string `json:"port,omitempty"`
+
+	// +optional
+	// +kubebuilder:default="30s"
+	ReadTimeout string `json:"readTimeout,omitempty"`
+
+	// +optional
+	// +kubebuilder:default="30s"
+	WriteTimeout string `json:"writeTimeout,omitempty"`
+
+	// +optional
+	// +kubebuilder:default="120s"
+	IdleTimeout string `json:"idleTimeout,omitempty"`
+
+	// TLS configuration
+	// +optional
+	TLS *TLSConfig `json:"tls,omitempty"`
+}
+
+// TLSConfig contains TLS certificate configuration
+type TLSConfig struct {
+	// Reference to a secret containing the TLS certificate
+	// +optional
+	CertificateRef *SecretKeySelector `json:"certificateRef,omitempty"`
+
+	// Reference to a secret containing the TLS private key
+	// +optional
+	KeyRef *SecretKeySelector `json:"keyRef,omitempty"`
+}
+
+// ProviderSpec contains configuration for a specific provider
+type ProviderSpec struct {
+	// Provider API URL
+	URL string `json:"url,omitempty"`
+
+	// Reference to a secret containing the API token/key
+	// +optional
+	TokenRef *SecretKeySelector `json:"tokenRef,omitempty"`
+}
+
+// SecretKeySelector selects a key from a Secret
+type SecretKeySelector struct {
+	// Name of the secret
+	Name string `json:"name"`
+
+	// Key within the secret
+	// +optional
+	// +kubebuilder:default="value"
+	Key string `json:"key,omitempty"`
+
+	// Namespace of the secret
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // GatewayStatus defines the observed state of Gateway.

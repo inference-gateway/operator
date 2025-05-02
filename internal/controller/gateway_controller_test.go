@@ -24,67 +24,136 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
-var _ = Describe("Gateway Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+var _ = Describe("Gateway controller", func() {
+	Context("When reconciling a Gateway resource", func() {
+		const (
+			GatewayName      = "test-gateway"
+			GatewayNamespace = "default"
+			timeout          = time.Second * 10
+			interval         = time.Millisecond * 250
+		)
 
 		ctx := context.Background()
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
-		}
-		gateway := &corev1alpha1.Gateway{}
-
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind Gateway")
-			err := k8sClient.Get(ctx, typeNamespacedName, gateway)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &corev1alpha1.Gateway{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
+		It("Should create a deployment and configmap with proper configuration", func() {
+			By("Creating a new Gateway")
+			gateway := &corev1alpha1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.inference-gateway.com/v1alpha1",
+					Kind:       "Gateway",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      GatewayName,
+					Namespace: GatewayNamespace,
+				},
+				Spec: corev1alpha1.GatewaySpec{
+					Environment:     "production",
+					EnableTelemetry: true,
+					EnableAuth:      true,
+					OIDC: &corev1alpha1.OIDCSpec{
+						IssuerURL: "https://auth.example.com",
+						ClientID:  "test-client",
+						ClientSecretRef: &corev1alpha1.SecretKeySelector{
+							Name: "oidc-secret",
+							Key:  "client-secret",
+						},
 					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+					Server: &corev1alpha1.ServerSpec{
+						Host: "0.0.0.0",
+						Port: "8080",
+					},
+					Providers: map[string]*corev1alpha1.ProviderSpec{
+						"openai": {
+							URL: "https://api.openai.com/v1",
+							TokenRef: &corev1alpha1.SecretKeySelector{
+								Name: "provider-keys",
+								Key:  "openai-key",
+							},
+						},
+					},
+				},
 			}
-		})
+			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &corev1alpha1.Gateway{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+			gatewayLookupKey := types.NamespacedName{Name: GatewayName, Namespace: GatewayNamespace}
+			createdGateway := &corev1alpha1.Gateway{}
 
-			By("Cleanup the specific resource instance Gateway")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &GatewayReconciler{
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, gatewayLookupKey, createdGateway)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			gatewayReconciler := &GatewayReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
+			_, err := gatewayReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: gatewayLookupKey,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+
+			configMapName := types.NamespacedName{
+				Name:      GatewayName + "-config",
+				Namespace: GatewayNamespace,
+			}
+			createdConfigMap := &corev1.ConfigMap{}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, configMapName, createdConfigMap)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(createdConfigMap.Data).To(HaveKey("config.yaml"))
+			configContent := createdConfigMap.Data["config.yaml"]
+
+			Expect(configContent).To(ContainSubstring("environment: production"))
+			Expect(configContent).To(ContainSubstring("enableTelemetry: true"))
+			Expect(configContent).To(ContainSubstring("enableAuth: true"))
+			Expect(configContent).To(ContainSubstring("issuerUrl: https://auth.example.com"))
+			Expect(configContent).To(ContainSubstring("url: https://api.openai.com/v1"))
+
+			deploymentName := types.NamespacedName{
+				Name:      GatewayName,
+				Namespace: GatewayNamespace,
+			}
+			createdDeployment := &appsv1.Deployment{}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, deploymentName, createdDeployment)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(createdDeployment.Spec.Template.Spec.Volumes).To(ContainElement(
+				HaveField("Name", GatewayName+"-config-volume"),
+			))
+
+			containers := createdDeployment.Spec.Template.Spec.Containers
+			Expect(containers).To(HaveLen(1))
+			Expect(containers[0].VolumeMounts).To(ContainElement(
+				HaveField("Name", GatewayName+"-config-volume"),
+			))
+
+			envVars := containers[0].Env
+			Expect(envVars).To(ContainElement(
+				HaveField("Name", "OIDC_CLIENT_SECRET"),
+			))
+			Expect(envVars).To(ContainElement(
+				HaveField("Name", "OPENAI_API_KEY"),
+			))
+
+			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})
 	})
 })

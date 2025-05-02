@@ -1,9 +1,38 @@
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: Gateway
 metadata:
-  labels:
-    app.kubernetes.io/name: operator
-    app.kubernetes.io/managed-by: kustomize
   name: gateway-sample
 spec:
-  # TODO(user): Add fields here
+  environment: production
+  enableTelemetry: false
+  enableAuth: true
+  oidc:
+    issuerUrl: "https://auth.example.com/realms/inference-gateway"
+    clientId: "inference-gateway-client"
+    clientSecretRef:
+      name: oidc-credentials
+      key: client-secret
+  server:
+    host: "0.0.0.0"
+    port: "8080"
+    readTimeout: "30s"
+    writeTimeout: "30s"
+    idleTimeout: "120s"
+    tls:
+      certificateRef:
+        name: gateway-tls
+        key: tls.crt
+      keyRef:
+        name: gateway-tls
+        key: tls.key
+  providers:
+    openai:
+      url: "https://api.openai.com/v1"
+      tokenRef:
+        name: provider-keys
+        key: openai-api-key
+    anthropic:
+      url: "https://api.anthropic.com"
+      tokenRef:
+        name: provider-keys
+        key: anthropic-api-key

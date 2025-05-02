@@ -39,10 +39,125 @@ spec:
           spec:
             description: GatewaySpec defines the desired state of Gateway.
             properties:
-              foo:
-                description: Foo is an example field of Gateway. Edit gateway_types.go
-                  to remove/update
+              enableAuth:
+                default: false
+                type: boolean
+              enableTelemetry:
+                default: false
+                type: boolean
+              environment:
+                default: production
+                description: General settings
                 type: string
+              oidc:
+                description: OIDC configuration
+                properties:
+                  clientId:
+                    default: inference-gateway-client
+                    type: string
+                  clientSecretRef:
+                    description: Reference to a secret containing the client secret
+                    properties:
+                      key:
+                        default: value
+                        description: Key within the secret
+                        type: string
+                      name:
+                        description: Name of the secret
+                        type: string
+                      namespace:
+                        description: Namespace of the secret
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  issuerUrl:
+                    default: http://keycloak:8080/realms/inference-gateway-realm
+                    type: string
+                type: object
+              providers:
+                additionalProperties:
+                  description: ProviderSpec contains configuration for a specific
+                    provider
+                  properties:
+                    tokenRef:
+                      description: Reference to a secret containing the API token/key
+                      properties:
+                        key:
+                          default: value
+                          description: Key within the secret
+                          type: string
+                        name:
+                          description: Name of the secret
+                          type: string
+                        namespace:
+                          description: Namespace of the secret
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    url:
+                      description: Provider API URL
+                      type: string
+                  type: object
+                description: Provider configurations
+                type: object
+              server:
+                description: Server configuration
+                properties:
+                  host:
+                    default: 0.0.0.0
+                    type: string
+                  idleTimeout:
+                    default: 120s
+                    type: string
+                  port:
+                    default: "8080"
+                    type: string
+                  readTimeout:
+                    default: 30s
+                    type: string
+                  tls:
+                    description: TLS configuration
+                    properties:
+                      certificateRef:
+                        description: Reference to a secret containing the TLS certificate
+                        properties:
+                          key:
+                            default: value
+                            description: Key within the secret
+                            type: string
+                          name:
+                            description: Name of the secret
+                            type: string
+                          namespace:
+                            description: Namespace of the secret
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      keyRef:
+                        description: Reference to a secret containing the TLS private
+                          key
+                        properties:
+                          key:
+                            default: value
+                            description: Key within the secret
+                            type: string
+                          name:
+                            description: Name of the secret
+                            type: string
+                          namespace:
+                            description: Namespace of the secret
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    type: object
+                  writeTimeout:
+                    default: 30s
+                    type: string
+                type: object
             type: object
           status:
             description: GatewayStatus defines the observed state of Gateway.
