@@ -1,6 +1,8 @@
 {
-  "name": "Debian with Go",
-  "dockerFile": "Dockerfile",
+  "name": "Operator Development",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "28.1.1"
@@ -9,8 +11,10 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        "task.vscode-task",
+        "golang.go",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
         "redhat.vscode-yaml",
+        "task.vscode-task",
         "ms-azuretools.vscode-docker",
         "streetsidesoftware.code-spell-checker",
         "esbenp.prettier-vscode",
@@ -18,11 +22,11 @@
         "github.vscode-pull-request-github",
         "yzhang.markdown-all-in-one",
         "ipedrazas.kubernetes-snippets",
-        "ms-kubernetes-tools.vscode-kubernetes-tools",
-        "golang.go",
         "ms-vscode.go"
       ],
       "settings": {
+        "go.lintTool": "golangci-lint",
+        "go.lintFlags": ["--fast"],
         "terminal.integrated.defaultProfile.linux": "zsh",
         "go.useLanguageServer": true,
         "go.toolsEnvVars": {
