@@ -183,6 +183,22 @@ func LoadImageToKindClusterWithName(name string) error {
 	return err
 }
 
+// LoadImageToK3dClusterWithName loads a local docker image to the k3d cluster
+func LoadImageToK3dClusterWithName(name string) error {
+	cluster := "dev"
+	if v, ok := os.LookupEnv("K3D_CLUSTER"); ok {
+		cluster = v
+	}
+
+	importCmd := exec.Command("k3d", "image", "import", fmt.Sprintf("%s", name), "-c", fmt.Sprintf("%s", cluster))
+	_, err := Run(importCmd)
+	if err != nil {
+		return fmt.Errorf("failed to import image to k3d cluster: %v", err)
+	}
+
+	return nil
+}
+
 // GetNonEmptyLines converts given command output string into individual objects
 // according to line breakers, and ignores the empty elements in it.
 func GetNonEmptyLines(output string) []string {

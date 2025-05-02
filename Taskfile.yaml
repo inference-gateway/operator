@@ -59,6 +59,11 @@ tasks:
     cmds:
       - go vet ./...
 
+  delete-cluster:
+    desc: Delete a local Kubernetes cluster
+    cmds:
+      - ctlptl delete -f Cluster.yaml --cascade=true
+
   create-cluster:
     desc: Create a local Kubernetes cluster
     cmds:
