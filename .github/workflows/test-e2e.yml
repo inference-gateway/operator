@@ -33,11 +33,9 @@ jobs:
         run: |
           CTLPTL_VERSION=0.8.40
           ARCH=$(dpkg --print-architecture)
-          curl -L -o ctlptl.tar.gz https://github.com/tilt-dev/ctlptl/releases/download/v${CTLPTL_VERSION}/ctlptl.${CTLPTL_VERSION}.linux.${ARCH}.tar.gz
-          tar -xzf ctlptl.tar.gz
-          chmod +x ctlptl
-          sudo mv ctlptl /usr/local/bin/
-          rm -f ctlptl.tar.gz
+          curl -fsSL https://github.com/tilt-dev/ctlptl/releases/download/v${CTLPTL_VERSION}/ctlptl.${CTLPTL_VERSION}.linux.${ARCH}.tar.gz | \
+            sudo tar -xzC /usr/local/bin ctlptl
+          sudo chmod +x /usr/local/bin/ctlptl
 
       - name: Verify k3d and ctlptl installation
         run: |
