@@ -32,8 +32,7 @@ jobs:
       - name: Install ctlptl
         run: |
           CTLPTL_VERSION=0.8.40
-          ARCH=$(dpkg --print-architecture)
-          curl -fsSL https://github.com/tilt-dev/ctlptl/releases/download/v${CTLPTL_VERSION}/ctlptl.${CTLPTL_VERSION}.linux.${ARCH}.tar.gz | \
+          curl -fsSL https://github.com/tilt-dev/ctlptl/releases/download/v${CTLPTL_VERSION}/ctlptl.${CTLPTL_VERSION}.linux.x86_64.tar.gz | \
             sudo tar -xzC /usr/local/bin ctlptl
           sudo chmod +x /usr/local/bin/ctlptl
 
