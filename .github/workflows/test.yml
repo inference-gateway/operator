@@ -25,6 +25,21 @@ jobs:
         run: |
           sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
 
+      - name: Install controller-gen and kustomize
+        run: |
+          CONTROLLER_GEN_VERSION=v0.17.2
+          KUSTOMIZE_VERSION=v5.6.0
+
+          # Install controller-gen globally
+          go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
+
+          # Install kustomize globally
+          go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
+
+          # Verify installations
+          controller-gen --version || echo "controller-gen installed"
+          kustomize version
+
       - name: Running Tests
         run: |
           go mod tidy
