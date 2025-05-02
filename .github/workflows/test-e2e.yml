@@ -36,10 +36,11 @@ jobs:
             sudo tar -xzC /usr/local/bin ctlptl
           sudo chmod +x /usr/local/bin/ctlptl
 
-      - name: Install controller-gen and kustomize
+      - name: Install controller-gen, kustomize, and setup-envtest
         run: |
           CONTROLLER_GEN_VERSION=v0.17.2
           KUSTOMIZE_VERSION=v5.6.0
+          ENVTEST_VERSION=latest
 
           # Install controller-gen globally
           go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
@@ -47,23 +48,23 @@ jobs:
           # Install kustomize globally
           go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
 
+          # Install setup-envtest globally
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@${ENVTEST_VERSION}
+
           # Verify installations
           controller-gen --version || echo "controller-gen installed"
           kustomize version
+          setup-envtest version || echo "setup-envtest installed"
 
-      - name: Install setup-envtest for tests
+      - name: Setup K8s envtest binaries
         run: |
-          ENVTEST_VERSION=release-0.20
           ENVTEST_K8S_VERSION=1.32
 
-          # Ensure bin directory exists just for envtest binaries
+          # Create bin directory for K8s binaries
           mkdir -p bin
 
-          # Install setup-envtest
-          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@${ENVTEST_VERSION}
-
-          # Setup envtest binaries
-          setup-envtest use ${ENVTEST_K8S_VERSION} --bin-dir bin -p path
+          # Setup K8s test binaries
+          setup-envtest use ${ENVTEST_K8S_VERSION} -p path
 
       - name: Verify k3d and ctlptl installation
         run: |

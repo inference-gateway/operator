@@ -69,9 +69,9 @@ tasks:
 
   test:
     desc: Run tests
-    deps: [manifests, generate, fmt, vet, setup-envtest]
+    deps: [manifests, generate, fmt, vet, ensure-k8s-envtest]
     cmds:
-      - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} --bin-dir {{.LOCALBIN}} -p path)" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
+      - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path)" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
 
   test-e2e:
     desc: Run the e2e tests using ctlptl with k3d
@@ -177,23 +177,18 @@ tasks:
 
   # Dependency installation tasks
   ensure-bin-dir:
-    desc: Create bin directory if it doesn't exist
+    desc: Create bin directory if it doesn't exist (for manager binary)
     cmds:
       - mkdir -p {{.LOCALBIN}}
     status:
       - test -d {{.LOCALBIN}}
 
-  setup-envtest:
-    desc: Download the binaries required for ENVTEST in the local bin directory
-    deps: [ensure-bin-dir]
+  ensure-k8s-envtest:
+    desc: Ensure Kubernetes test binaries are available
     cmds:
       - |
-        if ! command -v {{.ENVTEST}} &>/dev/null; then
-          echo "Installing setup-envtest locally for K8s tests"
-          GOBIN={{.LOCALBIN}} go install sigs.k8s.io/controller-runtime/tools/setup-envtest@{{.ENVTEST_VERSION}}
-        fi
         echo "Setting up envtest binaries for Kubernetes version {{.ENVTEST_K8S_VERSION}}..."
-        {{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} --bin-dir {{.LOCALBIN}} -p path || {
+        {{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path || {
           echo "Error: Failed to set up envtest binaries for version {{.ENVTEST_K8S_VERSION}}."
           exit 1
         }

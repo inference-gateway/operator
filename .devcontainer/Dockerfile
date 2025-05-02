@@ -13,7 +13,8 @@ ENV TASK_VERSION=v3.43.3 \
     SEMANTIC_RELEASE_VERSION=v24.2.3 \
     KUBEBUILDER_VERSION=v4.5.2 \
     CONTROLLER_GEN_VERSION=v0.17.2 \
-    KUSTOMIZE_VERSION=v5.6.0
+    KUSTOMIZE_VERSION=v5.6.0 \
+    ENVTEST_VERSION=latest
 
 # Install common
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
@@ -40,6 +41,9 @@ RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_
 
 # Install kustomize
 RUN go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
+
+# Install setup-envtest
+RUN go install sigs.k8s.io/controller-runtime/tools/setup-envtest@${ENVTEST_VERSION}
 
 # Install gh
 RUN curl -fsSL https://github.com/cli/cli/releases/download/v${GITHUB_CLI_VERSION}/gh_${GITHUB_CLI_VERSION}_linux_$(dpkg --print-architecture).tar.gz | tar -xzv -C /usr/local/bin --strip-components=2 gh_${GITHUB_CLI_VERSION}_linux_$(dpkg --print-architecture)/bin/gh
@@ -77,7 +81,6 @@ RUN echo 'source <(task --completion zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(ctlptl completion zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(gh completion -s zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(kubebuilder completion zsh)' >> /home/vscode/.zshrc
-RUN echo 'source <(controller-gen --help 2>&1 > /dev/null && controller-gen completion zsh)' >> /home/vscode/.zshrc
 RUN echo 'source <(kustomize completion zsh)' >> /home/vscode/.zshrc
 
 WORKDIR /workspaces/operator
