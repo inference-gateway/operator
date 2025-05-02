@@ -4,24 +4,20 @@ on:
   push:
     paths-ignore:
       - "**.md"
-      - "**/*.md"
-      - "docs/**"
   pull_request:
     paths-ignore:
       - "**.md"
-      - "**/*.md"
-      - "docs/**"
 
 jobs:
   test:
-    name: Run on Ubuntu
-    runs-on: ubuntu-latest
+    name: Unit Tests
+    runs-on: ubuntu-24.04
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.4.0
         with:
           go-version-file: go.mod
 
