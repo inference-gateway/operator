@@ -28,4 +28,4 @@ jobs:
       - name: Running Tests
         run: |
           go mod tidy
-          make test
+          task test

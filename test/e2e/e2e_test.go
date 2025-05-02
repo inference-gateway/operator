@@ -67,12 +67,12 @@ var _ = Describe("Manager", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to label namespace with restricted policy")
 
 		By("installing CRDs")
-		cmd = exec.Command("make", "install")
+		cmd = exec.Command("task", "install")
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
 
 		By("deploying the controller-manager")
-		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectImage))
+		cmd = exec.Command("task", "deploy", fmt.Sprintf("IMG=%s", projectImage))
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
 	})
@@ -85,11 +85,11 @@ var _ = Describe("Manager", Ordered, func() {
 		_, _ = utils.Run(cmd)
 
 		By("undeploying the controller-manager")
-		cmd = exec.Command("make", "undeploy")
+		cmd = exec.Command("task", "undeploy")
 		_, _ = utils.Run(cmd)
 
 		By("uninstalling CRDs")
-		cmd = exec.Command("make", "uninstall")
+		cmd = exec.Command("task", "uninstall")
 		_, _ = utils.Run(cmd)
 
 		By("removing manager namespace")

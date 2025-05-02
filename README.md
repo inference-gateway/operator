@@ -22,7 +22,7 @@ The operator pattern allows you to codify operational knowledge and workflows th
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/operator:tag
+task docker-build docker-push IMG=<some-registry>/operator:tag
 ```
 
 **NOTE:** This image ought to be published in the personal registry you specified.
@@ -32,13 +32,13 @@ Make sure you have the proper permission to the registry if the above commands d
 **Install the CRDs into the cluster:**
 
 ```sh
-make install
+task install
 ```
 
 **Deploy the Manager to the cluster with the image specified by `IMG`:**
 
 ```sh
-make deploy IMG=<some-registry>/operator:tag
+task deploy IMG=<some-registry>/operator:tag
 ```
 
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
@@ -64,13 +64,13 @@ kubectl delete -k config/samples/
 **Delete the APIs(CRDs) from the cluster:**
 
 ```sh
-make uninstall
+task uninstall
 ```
 
 **UnDeploy the controller from the cluster:**
 
 ```sh
-make undeploy
+task undeploy
 ```
 
 ## Project Distribution
@@ -82,7 +82,7 @@ Following the options to release and provide this solution to the users.
 1. Build the installer for the image built and published in the registry:
 
 ```sh
-make build-installer IMG=<some-registry>/operator:tag
+task build-installer IMG=<some-registry>/operator:tag
 ```
 
 **NOTE:** The makefile target mentioned above generates an 'install.yaml'

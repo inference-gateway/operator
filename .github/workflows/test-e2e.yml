@@ -25,19 +25,31 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install the latest version of kind
+      - name: Install go-task
         run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
+          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
 
-      - name: Verify kind installation
-        run: kind version
+      - name: Install k3d
+        run: |
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
 
-      - name: Create kind cluster
-        run: kind create cluster
+      - name: Install ctlptl
+        run: |
+          cd $(mktemp -d)
+          curl -fsSL https://github.com/tilt-dev/ctlptl/releases/latest/download/ctlptl.linux.x86_64.tar.gz | tar -xzv
+          chmod +x ctlptl
+          sudo mv ctlptl /usr/local/bin/ctlptl
+
+      - name: Verify k3d and ctlptl installation
+        run: |
+          k3d version
+          ctlptl version
+
+      - name: Create k3d cluster with ctlptl
+        run: |
+          task create-cluster
 
       - name: Running Test e2e
         run: |
           go mod tidy
-          make test-e2e
+          task test-e2e

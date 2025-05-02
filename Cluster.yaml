@@ -1,0 +1,6 @@
+---
+apiVersion: ctlptl.dev/v1alpha1
+kind: Cluster
+name: k3d-dev
+product: k3d
+registry: k3d-registry
