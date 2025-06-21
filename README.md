@@ -64,7 +64,7 @@ The operator follows cloud-native best practices and provides a unified control 
 ## 📚 Table of Contents
 
 - [🚀 Quick Start](#-quick-start)
-- [� Installation](#-installation)
+- [📦 Installation](#-installation)
 - [✅ Verification](#-verification)
 - [🚀 Deploy Your First Gateway](#-deploy-your-first-gateway)
 - [🔄 Upgrade](#-upgrade)
