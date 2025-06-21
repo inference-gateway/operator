@@ -212,3 +212,12 @@ tasks:
           echo "Error: Failed to set up envtest binaries for version {{.ENVTEST_K8S_VERSION}}."
           exit 1
         }
+
+  # Release tasks
+  release-dry-run:
+    desc: "Run a dry-run of both semantic-release and goreleaser"
+    cmds:
+      - echo "Running semantic-release dry run..."
+      - semantic-release --dry-run
+      - echo "Running goreleaser dry run..."
+      - goreleaser release --config .goreleaser.yaml --clean --snapshot --verbose
