@@ -184,7 +184,7 @@ tasks:
     desc: Deploy controller to the K8s cluster specified in ~/.kube/config
     deps: [manifests]
     cmds:
-      - cd config/manager && {{.KUSTOMIZE}} edit set image controller={{.IMG}}
+      - cd config/operator && {{.KUSTOMIZE}} edit set image controller={{.IMG}}
       - "{{.KUSTOMIZE}} build config/default | {{.KUBECTL}} apply -f -"
 
   undeploy:
