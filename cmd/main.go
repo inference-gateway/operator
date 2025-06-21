@@ -184,6 +184,14 @@ func main() {
 		})
 	}
 
+	watchNamespaceSelector := os.Getenv("WATCH_NAMESPACE_SELECTOR")
+
+	if watchNamespaceSelector != "" {
+		setupLog.Info("Configured to watch namespaces with label selector", "selector", watchNamespaceSelector)
+	} else {
+		setupLog.Info("Configured to watch all namespaces (no label filtering)")
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,

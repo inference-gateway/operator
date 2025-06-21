@@ -1,0 +1,62 @@
+---
+# Gateway in production namespace (will be managed)
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: production-gateway
+  namespace: production-ai
+spec:
+  replicas: 3
+  environment: production
+  providers:
+    - name: openai-prod
+      type: openai
+      config:
+        baseUrl: https://api.openai.com/v1
+        authType: bearer
+        tokenRef:
+          name: openai-token
+          key: token
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: ai-gateway-prod.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: ai-gateway-prod-tls
+        hosts:
+          - ai-gateway-prod.example.com
+---
+# Gateway in staging namespace (will be managed)
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: staging-gateway
+  namespace: staging-ai
+spec:
+  replicas: 1
+  environment: staging
+  providers:
+    - name: openai-staging
+      type: openai
+      config:
+        baseUrl: https://api.openai.com/v1
+        authType: bearer
+        tokenRef:
+          name: openai-token
+          key: token
+---
+# Gateway in other namespace (will NOT be managed due to namespace labels)
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: ignored-gateway
+  namespace: other-workloads
+spec:
+  replicas: 1
+  providers:
+    - name: openai-test
+      type: openai

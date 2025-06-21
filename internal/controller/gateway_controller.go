@@ -25,6 +25,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 
@@ -33,6 +34,7 @@ import (
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
 	intstr "k8s.io/apimachinery/pkg/util/intstr"
@@ -61,6 +63,11 @@ type GatewayReconciler struct {
 // move the current state of the cluster closer to the desired state.
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+
+	if !r.shouldWatchNamespace(ctx, req.Namespace) {
+		logger.V(1).Info("Skipping Gateway in namespace not matching watch criteria", "namespace", req.Namespace)
+		return ctrl.Result{}, nil
+	}
 
 	gateway := &corev1alpha1.Gateway{}
 	err := r.Get(ctx, req.NamespacedName, gateway)
@@ -582,6 +589,28 @@ func toUpperSnakeCase(s string) string {
 		}
 	}
 	return result
+}
+
+// shouldWatchNamespace checks if the operator should watch resources in the given namespace
+// based on WATCH_NAMESPACE_SELECTOR environment variable
+func (r *GatewayReconciler) shouldWatchNamespace(ctx context.Context, namespace string) bool {
+	watchNamespaceSelector := os.Getenv("WATCH_NAMESPACE_SELECTOR")
+
+	if watchNamespaceSelector == "" {
+		return true
+	}
+
+	labelSelector, err := labels.Parse(watchNamespaceSelector)
+	if err != nil {
+		return true
+	}
+
+	ns := &corev1.Namespace{}
+	if err := r.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
+		return false
+	}
+
+	return labelSelector.Matches(labels.Set(ns.Labels))
 }
 
 // SetupWithManager sets up the controller with the Manager.

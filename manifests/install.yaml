@@ -889,20 +889,46 @@ spec:
     matchLabels:
       app.kubernetes.io/name: operator
       control-plane: inference-gateway-operator
+  strategy:
+    type: Recreate
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+        prometheus.io/scrape: "true"
       labels:
         app.kubernetes.io/name: operator
         control-plane: inference-gateway-operator
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+                - arm64
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
       containers:
       - args:
         - --metrics-bind-address=:8443
         - --leader-elect
         - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8080
+        - --zap-log-level=info
+        - --zap-encoder=json
+        env:
+        - name: WATCH_NAMESPACE_SELECTOR
+          value: inference-gateway.com/managed=true
         image: ghcr.io/inference-gateway/operator:latest
+        imagePullPolicy: Always
         livenessProbe:
           httpGet:
             path: /healthz
@@ -910,7 +936,13 @@ spec:
           initialDelaySeconds: 15
           periodSeconds: 20
         name: operator
-        ports: []
+        ports:
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        - containerPort: 8081
+          name: health
+          protocol: TCP
         readinessProbe:
           httpGet:
             path: /readyz
@@ -919,11 +951,11 @@ spec:
           periodSeconds: 10
         resources:
           limits:
-            cpu: 500m
-            memory: 128Mi
+            cpu: 1000m
+            memory: 256Mi
           requests:
-            cpu: 10m
-            memory: 64Mi
+            cpu: 100m
+            memory: 128Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
