@@ -1,3 +1,11 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: Gateway
 metadata:
