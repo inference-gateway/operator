@@ -1,5 +1,4 @@
 FROM gcr.io/distroless/static:nonroot
-WORKDIR /app
-COPY operator /app/operator
+COPY operator /operator
 EXPOSE 8080
-CMD ["./operator"]
+ENTRYPOINT ["/operator"]

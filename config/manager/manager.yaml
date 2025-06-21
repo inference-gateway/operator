@@ -58,13 +58,11 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - command:
-            - /manager
-          args:
+        - args:
             - --leader-elect
             - --health-probe-bind-address=:8081
           image: controller:latest
-          name: manager
+          name: operator
           ports: []
           securityContext:
             allowPrivilegeEscalation: false
