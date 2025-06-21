@@ -505,7 +505,7 @@ spec:
                         description: Enable metrics collection
                         type: boolean
                       port:
-                        default: 2112
+                        default: 9464
                         description: Port for metrics endpoint
                         format: int32
                         maximum: 65535

@@ -20,7 +20,7 @@ spec:
     enabled: true
     metrics:
       enabled: true
-      port: 2112 # Prometheus metrics endpoint
+      port: 9464 # Prometheus metrics endpoint
     tracing:
       enabled: true
       endpoint: "http://jaeger:14268/api/traces" # OTLP trace endpoint

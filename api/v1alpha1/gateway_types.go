@@ -108,7 +108,7 @@ type MetricsSpec struct {
 
 	// Port for metrics endpoint
 	// +optional
-	// +kubebuilder:default=2112
+	// +kubebuilder:default=9464
 	// +kubebuilder:validation:Minimum=1024
 	// +kubebuilder:validation:Maximum=65535
 	Port int32 `json:"port,omitempty"`

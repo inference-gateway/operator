@@ -149,7 +149,7 @@ spec:
     enabled: true
     metrics:
       enabled: true
-      port: 2112
+      port: 9464
   providers:
     - name: openai
       type: openai
@@ -348,7 +348,7 @@ The Inference Gateway provides enterprise-grade observability through OpenTeleme
 
 ```bash
 # Access Prometheus metrics
-curl http://gateway-service:2112/metrics
+curl http://gateway-service:9464/metrics
 
 # Key metrics include:
 # - llm_requests_total: Request counts by provider/model

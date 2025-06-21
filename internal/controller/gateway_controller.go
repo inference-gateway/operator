@@ -68,26 +68,23 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
-		// Error reading the object - requeue the request
+
 		logger.Error(err, "Failed to get Gateway")
 		return ctrl.Result{}, err
 	}
 
-	// Create or update the ConfigMap
 	configMap, err := r.reconcileConfigMap(ctx, gateway)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile ConfigMap")
 		return ctrl.Result{}, err
 	}
 
-	// Create or update the Deployment
 	deployment, err := r.reconcileDeployment(ctx, gateway, configMap)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile Deployment")
 		return ctrl.Result{}, err
 	}
 
-	// Create or update the Service
 	err = r.reconcileService(ctx, gateway)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile Service")
@@ -326,7 +323,6 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 
 	var envVars []corev1.EnvVar
 
-	// Add OIDC client secret if authentication is enabled
 	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled && gateway.Spec.Auth.OIDC != nil && gateway.Spec.Auth.OIDC.ClientSecretRef != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name: "OIDC_CLIENT_SECRET",
@@ -341,7 +337,6 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 		})
 	}
 
-	// Add provider API keys
 	if len(gateway.Spec.Providers) > 0 {
 		for _, provider := range gateway.Spec.Providers {
 			if provider.Config != nil && provider.Config.TokenRef != nil {
@@ -360,13 +355,29 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 		}
 	}
 
-	// Determine port
 	port := int32(8080)
 	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
 		port = gateway.Spec.Server.Port
 	}
 
-	// Determine replicas
+	containerPorts := []corev1.ContainerPort{
+		{
+			ContainerPort: port,
+			Name:          "http",
+		},
+	}
+
+	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled && gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Enabled {
+		metricsPort := int32(9464)
+		if gateway.Spec.Telemetry.Metrics.Port > 0 {
+			metricsPort = gateway.Spec.Telemetry.Metrics.Port
+		}
+		containerPorts = append(containerPorts, corev1.ContainerPort{
+			ContainerPort: metricsPort,
+			Name:          "metrics",
+		})
+	}
+
 	replicas := int32(1)
 	if gateway.Spec.Replicas != nil {
 		replicas = *gateway.Spec.Replicas
@@ -394,13 +405,8 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 						{
 							Name:  "inference-gateway",
 							Image: "ghcr.io/inference-gateway/inference-gateway:latest",
-							Ports: []corev1.ContainerPort{
-								{
-									ContainerPort: port,
-									Name:          "http",
-								},
-							},
-							Env: envVars,
+							Ports: containerPorts,
+							Env:   envVars,
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      gateway.Name + "-config-volume",
@@ -470,10 +476,12 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 	} else if err != nil {
 		return nil, err
 	} else {
-		found.Spec = deployment.Spec
-		logger.Info("Updating Deployment", "Deployment.Name", deployment.Name)
-		if err = r.Update(ctx, found); err != nil {
-			return nil, err
+		if !reflect.DeepEqual(found.Spec, deployment.Spec) {
+			found.Spec = deployment.Spec
+			logger.Info("Updating Deployment", "Deployment.Name", deployment.Name)
+			if err = r.Update(ctx, found); err != nil {
+				return nil, err
+			}
 		}
 		deployment = found
 	}
@@ -490,6 +498,28 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 		port = gateway.Spec.Server.Port
 	}
 
+	servicePorts := []corev1.ServicePort{
+		{
+			Port:       port,
+			TargetPort: intstr.FromInt(int(port)),
+			Protocol:   corev1.ProtocolTCP,
+			Name:       "http",
+		},
+	}
+
+	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled && gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Enabled {
+		metricsPort := int32(9464)
+		if gateway.Spec.Telemetry.Metrics.Port > 0 {
+			metricsPort = gateway.Spec.Telemetry.Metrics.Port
+		}
+		servicePorts = append(servicePorts, corev1.ServicePort{
+			Port:       metricsPort,
+			TargetPort: intstr.FromInt(int(metricsPort)),
+			Protocol:   corev1.ProtocolTCP,
+			Name:       "metrics",
+		})
+	}
+
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gateway.Name,
@@ -499,14 +529,7 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 			Selector: map[string]string{
 				"app": gateway.Name,
 			},
-			Ports: []corev1.ServicePort{
-				{
-					Port:       port,
-					TargetPort: intstr.FromInt(int(port)),
-					Protocol:   corev1.ProtocolTCP,
-					Name:       "http",
-				},
-			},
+			Ports: servicePorts,
 		},
 	}
 
@@ -552,7 +575,7 @@ func toUpperSnakeCase(s string) string {
 			}
 		} else {
 			if c >= 'a' && c <= 'z' {
-				result += string(c - 32) // Convert to uppercase
+				result += string(c - 32)
 			} else {
 				result += string(c)
 			}
