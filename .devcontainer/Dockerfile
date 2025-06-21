@@ -58,7 +58,6 @@ RUN npm install -g semantic-release@${SEMANTIC_RELEASE_VERSION} \
     @semantic-release/changelog \
     @semantic-release/git \
     @semantic-release/github \
-    @semantic-release/exec \
     conventional-changelog-cli \
     conventional-changelog-conventionalcommits
 
