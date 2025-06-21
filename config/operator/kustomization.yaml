@@ -4,7 +4,7 @@ kind: Kustomization
 namespace: inference-gateway-system
 
 resources:
-- manager.yaml
+- operator.yaml
 
 images:
 - name: controller

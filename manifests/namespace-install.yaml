@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: operator
-    control-plane: controller-manager
+    control-plane: inference-gateway-operator
   name: inference-gateway-system
 ---
 apiVersion: apps/v1
@@ -13,22 +13,22 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: operator
-    control-plane: controller-manager
-  name: controller-manager
+    control-plane: inference-gateway-operator
+  name: inference-gateway
   namespace: inference-gateway-system
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: operator
-      control-plane: controller-manager
+      control-plane: inference-gateway-operator
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
         app.kubernetes.io/name: operator
-        control-plane: controller-manager
+        control-plane: inference-gateway-operator
     spec:
       containers:
       - args:
@@ -66,6 +66,6 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      serviceAccountName: controller-manager
+      serviceAccountName: inference-gateway
       terminationGracePeriodSeconds: 10
       volumes: []

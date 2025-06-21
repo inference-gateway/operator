@@ -42,10 +42,10 @@ tasks:
     cmds:
       - '{{.CONTROLLER_GEN}} rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases'
       - mkdir -p manifests
-      - cd config/manager && {{.KUSTOMIZE}} edit set image controller=ghcr.io/inference-gateway/operator:latest
+      - cd config/operator && {{.KUSTOMIZE}} edit set image controller=ghcr.io/inference-gateway/operator:latest
       - "{{.KUSTOMIZE}} build config/crd > manifests/crds.yaml"
       - "{{.KUSTOMIZE}} build config/default > manifests/install.yaml"
-      - "{{.KUSTOMIZE}} build config/manager > manifests/namespace-install.yaml"
+      - "{{.KUSTOMIZE}} build config/operator > manifests/namespace-install.yaml"
 
   generate:
     desc: Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations
