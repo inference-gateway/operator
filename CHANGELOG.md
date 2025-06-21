@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1](https://github.com/inference-gateway/operator/compare/v0.2.0...v0.2.1) (2025-06-21)
+
+### 🐛 Bug Fixes
+
+* Remove darwin and arm support from builds in goreleaser configuration ([c914265](https://github.com/inference-gateway/operator/commit/c91426521959850320615f58a1cf545387ade584))
+* Remove standalone binaries artifact upload step from GitHub Actions workflow, keep only the container push ([dd5c03e](https://github.com/inference-gateway/operator/commit/dd5c03ebffc4f2d4540fc39d99b8cbbc7310343c))
+
 ## [0.2.0](https://github.com/inference-gateway/operator/compare/v0.1.1...v0.2.0) (2025-06-21)
 
 ### ✨ Features
