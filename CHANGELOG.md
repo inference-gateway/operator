@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2](https://github.com/inference-gateway/operator/compare/v0.3.1...v0.3.2) (2025-06-21)
+
+### 🐛 Bug Fixes
+
+* Rename 'manager' to 'operator' in Dockerfiles and Kubernetes manifests ([76f1309](https://github.com/inference-gateway/operator/commit/76f130936f736331cc706e9e3b33d77f7d51772b))
+
 ## [0.3.1](https://github.com/inference-gateway/operator/compare/v0.3.0...v0.3.1) (2025-06-21)
 
 ### 🐛 Bug Fixes
