@@ -70,7 +70,7 @@ var _ = BeforeSuite(func() {
 
 	if !clusterExists {
 		By("creating k3d cluster")
-		cmd := exec.Command("task", "create-cluster")
+		cmd := exec.Command("task", "cluster:create")
 		_, err := utils.Run(cmd)
 		ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to create k3d cluster")
 		createdCluster = true

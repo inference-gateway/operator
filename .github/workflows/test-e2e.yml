@@ -74,7 +74,7 @@ jobs:
 
       - name: Create k3d cluster with ctlptl
         run: |
-          task create-cluster
+          task cluster:create
 
       - name: Running Test e2e
         run: |

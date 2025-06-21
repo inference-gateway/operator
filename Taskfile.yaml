@@ -77,12 +77,12 @@ tasks:
       - chmod +x .git/hooks/pre-commit
       - echo "Pre-commit hook installed successfully"
 
-  delete-cluster:
+  cluster:delete:
     desc: Delete a local Kubernetes cluster
     cmds:
       - ctlptl delete -f Cluster.yaml --cascade=true
 
-  create-cluster:
+  cluster:create:
     desc: Create a local Kubernetes cluster
     cmds:
       - ctlptl apply -f Cluster.yaml
