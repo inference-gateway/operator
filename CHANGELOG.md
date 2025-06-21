@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0](https://github.com/inference-gateway/operator/compare/v0.1.1...v0.2.0) (2025-06-21)
+
+### ✨ Features
+
+* Add GitHub Actions workflow for artifact management and container signing ([c8a228d](https://github.com/inference-gateway/operator/commit/c8a228dc2a558bf9d1bba876ad473a0c5dac008a))
+
+### 👷 CI
+
+* Update Go setup and linter versions in lint.yml ([6e0033f](https://github.com/inference-gateway/operator/commit/6e0033feba073a25ed3357532b0ec8c713abe103))
+
+### 🔧 Miscellaneous
+
+* Add .editorconfig for consistent code formatting ([f3f7292](https://github.com/inference-gateway/operator/commit/f3f7292e8150fe293d2c32eccc50902254e455a0))
+
 ## [0.1.1](https://github.com/inference-gateway/operator/compare/v0.1.0...v0.1.1) (2025-06-21)
 
 ### ♻️ Improvements
