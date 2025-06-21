@@ -41,19 +41,11 @@ tasks:
     desc: Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects and installation manifests
     cmds:
       - '{{.CONTROLLER_GEN}} rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases'
-      # Generate CRDs only (for separate CRD installation)
-      - mkdir -p manifests/crds
-      - "{{.KUSTOMIZE}} build config/crd > manifests/crds/install.yaml"
-      # Generate full installation (CRDs + operator)
       - mkdir -p manifests
       - cd config/manager && {{.KUSTOMIZE}} edit set image controller=ghcr.io/inference-gateway/operator:latest
+      - "{{.KUSTOMIZE}} build config/crd > manifests/crds.yaml"
       - "{{.KUSTOMIZE}} build config/default > manifests/install.yaml"
-      # Generate namespace-scoped installation (operator only, no CRDs)
       - "{{.KUSTOMIZE}} build config/manager > manifests/namespace-install.yaml"
-      # Legacy dist directory (for backward compatibility)
-      - mkdir -p dist
-      - cp manifests/install.yaml dist/install.yaml
-      - cp manifests/crds/install.yaml dist/crds.yaml
 
   generate:
     desc: Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations
@@ -237,6 +229,6 @@ tasks:
       - mkdir -p manifests/{{.NAMESPACE}}
       - sed 's/inference-gateway-system/{{.NAMESPACE}}/g' manifests/install.yaml > manifests/{{.NAMESPACE}}/install.yaml
       - sed 's/inference-gateway-system/{{.NAMESPACE}}/g' manifests/namespace-install.yaml > manifests/{{.NAMESPACE}}/namespace-install.yaml
-      - cp manifests/crds/install.yaml manifests/{{.NAMESPACE}}/crds.yaml
+      - cp manifests/crds.yaml manifests/{{.NAMESPACE}}/crds.yaml
       - echo "✅ Manifests generated in manifests/{{.NAMESPACE}}/"
       - echo "🚀 Deploy with kubectl apply -f manifests/{{.NAMESPACE}}/install.yaml"

@@ -28,7 +28,7 @@ kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/d
 
 ---
 
-### 🔧 `crds/install.yaml`
+### 🔧 `crds.yaml`
 
 Only the Custom Resource Definitions (CRDs).
 
@@ -200,7 +200,7 @@ kubectl get gateways --all-namespaces
 
 ```
 ┌─────────────────┐    ┌────────────────────┐    ┌──────────────────────┐
-│   install.yaml  │    │  crds/install.yaml │    │namespace-install.yaml│
+│   install.yaml  │    │     crds.yaml.     │    │namespace-install.yaml│
 │                 │    │                    │    │                      │
 │ ┌─────────────┐ │    │  ┌──────────────┐  │    │    ┌─────────────┐   │
 │ │ Namespace   │ │    │  │ Gateway CRD  │  │    │    │ Deployment  │   │

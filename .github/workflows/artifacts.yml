@@ -55,15 +55,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          # Upload the pre-generated manifests from the repository
+          gh release upload ${TAG} manifests/crds.yaml --clobber
           gh release upload ${TAG} manifests/install.yaml --clobber
-          gh release upload ${TAG} manifests/crds/install.yaml --clobber
           gh release upload ${TAG} manifests/namespace-install.yaml --clobber
-
-          # Also upload with standard names for better discoverability
-          gh release upload ${TAG} manifests/install.yaml#install.yaml --clobber
-          gh release upload ${TAG} manifests/crds/install.yaml#crds.yaml --clobber
-          gh release upload ${TAG} manifests/namespace-install.yaml#namespace-install.yaml --clobber
 
       - name: Push container images
         env:
