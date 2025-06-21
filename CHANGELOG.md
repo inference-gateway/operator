@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1](https://github.com/inference-gateway/operator/compare/v0.3.0...v0.3.1) (2025-06-21)
+
+### 🐛 Bug Fixes
+
+* Keep it simple - refactor artifact uploads and add CRD manifest ([15352ef](https://github.com/inference-gateway/operator/commit/15352ef4d22524d4fa970f45dca94c3f36cf0332))
+* Update namespace references from 'operator-system' to 'inference-gateway-system' ([627dfe7](https://github.com/inference-gateway/operator/commit/627dfe73e184852e554efb1d7c9511731bbdb755))
+
 ## [0.3.0](https://github.com/inference-gateway/operator/compare/v0.2.1...v0.3.0) (2025-06-21)
 
 ### ✨ Features
