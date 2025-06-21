@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0](https://github.com/inference-gateway/operator/compare/v0.2.1...v0.3.0) (2025-06-21)
+
+### ✨ Features
+
+* Add CRD and installation manifests for Inference Gateway ([997ca32](https://github.com/inference-gateway/operator/commit/997ca32af714464fd687651f29bab06571c462a9))
+
+### 🐛 Bug Fixes
+
+* Correct emoji in the Table of Contents for Installation section ([5713913](https://github.com/inference-gateway/operator/commit/5713913464802b37da8a5bd8be347405fc38a97d))
+
 ## [0.2.1](https://github.com/inference-gateway/operator/compare/v0.2.0...v0.2.1) (2025-06-21)
 
 ### 🐛 Bug Fixes
