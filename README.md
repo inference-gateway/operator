@@ -157,7 +157,7 @@ kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/d
 
 This command will:
 
-- Create the `operator-system` namespace
+- Create the `inference-gateway-system` namespace
 - Install all required Custom Resource Definitions (CRDs)
 - Deploy the operator with proper RBAC permissions
 - Set up monitoring and metrics collection
@@ -190,7 +190,7 @@ spec:
     path: manifests
   destination:
     server: https://kubernetes.default.svc
-    namespace: operator-system
+    namespace: inference-gateway-system
   syncPolicy:
     automated:
       prune: true
@@ -300,13 +300,13 @@ Verify the installation:
 
 ```bash
 # Check if the operator is running
-kubectl get pods -n operator-system
+kubectl get pods -n inference-gateway-system
 
 # Check if CRDs are installed
 kubectl get crd | grep inference-gateway
 
 # View operator logs
-kubectl logs -n operator-system deployment/operator-controller-manager -f
+kubectl logs -n inference-gateway-system deployment/operator-controller-manager -f
 ```
 
 Expected output:
@@ -575,7 +575,7 @@ Run these commands to verify your installation:
 
 ```bash
 # 1. Check operator pods
-kubectl get pods -n operator-system
+kubectl get pods -n inference-gateway-system
 
 # 2. Verify CRDs are installed
 kubectl get crd | grep inference-gateway

@@ -37,7 +37,7 @@ import (
 )
 
 // namespace where the project is deployed in
-const namespace = "operator-system"
+const namespace = "inference-gateway-system"
 
 // serviceAccountName created for the project
 const serviceAccountName = "operator-controller-manager"

@@ -118,7 +118,7 @@ spec:
     kind: GitRepository
     name: inference-gateway-operator
   path: "./manifests"
-  targetNamespace: operator-system
+  targetNamespace: inference-gateway-system
   prune: true
 ```
 
@@ -132,7 +132,7 @@ kubectl create namespace my-inference-system
 
 # Install with custom namespace
 curl -L https://github.com/inference-gateway/operator/releases/latest/download/install.yaml | \
-  sed 's/namespace: operator-system/namespace: my-inference-system/g' | \
+  sed 's/namespace: inference-gateway-system/namespace: my-inference-system/g' | \
   kubectl apply -f -
 ```
 
@@ -190,7 +190,7 @@ kubectl apply -f https://github.com/inference-gateway/operator/releases/download
 kubectl get crd | grep inference-gateway
 
 # Check operator status
-kubectl get pods -n operator-system
+kubectl get pods -n inference-gateway-system
 
 # Check Gateway resources
 kubectl get gateways --all-namespaces
