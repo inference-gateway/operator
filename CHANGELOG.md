@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3](https://github.com/inference-gateway/operator/compare/v0.3.2...v0.3.3) (2025-06-21)
+
+### ♻️ Improvements
+
+* Enhance namespace watching and metrics configuration in operator ([10b5f30](https://github.com/inference-gateway/operator/commit/10b5f3004014fcb4a34d225aef76bbb6fbca1ad1))
+* **examples:** Remove operator related configurations from the examples, WATCH_NAMESPACE_SELECTOR is configured on the operator not on the consumer / user Gateway crd. ([fd139dd](https://github.com/inference-gateway/operator/commit/fd139dd7cb5a74e09dc00ad701743137cb2f98e5))
+
+### 🐛 Bug Fixes
+
+* Refactor operator references and update service account names in manifests ([7d33e62](https://github.com/inference-gateway/operator/commit/7d33e626103368626695f5d7c12c17d32411971c))
+* Update deployment path from 'manager' to 'operator' in Taskfile ([e268fc9](https://github.com/inference-gateway/operator/commit/e268fc95e3db3254f1fa76f62586b44e9179cc40))
+
+### ✅ Miscellaneous
+
+* **fix:** Rename context from 'Manager' to 'Operator' in e2e tests ([823050a](https://github.com/inference-gateway/operator/commit/823050aa949e9633fbce1e8943ade0e15f41f88c))
+
 ## [0.3.2](https://github.com/inference-gateway/operator/compare/v0.3.1...v0.3.2) (2025-06-21)
 
 ### 🐛 Bug Fixes
