@@ -13,6 +13,9 @@
 [![Docker](https://img.shields.io/badge/Docker-Available-blue.svg?style=flat-square&logo=docker)](https://hub.docker.com/)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-green.svg?style=flat-square)](https://swagger.io/specification/)
 
+[![Latest Release](https://img.shields.io/github/v/release/inference-gateway/operator?style=flat-square&logo=github)](https://github.com/inference-gateway/operator/releases/latest)
+[![Container Registry](https://img.shields.io/badge/Container-ghcr.io-blue.svg?style=flat-square&logo=github)](https://github.com/inference-gateway/operator/pkgs/container/operator)
+[![Multi-Arch](https://img.shields.io/badge/Architecture-amd64%20%7C%20arm64-green?style=flat-square)](https://github.com/inference-gateway/operator/releases)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=flat-square)](https://github.com/inference-gateway/operator)
 [![Tests](https://img.shields.io/badge/Tests-61.2%25%20Coverage-yellow.svg?style=flat-square)](https://github.com/inference-gateway/operator)
 [![Lint](https://img.shields.io/badge/Lint-Passing-brightgreen.svg?style=flat-square)](https://golangci-lint.run/)
@@ -61,8 +64,15 @@ The operator follows cloud-native best practices and provides a unified control 
 ## 📚 Table of Contents
 
 - [🚀 Quick Start](#-quick-start)
-- [📋 API Overview](#-api-overview)
+- [� Installation](#-installation)
+- [✅ Verification](#-verification)
+- [🚀 Deploy Your First Gateway](#-deploy-your-first-gateway)
+- [🔄 Upgrade](#-upgrade)
+- [🗑️ Uninstallation](#️-uninstallation)
+- [🏗️ Supported Architectures](#️-supported-architectures)
+- [�📋 API Overview](#-api-overview)
 - [⚙️ Configuration Examples](#️-configuration-examples)
+- [❓ Frequently Asked Questions](#-frequently-asked-questions)
 - [🏗️ Development](#️-development)
 - [📊 Monitoring & Management](#-monitoring--management)
 - [🔧 Troubleshooting](#-troubleshooting)
@@ -130,10 +140,259 @@ Support for multiple AI/ML providers with flexible configuration:
 
 ### Prerequisites
 
-- go version v1.24.0+
-- docker version 17.03+
-- kubectl version v1.11.3+
-- Access to a Kubernetes v1.11.3+ cluster
+- `kubectl` version v1.11.3+ with access to a Kubernetes cluster
+- Kubernetes cluster v1.11.3+ (supports both arm64 and amd64 architectures)
+
+## 📦 Installation
+
+The Inference Gateway Operator supports multiple installation methods. Choose the one that best fits your deployment strategy:
+
+### Method 1: One-Command Installation (Recommended)
+
+Install the operator and CRDs in one command using the latest release:
+
+```bash
+kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+```
+
+This command will:
+
+- Create the `operator-system` namespace
+- Install all required Custom Resource Definitions (CRDs)
+- Deploy the operator with proper RBAC permissions
+- Set up monitoring and metrics collection
+
+### Method 2: Specific Version Installation
+
+For production environments, pin to a specific version:
+
+```bash
+# Install version v0.2.1 (replace with desired version)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.2.1/install.yaml
+```
+
+### Method 3: GitOps/ArgoCD-Friendly Installation
+
+For GitOps workflows, use stable manifest URLs:
+
+```yaml
+# ArgoCD Application example
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inference-gateway-operator
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/inference-gateway/operator
+    targetRevision: v0.2.1
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: operator-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+```
+
+### Method 4: Separate CRD Installation (Advanced)
+
+For scenarios where you need separate control over CRDs:
+
+```bash
+# Step 1: Install CRDs only
+kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
+
+# Step 2: Install the operator (without CRDs)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/namespace-install.yaml
+```
+
+### Method 5: Namespace-Scoped Installation
+
+For multi-tenant environments where you don't want cluster-wide permissions:
+
+```bash
+# Install CRDs first (requires cluster-admin)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
+
+# Install operator in specific namespace (namespace-scoped permissions)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/namespace-install.yaml -n my-namespace
+```
+
+### Method 6: Custom Namespace Installation
+
+By default, the operator deploys to the `inference-gateway-system` namespace. To deploy to a custom namespace:
+
+#### Option A: Simple sed replacement
+
+```bash
+# Download and modify the install.yaml
+curl -L https://github.com/inference-gateway/operator/releases/latest/download/install.yaml | \
+  sed 's/inference-gateway-system/my-custom-namespace/g' | \
+  kubectl apply -f -
+```
+
+#### Option B: Using the development workflow
+
+```bash
+# Clone the repository
+git clone https://github.com/inference-gateway/operator.git
+cd operator
+
+# Generate manifests for your custom namespace
+task manifests-for-namespace NAMESPACE=my-custom-namespace
+
+# Deploy the generated manifests
+kubectl apply -f manifests/my-custom-namespace/install.yaml
+```
+
+#### Option C: GitOps with custom namespace
+
+```yaml
+# ArgoCD Application with custom namespace
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inference-gateway-operator
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/inference-gateway/operator
+    targetRevision: v0.2.1
+    path: manifests
+    kustomize:
+      patches:
+        - target:
+            kind: Namespace
+          patch: |
+            - op: replace
+              path: /metadata/name
+              value: my-custom-namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: my-custom-namespace
+```
+
+### Method 7: Development Installation
+
+For development and testing with the latest code:
+
+```bash
+# Clone the repository
+git clone https://github.com/inference-gateway/operator.git
+cd operator
+
+# Install CRDs
+task install
+
+# Build and deploy operator (requires Go 1.24+)
+task deploy IMG=ghcr.io/inference-gateway/operator:latest
+```
+
+## ✅ Verification
+
+Verify the installation:
+
+```bash
+# Check if the operator is running
+kubectl get pods -n operator-system
+
+# Check if CRDs are installed
+kubectl get crd | grep inference-gateway
+
+# View operator logs
+kubectl logs -n operator-system deployment/operator-controller-manager -f
+```
+
+Expected output:
+
+```bash
+# Pods should show Running status
+NAME                                         READY   STATUS    RESTARTS   AGE
+operator-controller-manager-74c9c5f5b-x4d2k   2/2     Running   0          2m
+
+# CRDs should be listed
+gateways.core.inference-gateway.com   2025-06-21T17:30:00Z
+```
+
+## 🚀 Deploy Your First Gateway
+
+Create a simple gateway to test the installation:
+
+```bash
+# Create a minimal gateway
+cat <<EOF | kubectl apply -f -
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: my-first-gateway
+  namespace: default
+spec:
+  replicas: 1
+  environment: development
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+      port: 9464
+  providers:
+    - name: openai
+      type: openai
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        authType: bearer
+        tokenRef:
+          name: openai-secret
+          key: api-key
+EOF
+```
+
+**Note:** You'll need to create the `openai-secret` with your API key:
+
+```bash
+kubectl create secret generic openai-secret \
+  --from-literal=api-key=your-openai-api-key-here
+```
+
+## 🔄 Upgrade
+
+To upgrade the operator to a newer version:
+
+```bash
+# Upgrade to latest version
+kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+
+# Or upgrade to specific version
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.2.1/install.yaml
+```
+
+The operator supports rolling upgrades and will not affect running Gateway instances.
+
+## 🗑️ Uninstallation
+
+To completely remove the operator:
+
+```bash
+# Delete all Gateway instances first
+kubectl delete gateway --all --all-namespaces
+
+# Uninstall the operator
+kubectl delete -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+```
+
+## 🏗️ Supported Architectures
+
+The operator supports multi-architecture deployments:
+
+- **linux/amd64** - Intel/AMD 64-bit processors
+- **linux/arm64** - ARM 64-bit processors (Apple Silicon, AWS Graviton, etc.)
+
+Container images are automatically selected based on your cluster's node architecture.
 
 ### ⚙️ Example Configurations
 
@@ -223,54 +482,19 @@ spec:
 
 See `examples/gateway-complete.yaml` for a comprehensive configuration example with all features enabled.
 
-### 🚀 Deployment
+### 🚀 Advanced Configuration
 
-> **📦 Quick Deploy:** Get started in minutes with pre-built images and Helm charts.
+For production deployments, use the complete configuration examples:
 
-**Build and push your image:**
+```bash
+# Deploy production-ready gateway with authentication
+kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-complete.yaml
 
-```sh
-task docker-build docker-push IMG=<registry>/inference-gateway-operator:tag
+# Deploy minimal gateway for development
+kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-minimal.yaml
 ```
 
-**Install the CRDs:**
-
-```sh
-task install
-```
-
-**Deploy the operator:**
-
-```sh
-task deploy IMG=<registry>/inference-gateway-operator:tag
-```
-
-**Create Gateway instances:**
-
-```sh
-# Deploy minimal gateway
-kubectl apply -f examples/gateway-minimal.yaml
-
-# Deploy complete gateway
-kubectl apply -f examples/gateway-complete.yaml
-```
-
-### ✅ Verification
-
-Check the operator and gateway status:
-
-```sh
-# Check operator deployment
-kubectl get deployment -n inference-gateway-operator-system
-
-# Check gateway resources
-kubectl get gateways -A
-
-# Check generated resources
-kubectl get deployments,services,configmaps -l app.kubernetes.io/managed-by=inference-gateway-operator
-```
-
-### 🔍 Configuration Validation
+### ✅ Configuration Validation
 
 The operator includes comprehensive validation:
 
@@ -280,12 +504,22 @@ The operator includes comprehensive validation:
 - **Provider types**: Validated against supported provider list
 - **Resource limits**: Proper CPU/memory specifications
 
-### Status and Observability
+### 📊 Monitoring and Status
 
-The operator provides detailed status information:
+Check Gateway status and health:
 
-```sh
-kubectl describe gateway my-gateway
+```bash
+# Check gateway resources
+kubectl get gateways -A
+
+# Get detailed gateway status
+kubectl describe gateway my-first-gateway
+
+# Check generated resources
+kubectl get deployments,services,configmaps -l app.kubernetes.io/managed-by=inference-gateway-operator
+
+# View Gateway logs
+kubectl logs -l app.kubernetes.io/name=my-first-gateway -f
 ```
 
 Status includes:
@@ -294,6 +528,109 @@ Status includes:
 - Deployment conditions and health
 - Current phase (Pending, Running, Failed, Unknown)
 - Detailed error messages
+
+## ❓ Frequently Asked Questions
+
+### Do I need to install CRDs separately?
+
+**It depends on your installation method:**
+
+- **One-command installation (Recommended)**: No! CRDs are included automatically:
+
+  ```bash
+  kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+  ```
+
+- **GitOps/ArgoCD installations**: No! Use the `manifests/` directory which includes CRDs:
+
+  ```yaml
+  source:
+    repoURL: https://github.com/inference-gateway/operator
+    path: manifests # Includes both CRDs and operator
+  ```
+
+- **Namespace-scoped installations**: Yes! Install CRDs first, then the operator:
+
+  ```bash
+  kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
+  kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/namespace-install.yaml -n my-namespace
+  ```
+
+- **Advanced scenarios**: You can install CRDs separately for more control:
+  ```bash
+  kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
+  ```
+
+### What architectures are supported?
+
+The operator supports both **arm64** and **amd64** architectures:
+
+- Container images are built for both platforms
+- Kubernetes automatically selects the correct image for your nodes
+- Works on Apple Silicon (M1/M2), AWS Graviton, Intel/AMD processors
+
+### How do I check if the installation was successful?
+
+Run these commands to verify your installation:
+
+```bash
+# 1. Check operator pods
+kubectl get pods -n operator-system
+
+# 2. Verify CRDs are installed
+kubectl get crd | grep inference-gateway
+
+# 3. Test creating a Gateway resource
+kubectl get gateways --all-namespaces
+```
+
+### Can I install in a different namespace?
+
+**Yes!** The operator defaults to `inference-gateway-system` but can be deployed to any namespace:
+
+**Quick Method:**
+
+```bash
+curl -L https://github.com/inference-gateway/operator/releases/latest/download/install.yaml | \
+  sed 's/inference-gateway-system/my-namespace/g' | \
+  kubectl apply -f -
+```
+
+**Development Method:**
+
+```bash
+# Generate manifests for custom namespace
+task manifests-for-namespace NAMESPACE=my-namespace
+kubectl apply -f manifests/my-namespace/install.yaml
+```
+
+**GitOps Method:** Use Kustomize patches in your ArgoCD Application or Flux Kustomization.
+
+### How do I upgrade the operator?
+
+Simply reapply the installation with a newer version:
+
+```bash
+# Upgrade to latest
+kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+
+# Or upgrade to specific version
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.2.1/install.yaml
+```
+
+The operator supports rolling upgrades without affecting running Gateway instances.
+
+### What happens to my Gateways if I delete the operator?
+
+Your Gateway resources will remain in the cluster but will no longer be managed. To completely clean up:
+
+```bash
+# 1. Delete all Gateway instances first
+kubectl delete gateway --all --all-namespaces
+
+# 2. Then uninstall the operator
+kubectl delete -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+```
 
 ## 🏗️ Development
 
@@ -316,7 +653,7 @@ task test
 # Run linting
 task lint
 
-# Generate code and manifests
+# Generate code and manifests (including install.yaml)
 task generate manifests
 
 # Build locally
@@ -325,6 +662,14 @@ task build
 # Run against local cluster
 task run
 ```
+
+**Note:** The `task manifests` command automatically generates:
+
+- CRDs in `config/crd/bases/`
+- Installation manifests in `dist/install.yaml`
+- CRD-only manifests in `dist/crds.yaml`
+
+These files are version-controlled and included in releases.
 
 ### Testing
 
