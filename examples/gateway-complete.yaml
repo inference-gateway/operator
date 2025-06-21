@@ -156,3 +156,24 @@ spec:
       - secretName: inference-gateway-tls
         hosts:
           - "api.inference-gateway.local"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inference-gateway-secrets
+  namespace: inference-gateway
+  labels:
+    app.kubernetes.io/name: inference-gateway
+    app.kubernetes.io/instance: inference-gateway
+    app.kubernetes.io/component: secrets
+    app.kubernetes.io/part-of: inference-gateway
+    app.kubernetes.io/version: "0.12.0"
+type: Opaque
+stringData:
+  OIDC_CLIENT_SECRET: ""
+
+  OPENAI_API_KEY: ""
+  ANTHROPIC_API_KEY: ""
+  GROQ_API_KEY: ""
+  COHERE_API_KEY: ""
+  CLOUDFLARE_API_KEY: ""

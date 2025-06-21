@@ -2,7 +2,7 @@ apiVersion: core.inference-gateway.com/v1alpha1
 kind: Gateway
 metadata:
   name: simple-gateway
-  namespace: default
+  namespace: inference-gateway
 spec:
   # Minimal configuration for development
   replicas: 1
@@ -30,4 +30,21 @@ spec:
         authType: bearer
         tokenRef:
           name: openai-secret
-          key: api-key
+          key: api_key
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openai-secret
+  namespace: inference-gateway
+  labels:
+    app.kubernetes.io/name: inference-gateway
+    app.kubernetes.io/instance: inference-gateway
+    app.kubernetes.io/component: secrets
+    app.kubernetes.io/part-of: inference-gateway
+    app.kubernetes.io/version: "0.12.0"
+type: Opaque
+stringData:
+  OIDC_CLIENT_SECRET: ""
+
+  api_key: ""
