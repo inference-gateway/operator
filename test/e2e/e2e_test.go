@@ -287,8 +287,13 @@ var _ = Describe("Operator", Ordered, func() {
 			)
 
 			BeforeEach(func() {
+				By("ensuring the test namespace has the required label")
+				cmd := exec.Command("kubectl", "label", "namespace", gatewayNamespace, "inference-gateway.com/managed=true", "--overwrite")
+				_, err := utils.Run(cmd)
+				Expect(err).NotTo(HaveOccurred(), "Failed to label namespace")
+
 				By("cleaning up any existing test gateway resources")
-				cmd := exec.Command("kubectl", "delete", "gateway", gatewayName, "-n", gatewayNamespace, "--ignore-not-found=true")
+				cmd = exec.Command("kubectl", "delete", "gateway", gatewayName, "-n", gatewayNamespace, "--ignore-not-found=true")
 				_, _ = utils.Run(cmd)
 
 				time.Sleep(5 * time.Second)
@@ -297,6 +302,10 @@ var _ = Describe("Operator", Ordered, func() {
 			AfterEach(func() {
 				By("cleaning up test gateway resources")
 				cmd := exec.Command("kubectl", "delete", "gateway", gatewayName, "-n", gatewayNamespace, "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+
+				By("removing the label from the test namespace")
+				cmd = exec.Command("kubectl", "label", "namespace", gatewayNamespace, "inference-gateway.com/managed-", "--ignore-not-found=true")
 				_, _ = utils.Run(cmd)
 			})
 
