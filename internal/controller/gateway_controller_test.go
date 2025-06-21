@@ -31,8 +31,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	types "k8s.io/apimachinery/pkg/types"
+	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
@@ -60,27 +60,52 @@ var _ = Describe("Gateway controller", func() {
 					Namespace: GatewayNamespace,
 				},
 				Spec: corev1alpha1.GatewaySpec{
-					Environment:     "production",
-					EnableTelemetry: true,
-					EnableAuth:      true,
-					OIDC: &corev1alpha1.OIDCSpec{
-						IssuerURL: "https://auth.example.com",
-						ClientID:  "test-client",
-						ClientSecretRef: &corev1alpha1.SecretKeySelector{
-							Name: "oidc-secret",
-							Key:  "client-secret",
+					Environment: "production",
+					Replicas:    &[]int32{1}[0],
+					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
+					Telemetry: &corev1alpha1.TelemetrySpec{
+						Enabled: true,
+						Metrics: &corev1alpha1.MetricsSpec{
+							Enabled: true,
+							Port:    2112,
+						},
+						Tracing: &corev1alpha1.TracingSpec{
+							Enabled:  true,
+							Endpoint: "http://jaeger:14268/api/traces",
+						},
+					},
+					Auth: &corev1alpha1.AuthSpec{
+						Enabled:  true,
+						Provider: "oidc",
+						OIDC: &corev1alpha1.OIDCSpec{
+							IssuerURL: "https://auth.example.com",
+							ClientID:  "test-client",
+							ClientSecretRef: &corev1alpha1.SecretKeySelector{
+								Name: "oidc-secret",
+								Key:  "client-secret",
+							},
 						},
 					},
 					Server: &corev1alpha1.ServerSpec{
 						Host: "0.0.0.0",
-						Port: "8080",
+						Port: 8080,
+						Timeouts: &corev1alpha1.ServerTimeouts{
+							Read:  "60s",
+							Write: "60s",
+							Idle:  "300s",
+						},
 					},
-					Providers: map[string]*corev1alpha1.ProviderSpec{
-						"openai": {
-							URL: "https://api.openai.com/v1",
-							TokenRef: &corev1alpha1.SecretKeySelector{
-								Name: "provider-keys",
-								Key:  "openai-key",
+					Providers: []corev1alpha1.ProviderSpec{
+						{
+							Name: "openai",
+							Type: "openai",
+							Config: &corev1alpha1.ProviderConfig{
+								BaseURL:  "https://api.openai.com/v1",
+								AuthType: "bearer",
+								TokenRef: &corev1alpha1.SecretKeySelector{
+									Name: "openai-secret",
+									Key:  "api-key",
+								},
 							},
 						},
 					},
@@ -120,10 +145,14 @@ var _ = Describe("Gateway controller", func() {
 			configContent := createdConfigMap.Data["config.yaml"]
 
 			Expect(configContent).To(ContainSubstring("environment: production"))
-			Expect(configContent).To(ContainSubstring("enableTelemetry: true"))
-			Expect(configContent).To(ContainSubstring("enableAuth: true"))
+			Expect(configContent).To(ContainSubstring("telemetry:"))
+			Expect(configContent).To(ContainSubstring("enabled: true"))
+			Expect(configContent).To(ContainSubstring("auth:"))
+			Expect(configContent).To(ContainSubstring("provider: oidc"))
 			Expect(configContent).To(ContainSubstring("issuerUrl: https://auth.example.com"))
-			Expect(configContent).To(ContainSubstring("url: https://api.openai.com/v1"))
+			Expect(configContent).To(ContainSubstring("baseUrl: https://api.openai.com/v1"))
+			Expect(configContent).To(ContainSubstring("name: openai"))
+			Expect(configContent).To(ContainSubstring("type: openai"))
 
 			deploymentName := types.NamespacedName{
 				Name:      GatewayName,
