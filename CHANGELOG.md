@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.4](https://github.com/inference-gateway/operator/compare/v0.3.3...v0.3.4) (2025-06-21)
+
+### 🐛 Bug Fixes
+
+* **rbac:** Add permissions for namespaces to ClusterRole and Role ([bf6feff](https://github.com/inference-gateway/operator/commit/bf6feffb7cda38be001b4cdbd71c11d11e0dd56f))
+
 ## [0.3.3](https://github.com/inference-gateway/operator/compare/v0.3.2...v0.3.3) (2025-06-21)
 
 ### ♻️ Improvements
