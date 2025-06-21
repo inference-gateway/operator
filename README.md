@@ -300,7 +300,7 @@ Status includes:
 ### Prerequisites for Development
 
 - Task runner (`task`)
-- Go 1.23+
+- Go 1.24+
 - Docker
 - Kind or similar local Kubernetes cluster
 
