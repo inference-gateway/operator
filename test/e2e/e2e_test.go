@@ -33,7 +33,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/inference-gateway/operator/test/utils"
+	utils "github.com/inference-gateway/operator/test/utils"
 )
 
 // namespace where the project is deployed in
@@ -310,23 +310,27 @@ metadata:
   namespace: %s
 spec:
   environment: production
-  enableTelemetry: true
-  enableAuth: true
-  oidc:
-    issuerUrl: "https://auth.example.com"
-    clientId: "test-client"
-    clientSecretRef:
-      name: oidc-secret
-      key: client-secret
+  telemetry:
+    enabled: true
+  auth:
+    enabled: true
+    oidc:
+      issuerUrl: "https://auth.example.com"
+      clientId: "test-client"
+      clientSecretRef:
+        name: oidc-secret
+        key: client-secret
   server:
     host: "0.0.0.0"
-    port: "8080"
+    port: 8080
   providers:
-    openai:
-      url: "https://api.openai.com/v1"
-      tokenRef:
-        name: provider-keys
-        key: openai-key
+    - name: openai
+      type: openai
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        tokenRef:
+          name: provider-keys
+          key: openai-key
 `, gatewayName, gatewayNamespace)
 
 				gatewayFile := filepath.Join(os.TempDir(), "test-gateway.yaml")
@@ -397,11 +401,10 @@ stringData:
 					g.Expect(err).NotTo(HaveOccurred(), "Failed to get ConfigMap data")
 
 					g.Expect(output).To(ContainSubstring("environment: production"))
-					g.Expect(output).To(ContainSubstring("enableTelemetry: true"))
-					g.Expect(output).To(ContainSubstring("enableAuth: true"))
+					g.Expect(output).To(ContainSubstring("enabled: true"))
 					g.Expect(output).To(ContainSubstring("issuerUrl: https://auth.example.com"))
 					g.Expect(output).To(ContainSubstring("clientId: test-client"))
-					g.Expect(output).To(ContainSubstring("url: https://api.openai.com/v1"))
+					g.Expect(output).To(ContainSubstring("baseUrl: https://api.openai.com/v1"))
 				}
 				Eventually(verifyConfigMap, timeout, interval).Should(Succeed())
 
@@ -463,14 +466,17 @@ metadata:
   namespace: %s
 spec:
   environment: production
-  enableTelemetry: false
-  enableAuth: false
+  telemetry:
+    enabled: false
+  auth:
+    enabled: false
   server:
     host: "0.0.0.0"
-    port: "8080"
-    readTimeout: "45s"
-    writeTimeout: "45s"
-    idleTimeout: "180s"
+    port: 8080
+    timeouts:
+      read: "45s"
+      write: "45s"
+      idle: "180s"
 `, gatewayName, gatewayNamespace)
 
 				gatewayFile := filepath.Join(os.TempDir(), "test-gateway-deployment.yaml")
@@ -541,9 +547,9 @@ spec:
 					output, err := utils.Run(cmd)
 					g.Expect(err).NotTo(HaveOccurred(), "Failed to get ConfigMap data")
 
-					g.Expect(output).To(ContainSubstring("readTimeout: 45s"))
-					g.Expect(output).To(ContainSubstring("writeTimeout: 45s"))
-					g.Expect(output).To(ContainSubstring("idleTimeout: 180s"))
+					g.Expect(output).To(ContainSubstring("read: 45s"))
+					g.Expect(output).To(ContainSubstring("write: 45s"))
+					g.Expect(output).To(ContainSubstring("idle: 180s"))
 				}
 				Eventually(verifyConfigMapTimeouts, timeout, interval).Should(Succeed())
 
@@ -568,6 +574,351 @@ spec:
 					g.Expect(currentGen).To(Equal(observedGen), "Deployment not fully reconciled")
 				}
 				Eventually(verifyDeploymentStatus, timeout, interval).Should(Succeed())
+			})
+
+			Context("OpenTelemetry Integration", func() {
+				const (
+					otelGatewayName      = "otel-test-gateway"
+					otelGatewayNamespace = "default"
+					otelConfigMapName    = "otel-test-gateway-config"
+					otelDeploymentName   = "otel-test-gateway"
+					otelServiceName      = "otel-test-gateway"
+					timeout              = 3 * time.Minute
+					interval             = 2 * time.Second
+				)
+
+				BeforeEach(func() {
+					By("cleaning up any existing OpenTelemetry test gateway resources")
+					cmd := exec.Command("kubectl", "delete", "gateway", otelGatewayName, "-n", otelGatewayNamespace, "--ignore-not-found=true")
+					_, _ = utils.Run(cmd)
+					time.Sleep(5 * time.Second)
+				})
+
+				AfterEach(func() {
+					By("cleaning up OpenTelemetry test gateway resources")
+					cmd := exec.Command("kubectl", "delete", "gateway", otelGatewayName, "-n", otelGatewayNamespace, "--ignore-not-found=true")
+					_, _ = utils.Run(cmd)
+				})
+
+				It("should configure OpenTelemetry metrics and tracing endpoints correctly", func() {
+					By("creating a Gateway CR with comprehensive OpenTelemetry configuration")
+					gatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  environment: production
+  replicas: 1
+  image: "ghcr.io/inference-gateway/inference-gateway:latest"
+  
+  # OpenTelemetry configuration
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+      port: 9464
+    tracing:
+      enabled: true
+      endpoint: "http://jaeger-collector:14268/api/traces"
+  
+  server:
+    host: "0.0.0.0"
+    port: 8080
+  
+  # Minimal provider for testing
+  providers:
+    - name: "openai"
+      type: "openai"
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        authType: "bearer"
+        tokenRef:
+          name: otel-provider-keys
+          key: openai-key
+`, otelGatewayName, otelGatewayNamespace)
+
+					gatewayFile := filepath.Join(os.TempDir(), "otel-test-gateway.yaml")
+					err := os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)
+					Expect(err).NotTo(HaveOccurred(), "Failed to write OpenTelemetry Gateway YAML file")
+
+					By("creating required secrets for the OpenTelemetry test")
+					providerKeysYAML := fmt.Sprintf(`
+apiVersion: v1
+kind: Secret
+metadata:
+  name: otel-provider-keys
+  namespace: %s
+type: Opaque
+stringData:
+  openai-key: test-openai-key-for-otel
+`, otelGatewayNamespace)
+
+					providerKeysFile := filepath.Join(os.TempDir(), "otel-provider-keys.yaml")
+					err = os.WriteFile(providerKeysFile, []byte(providerKeysYAML), 0644)
+					Expect(err).NotTo(HaveOccurred(), "Failed to write OpenTelemetry provider keys secret YAML file")
+
+					cmd := exec.Command("kubectl", "apply", "-f", providerKeysFile)
+					_, err = utils.Run(cmd)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create OpenTelemetry provider keys secret")
+
+					cmd = exec.Command("kubectl", "apply", "-f", gatewayFile)
+					_, err = utils.Run(cmd)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create OpenTelemetry Gateway CR")
+
+					By("verifying the OpenTelemetry Gateway CR was created successfully")
+					verifyOtelGatewayCreated := func(g Gomega) {
+						cmd := exec.Command("kubectl", "get", "gateway", otelGatewayName, "-n", otelGatewayNamespace, "-o", "jsonpath={.metadata.name}")
+						output, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "Failed to get OpenTelemetry Gateway CR")
+						g.Expect(output).To(Equal(otelGatewayName), "OpenTelemetry Gateway CR not found")
+					}
+					Eventually(verifyOtelGatewayCreated, timeout, interval).Should(Succeed())
+
+					By("verifying the ConfigMap contains OpenTelemetry configuration")
+					verifyOtelConfigMap := func(g Gomega) {
+						cmd := exec.Command("kubectl", "get", "configmap", otelConfigMapName, "-n", otelGatewayNamespace)
+						_, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "OpenTelemetry ConfigMap not found")
+
+						cmd = exec.Command("kubectl", "get", "configmap", otelConfigMapName, "-n", otelGatewayNamespace, "-o", "jsonpath={.data['config\\.yaml']}")
+						output, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "Failed to get OpenTelemetry ConfigMap data")
+
+						g.Expect(output).To(ContainSubstring("telemetry:"), "Telemetry section missing from config")
+						g.Expect(output).To(ContainSubstring("enabled: true"), "Telemetry not enabled in config")
+
+						g.Expect(output).To(ContainSubstring("metrics:"), "Metrics section missing from config")
+						g.Expect(output).To(ContainSubstring("port: 9464"), "Metrics port not configured correctly")
+
+						g.Expect(output).To(ContainSubstring("tracing:"), "Tracing section missing from config")
+						g.Expect(output).To(ContainSubstring("endpoint: http://jaeger-collector:14268/api/traces"), "Tracing endpoint not configured correctly")
+					}
+					Eventually(verifyOtelConfigMap, timeout, interval).Should(Succeed())
+
+					By("verifying the Deployment has the metrics port exposed")
+					verifyOtelDeployment := func(g Gomega) {
+						cmd := exec.Command("kubectl", "get", "deployment", otelDeploymentName, "-n", otelGatewayNamespace)
+						_, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "OpenTelemetry Deployment not found")
+
+						cmd = exec.Command("kubectl", "get", "deployment", otelDeploymentName, "-n", otelGatewayNamespace,
+							"-o", "jsonpath={.spec.template.spec.containers[0].ports}")
+						output, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "Failed to get container ports")
+						g.Expect(output).To(ContainSubstring("9464"), "Metrics port 9464 not exposed in container")
+
+						cmd = exec.Command("kubectl", "get", "deployment", otelDeploymentName, "-n", otelGatewayNamespace,
+							"-o", "jsonpath={.spec.template.spec.containers[0].env}")
+						output, err = utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "Failed to get container environment variables")
+						g.Expect(output).To(ContainSubstring("OPENAI_API_KEY"), "Provider API key environment variable not set")
+					}
+					Eventually(verifyOtelDeployment, timeout, interval).Should(Succeed())
+
+					By("verifying the Service exposes the metrics port")
+					verifyOtelService := func(g Gomega) {
+						cmd := exec.Command("kubectl", "get", "service", otelServiceName, "-n", otelGatewayNamespace)
+						_, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "OpenTelemetry Service not found")
+
+						cmd = exec.Command("kubectl", "get", "service", otelServiceName, "-n", otelGatewayNamespace,
+							"-o", "jsonpath={.spec.ports}")
+						output, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "Failed to get Service ports")
+						g.Expect(output).To(ContainSubstring("8080"), "Main service port 8080 not found")
+						g.Expect(output).To(ContainSubstring("9464"), "Metrics port 9464 not exposed in service")
+					}
+					Eventually(verifyOtelService, timeout, interval).Should(Succeed())
+
+					By("verifying Gateway status shows telemetry is enabled")
+					verifyOtelGatewayStatus := func(g Gomega) {
+						cmd := exec.Command("kubectl", "get", "gateway", otelGatewayName, "-n", otelGatewayNamespace,
+							"-o", "jsonpath={.status.phase}")
+						output, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "Failed to get Gateway status")
+						g.Expect(output).ToNot(Equal("Failed"), "Gateway should not be in Failed state")
+					}
+					Eventually(verifyOtelGatewayStatus, timeout, interval).Should(Succeed())
+				})
+
+				It("should create a metrics-enabled deployment with proper OpenTelemetry endpoints", func() {
+					By("creating a minimal Gateway CR with metrics only")
+					gatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s-metrics
+  namespace: %s
+spec:
+  environment: development
+  replicas: 1
+  
+  # Metrics-only OpenTelemetry configuration
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+      port: 9464
+    # Tracing explicitly disabled for this test
+    tracing:
+      enabled: false
+  
+  server:
+    host: "0.0.0.0"
+    port: 8080
+    
+  providers:
+    - name: "openai"
+      type: "openai" 
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        authType: "bearer"
+        tokenRef:
+          name: otel-provider-keys
+          key: openai-key
+`, otelGatewayName, otelGatewayNamespace)
+
+					gatewayFile := filepath.Join(os.TempDir(), "otel-metrics-gateway.yaml")
+					err := os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)
+					Expect(err).NotTo(HaveOccurred(), "Failed to write metrics-only Gateway YAML file")
+
+					cmd := exec.Command("kubectl", "apply", "-f", gatewayFile)
+					_, err = utils.Run(cmd)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create metrics-only Gateway CR")
+
+					By("verifying metrics configuration is applied correctly")
+					verifyMetricsConfig := func(g Gomega) {
+						cmd := exec.Command("kubectl", "get", "configmap", otelGatewayName+"-metrics-config", "-n", otelGatewayNamespace,
+							"-o", "jsonpath={.data['config\\.yaml']}")
+						output, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "Failed to get metrics ConfigMap data")
+
+						g.Expect(output).To(ContainSubstring("enabled: true"), "Metrics should be enabled")
+						g.Expect(output).To(ContainSubstring("port: 9464"), "Metrics port should be 9464")
+
+						g.Expect(output).To(ContainSubstring("enabled: false"), "Tracing should be disabled")
+					}
+					Eventually(verifyMetricsConfig, timeout, interval).Should(Succeed())
+
+					By("cleaning up the metrics-only gateway")
+					cmd = exec.Command("kubectl", "delete", "gateway", otelGatewayName+"-metrics", "-n", otelGatewayNamespace, "--ignore-not-found=true")
+					_, _ = utils.Run(cmd)
+				})
+
+				It("should validate telemetry configuration with different trace endpoints", func() {
+					By("testing OTLP gRPC endpoint configuration")
+					gatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s-grpc
+  namespace: %s
+spec:
+  environment: production
+  
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+      port: 9464
+    tracing:
+      enabled: true
+      endpoint: "http://otel-collector:4317"  # OTLP gRPC endpoint
+  
+  providers:
+    - name: "openai"
+      type: "openai"
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        authType: "bearer"
+        tokenRef:
+          name: otel-provider-keys
+          key: openai-key
+`, otelGatewayName, otelGatewayNamespace)
+
+					gatewayFile := filepath.Join(os.TempDir(), "otel-grpc-gateway.yaml")
+					err := os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)
+					Expect(err).NotTo(HaveOccurred(), "Failed to write OTLP gRPC Gateway YAML file")
+
+					cmd := exec.Command("kubectl", "apply", "-f", gatewayFile)
+					_, err = utils.Run(cmd)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create OTLP gRPC Gateway CR")
+
+					By("verifying OTLP gRPC tracing endpoint configuration")
+					verifyGrpcConfig := func(g Gomega) {
+						cmd := exec.Command("kubectl", "get", "configmap", otelGatewayName+"-grpc-config", "-n", otelGatewayNamespace,
+							"-o", "jsonpath={.data['config\\.yaml']}")
+						output, err := utils.Run(cmd)
+						g.Expect(err).NotTo(HaveOccurred(), "Failed to get OTLP gRPC ConfigMap data")
+
+						g.Expect(output).To(ContainSubstring("endpoint: http://otel-collector:4317"), "OTLP gRPC endpoint not configured correctly")
+					}
+					Eventually(verifyGrpcConfig, timeout, interval).Should(Succeed())
+
+					By("cleaning up the OTLP gRPC gateway")
+					cmd = exec.Command("kubectl", "delete", "gateway", otelGatewayName+"-grpc", "-n", otelGatewayNamespace, "--ignore-not-found=true")
+					_, _ = utils.Run(cmd)
+				})
+
+				It("should handle telemetry configuration validation errors gracefully", func() {
+					By("testing invalid metrics port configuration")
+					gatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s-invalid
+  namespace: %s
+spec:
+  environment: development
+  
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+      port: 99999  # Invalid port (too high)
+    tracing:
+      enabled: false
+  
+  providers:
+    - name: "openai"
+      type: "openai"
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        authType: "bearer"
+        tokenRef:
+          name: otel-provider-keys
+          key: openai-key
+`, otelGatewayName, otelGatewayNamespace)
+
+					gatewayFile := filepath.Join(os.TempDir(), "otel-invalid-gateway.yaml")
+					err := os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)
+					Expect(err).NotTo(HaveOccurred(), "Failed to write invalid Gateway YAML file")
+
+					By("verifying that invalid configuration is rejected")
+					cmd := exec.Command("kubectl", "apply", "-f", gatewayFile)
+					output, err := utils.Run(cmd)
+
+					if err == nil {
+						By("checking that the Gateway shows appropriate status for invalid config")
+						verifyInvalidConfig := func(g Gomega) {
+							cmd := exec.Command("kubectl", "get", "gateway", otelGatewayName+"-invalid", "-n", otelGatewayNamespace,
+								"-o", "jsonpath={.status}")
+							output, err := utils.Run(cmd)
+							if err == nil && output != "" {
+								g.Expect(output).ToNot(ContainSubstring(`"phase":"Running"`), "Gateway should not be running with invalid config")
+							}
+						}
+						Eventually(verifyInvalidConfig, timeout, interval).Should(Succeed())
+					} else {
+						Expect(output).To(ContainSubstring("Invalid value"), "Expected validation error for invalid port")
+					}
+
+					By("cleaning up the invalid gateway if it was created")
+					cmd = exec.Command("kubectl", "delete", "gateway", otelGatewayName+"-invalid", "-n", otelGatewayNamespace, "--ignore-not-found=true")
+					_, _ = utils.Run(cmd)
+				})
 			})
 		})
 	})

@@ -39,84 +39,388 @@ spec:
           spec:
             description: GatewaySpec defines the desired state of Gateway.
             properties:
-              enableAuth:
-                default: false
-                type: boolean
-              enableTelemetry:
-                default: false
-                type: boolean
-              environment:
-                default: production
-                description: General settings
-                type: string
-              oidc:
-                description: OIDC configuration
+              a2a:
+                description: A2A (Agent-to-Agent) configuration
                 properties:
-                  clientId:
-                    default: inference-gateway-client
-                    type: string
-                  clientSecretRef:
-                    description: Reference to a secret containing the client secret
-                    properties:
-                      key:
-                        default: value
-                        description: Key within the secret
-                        type: string
-                      name:
-                        description: Name of the secret
-                        type: string
-                      namespace:
-                        description: Namespace of the secret
-                        type: string
-                    required:
-                    - name
-                    type: object
-                  issuerUrl:
-                    default: http://keycloak:8080/realms/inference-gateway-realm
-                    type: string
-                type: object
-              providers:
-                additionalProperties:
-                  description: ProviderSpec contains configuration for a specific
-                    provider
-                  properties:
-                    tokenRef:
-                      description: Reference to a secret containing the API token/key
+                  agents:
+                    description: A2A agents configuration
+                    items:
+                      description: A2AAgent contains A2A agent configuration
                       properties:
-                        key:
-                          default: value
-                          description: Key within the secret
-                          type: string
+                        healthCheck:
+                          description: Health check configuration
+                          properties:
+                            enabled:
+                              default: true
+                              description: Enable health checks
+                              type: boolean
+                            interval:
+                              default: 30s
+                              description: Health check interval
+                              type: string
+                            path:
+                              default: /health
+                              description: Health check path
+                              type: string
+                          type: object
                         name:
-                          description: Name of the secret
+                          description: Agent name
                           type: string
-                        namespace:
-                          description: Namespace of the secret
+                        url:
+                          description: Agent URL
                           type: string
                       required:
                       - name
+                      - url
                       type: object
-                    url:
-                      description: Provider API URL
+                    type: array
+                  enabled:
+                    default: false
+                    description: Enable A2A integration
+                    type: boolean
+                  expose:
+                    default: false
+                    description: Expose A2A endpoints externally
+                    type: boolean
+                  polling:
+                    description: Polling configuration
+                    properties:
+                      enabled:
+                        default: true
+                        description: Enable polling
+                        type: boolean
+                      interval:
+                        default: 2s
+                        description: Polling interval
+                        type: string
+                      maxAttempts:
+                        default: 30
+                        description: Maximum polling attempts
+                        format: int32
+                        maximum: 1000
+                        minimum: 1
+                        type: integer
+                      timeout:
+                        default: 60s
+                        description: Polling timeout
+                        type: string
+                    type: object
+                  timeouts:
+                    description: A2A client timeouts
+                    properties:
+                      client:
+                        default: 60s
+                        description: Client timeout
+                        type: string
+                    type: object
+                type: object
+              auth:
+                description: Authentication configuration
+                properties:
+                  enabled:
+                    default: false
+                    description: Enable authentication
+                    type: boolean
+                  oidc:
+                    description: OIDC configuration
+                    properties:
+                      clientId:
+                        default: inference-gateway-client
+                        type: string
+                      clientSecretRef:
+                        description: Reference to a secret containing the client secret
+                        properties:
+                          key:
+                            default: value
+                            description: Key within the secret
+                            type: string
+                          name:
+                            description: Name of the secret
+                            type: string
+                          namespace:
+                            description: Namespace of the secret (defaults to Gateway
+                              namespace)
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      issuerUrl:
+                        default: http://keycloak:8080/realms/inference-gateway-realm
+                        type: string
+                    type: object
+                  provider:
+                    default: oidc
+                    description: Authentication provider type
+                    enum:
+                    - oidc
+                    - jwt
+                    - basic
+                    type: string
+                type: object
+              environment:
+                default: production
+                description: Environment defines the environment type (development,
+                  staging, production)
+                enum:
+                - development
+                - staging
+                - production
+                type: string
+              image:
+                default: ghcr.io/inference-gateway/inference-gateway:latest
+                description: Image is the container image to use for the gateway deployment
+                type: string
+              ingress:
+                description: Ingress configuration
+                properties:
+                  annotations:
+                    additionalProperties:
                       type: string
+                    description: Ingress annotations
+                    type: object
+                  className:
+                    description: Ingress class name
+                    type: string
+                  enabled:
+                    default: false
+                    description: Enable ingress
+                    type: boolean
+                  hosts:
+                    description: Ingress hosts configuration
+                    items:
+                      description: IngressHost contains ingress host configuration
+                      properties:
+                        host:
+                          description: Host name
+                          type: string
+                        paths:
+                          description: Paths configuration
+                          items:
+                            description: IngressPath contains ingress path configuration
+                            properties:
+                              path:
+                                description: Path
+                                type: string
+                              pathType:
+                                default: Prefix
+                                description: Path type
+                                enum:
+                                - Exact
+                                - Prefix
+                                - ImplementationSpecific
+                                type: string
+                            required:
+                            - path
+                            type: object
+                          type: array
+                      required:
+                      - host
+                      type: object
+                    type: array
+                  tls:
+                    description: TLS configuration
+                    items:
+                      description: IngressTLS contains ingress TLS configuration
+                      properties:
+                        hosts:
+                          description: Hosts covered by the certificate
+                          items:
+                            type: string
+                          type: array
+                        secretName:
+                          description: Secret name containing TLS certificate
+                          type: string
+                      required:
+                      - secretName
+                      type: object
+                    type: array
+                type: object
+              mcp:
+                description: MCP (Model Context Protocol) configuration
+                properties:
+                  enabled:
+                    default: false
+                    description: Enable MCP integration
+                    type: boolean
+                  expose:
+                    default: false
+                    description: Expose MCP endpoints externally
+                    type: boolean
+                  servers:
+                    description: MCP servers configuration
+                    items:
+                      description: MCPServer contains MCP server configuration
+                      properties:
+                        healthCheck:
+                          description: Health check configuration
+                          properties:
+                            enabled:
+                              default: true
+                              description: Enable health checks
+                              type: boolean
+                            interval:
+                              default: 30s
+                              description: Health check interval
+                              type: string
+                            path:
+                              default: /health
+                              description: Health check path
+                              type: string
+                          type: object
+                        name:
+                          description: Server name
+                          type: string
+                        url:
+                          description: Server URL
+                          type: string
+                      required:
+                      - name
+                      - url
+                      type: object
+                    type: array
+                  timeouts:
+                    description: MCP client timeouts
+                    properties:
+                      client:
+                        default: 10s
+                        description: Client timeout
+                        type: string
+                      dial:
+                        default: 5s
+                        description: Dial timeout
+                        type: string
+                      request:
+                        default: 10s
+                        description: Request timeout
+                        type: string
+                      responseHeader:
+                        default: 5s
+                        description: Response header timeout
+                        type: string
+                      tlsHandshake:
+                        default: 5s
+                        description: TLS handshake timeout
+                        type: string
+                    type: object
+                type: object
+              providers:
+                description: Provider configurations for AI/ML backends
+                items:
+                  description: ProviderSpec contains configuration for a specific
+                    provider
+                  properties:
+                    config:
+                      description: Provider configuration
+                      properties:
+                        authType:
+                          description: Authentication type
+                          enum:
+                          - bearer
+                          - basic
+                          - none
+                          type: string
+                        baseUrl:
+                          description: Base URL for the provider API
+                          type: string
+                        tokenRef:
+                          description: Reference to secret containing authentication
+                            token
+                          properties:
+                            key:
+                              default: value
+                              description: Key within the secret
+                              type: string
+                            name:
+                              description: Name of the secret
+                              type: string
+                            namespace:
+                              description: Namespace of the secret (defaults to Gateway
+                                namespace)
+                              type: string
+                          required:
+                          - name
+                          type: object
+                      type: object
+                    name:
+                      description: Provider name (unique identifier)
+                      type: string
+                    type:
+                      description: Provider type
+                      enum:
+                      - openai
+                      - anthropic
+                      - ollama
+                      - groq
+                      - cohere
+                      - cloudflare
+                      - deepseek
+                      type: string
+                  required:
+                  - name
+                  - type
                   type: object
-                description: Provider configurations
+                type: array
+              replicas:
+                default: 1
+                description: Replicas is the number of gateway instances to run
+                format: int32
+                maximum: 100
+                minimum: 1
+                type: integer
+              resources:
+                description: Resource requirements for the gateway pods
+                properties:
+                  limits:
+                    description: Resource limits
+                    properties:
+                      cpu:
+                        description: CPU resource specification
+                        type: string
+                      memory:
+                        description: Memory resource specification
+                        type: string
+                    type: object
+                  requests:
+                    description: Resource requests
+                    properties:
+                      cpu:
+                        description: CPU resource specification
+                        type: string
+                      memory:
+                        description: Memory resource specification
+                        type: string
+                    type: object
                 type: object
               server:
                 description: Server configuration
                 properties:
                   host:
                     default: 0.0.0.0
-                    type: string
-                  idleTimeout:
-                    default: 120s
+                    description: Server host
                     type: string
                   port:
-                    default: "8080"
-                    type: string
-                  readTimeout:
-                    default: 30s
-                    type: string
+                    default: 8080
+                    description: Server port
+                    format: int32
+                    maximum: 65535
+                    minimum: 1024
+                    type: integer
+                  timeouts:
+                    description: Server timeouts
+                    properties:
+                      idle:
+                        default: 300s
+                        description: Idle timeout
+                        type: string
+                      read:
+                        default: 60s
+                        description: Read timeout
+                        type: string
+                      write:
+                        default: 60s
+                        description: Write timeout
+                        type: string
+                    type: object
                   tls:
                     description: TLS configuration
                     properties:
@@ -131,11 +435,16 @@ spec:
                             description: Name of the secret
                             type: string
                           namespace:
-                            description: Namespace of the secret
+                            description: Namespace of the secret (defaults to Gateway
+                              namespace)
                             type: string
                         required:
                         - name
                         type: object
+                      enabled:
+                        default: false
+                        description: Enable TLS
+                        type: boolean
                       keyRef:
                         description: Reference to a secret containing the TLS private
                           key
@@ -148,19 +457,137 @@ spec:
                             description: Name of the secret
                             type: string
                           namespace:
-                            description: Namespace of the secret
+                            description: Namespace of the secret (defaults to Gateway
+                              namespace)
                             type: string
                         required:
                         - name
                         type: object
                     type: object
-                  writeTimeout:
-                    default: 30s
+                type: object
+              service:
+                description: Service configuration
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: Service annotations
+                    type: object
+                  port:
+                    default: 8080
+                    description: Service port
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  type:
+                    default: ClusterIP
+                    description: Service type
+                    enum:
+                    - ClusterIP
+                    - NodePort
+                    - LoadBalancer
+                    - ExternalName
                     type: string
+                type: object
+              telemetry:
+                description: Telemetry configuration for observability
+                properties:
+                  enabled:
+                    default: true
+                    description: Enable telemetry collection
+                    type: boolean
+                  metrics:
+                    description: Metrics configuration
+                    properties:
+                      enabled:
+                        default: true
+                        description: Enable metrics collection
+                        type: boolean
+                      port:
+                        default: 9464
+                        description: Port for metrics endpoint
+                        format: int32
+                        maximum: 65535
+                        minimum: 1024
+                        type: integer
+                    type: object
+                  tracing:
+                    description: Tracing configuration
+                    properties:
+                      enabled:
+                        default: false
+                        description: Enable tracing
+                        type: boolean
+                      endpoint:
+                        description: Tracing endpoint URL
+                        type: string
+                    type: object
                 type: object
             type: object
           status:
             description: GatewayStatus defines the observed state of Gateway.
+            properties:
+              availableReplicas:
+                description: Current number of available replicas
+                format: int32
+                type: integer
+              conditions:
+                description: Current deployment conditions
+                items:
+                  description: GatewayCondition represents a condition of a Gateway
+                    deployment
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned
+                      format: date-time
+                      type: string
+                    message:
+                      description: Human readable message indicating details about
+                        last transition
+                      type: string
+                    reason:
+                      description: Reason for the condition's last transition
+                      type: string
+                    status:
+                      description: Status of the condition (True, False, Unknown)
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: Type of Gateway condition
+                      enum:
+                      - Available
+                      - Progressing
+                      - ReplicaFailure
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              message:
+                description: Message provides additional information about the current
+                  state
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the most recent generation observed
+                format: int64
+                type: integer
+              phase:
+                description: Phase represents the current phase of the Gateway
+                enum:
+                - Pending
+                - Running
+                - Failed
+                - Unknown
+                type: string
+              readyReplicas:
+                description: Current number of ready replicas
+                format: int32
+                type: integer
             type: object
         type: object
     served: true

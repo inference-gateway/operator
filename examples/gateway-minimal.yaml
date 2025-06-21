@@ -1,0 +1,33 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: simple-gateway
+  namespace: default
+spec:
+  # Minimal configuration for development
+  replicas: 1
+  image: "ghcr.io/inference-gateway/inference-gateway:latest"
+  environment: development
+
+  # Enable basic OpenTelemetry observability
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+      port: 9464 # Prometheus endpoint
+
+  # Simple server configuration
+  server:
+    host: "0.0.0.0"
+    port: 8080
+
+  # Single OpenAI provider
+  providers:
+    - name: openai
+      type: openai
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        authType: bearer
+        tokenRef:
+          name: openai-secret
+          key: api-key
