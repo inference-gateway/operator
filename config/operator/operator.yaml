@@ -29,7 +29,7 @@ spec:
       annotations:
         kubectl.kubernetes.io/default-container: manager
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
+        prometheus.io/port: "9090"
         prometheus.io/path: "/metrics"
       labels:
         control-plane: inference-gateway-operator
@@ -57,7 +57,7 @@ spec:
         - args:
             - --leader-elect
             - --health-probe-bind-address=:8081
-            - --metrics-bind-address=:8080
+            - --metrics-bind-address=:9090
             - --zap-log-level=info
             - --zap-encoder=json
           image: ghcr.io/inference-gateway/operator:latest
@@ -67,7 +67,7 @@ spec:
             - name: WATCH_NAMESPACE_SELECTOR
               value: "inference-gateway.com/managed=true"
           ports:
-            - containerPort: 8080
+            - containerPort: 9090
               name: metrics
               protocol: TCP
             - containerPort: 8081

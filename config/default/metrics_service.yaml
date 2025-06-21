@@ -9,10 +9,10 @@ metadata:
   namespace: inference-gateway-system
 spec:
   ports:
-    - name: https
-      port: 8443
+    - name: http
+      port: 9090
       protocol: TCP
-      targetPort: 8443
+      targetPort: 9090
   selector:
     control-plane: inference-gateway-operator
     app.kubernetes.io/name: operator

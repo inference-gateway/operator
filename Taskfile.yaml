@@ -3,7 +3,7 @@ version: "3"
 
 vars:
   ROOT_DIR: '{{default "." .ROOT_DIR}}'
-  IMG: '{{default "controller:latest" .IMG}}'
+  IMG: '{{default "ghcr.io/inference-gateway/operator:latest" .IMG}}'
   GOBIN:
     sh: |
       if [ -z "$(go env GOBIN)" ]; then
