@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.5](https://github.com/inference-gateway/operator/compare/v0.3.4...v0.3.5) (2025-06-21)
+
+### 🐛 Bug Fixes
+
+* **examples:** Add Namespace definition to gateway-complete and gateway-minimal examples ([344840c](https://github.com/inference-gateway/operator/commit/344840c41d451dbdba3b579f53ec8725e3b74e8e))
+* **tests:** Ensure test namespace is labeled and cleaned up properly ([acaba15](https://github.com/inference-gateway/operator/commit/acaba156f2f0f24fb600ec948471c350a8a2eb6d))
+
 ## [0.3.4](https://github.com/inference-gateway/operator/compare/v0.3.3...v0.3.4) (2025-06-21)
 
 ### 🐛 Bug Fixes
