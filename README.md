@@ -2,6 +2,9 @@
 
 # Inference Gateway Operator
 
+> **⚠️ EARLY STAGE PROJECT WARNING**  
+> This project is currently in its early development stages. Breaking changes are expected and the API may change significantly between releases. Use with caution in production environments and expect potential migration requirements when upgrading versions.
+
 **A Kubernetes operator for automating the deployment and management of Inference Gateway instances**
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/inference-gateway/operator?style=flat-square)](https://golang.org/)
