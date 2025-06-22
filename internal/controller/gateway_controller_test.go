@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -120,16 +121,6 @@ var _ = Describe("Gateway controller", func() {
 				err := k8sClient.Get(ctx, gatewayLookupKey, createdGateway)
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
-
-			gatewayReconciler := &GatewayReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			_, err := gatewayReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: gatewayLookupKey,
-			})
-			Expect(err).NotTo(HaveOccurred())
 
 			configMapName := types.NamespacedName{
 				Name:      GatewayName + "-config",
@@ -424,6 +415,170 @@ var _ = Describe("Gateway controller", func() {
 
 			containers := createdDeployment.Spec.Template.Spec.Containers
 			Expect(containers).To(HaveLen(1))
+
+			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
+		})
+
+		It("Should create and manage HPA when enabled", func() {
+			gateway := &corev1alpha1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.inference-gateway.com/v1alpha1",
+					Kind:       "Gateway",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      GatewayName + "-hpa",
+					Namespace: GatewayNamespace,
+				},
+				Spec: corev1alpha1.GatewaySpec{
+					Environment: "production",
+					Replicas:    nil,
+					Resources: &corev1alpha1.ResourceRequirements{
+						Requests: &corev1alpha1.ResourceList{
+							CPU:    "100m",
+							Memory: "128Mi",
+						},
+						Limits: &corev1alpha1.ResourceList{
+							CPU:    "500m",
+							Memory: "512Mi",
+						},
+					},
+					HPA: &corev1alpha1.HPASpec{
+						Enabled:                             true,
+						MinReplicas:                         &[]int32{2}[0],
+						MaxReplicas:                         5,
+						TargetCPUUtilizationPercentage:      &[]int32{70}[0],
+						TargetMemoryUtilizationPercentage:   &[]int32{80}[0],
+						ScaleDownStabilizationWindowSeconds: &[]int32{300}[0],
+						ScaleUpStabilizationWindowSeconds:   &[]int32{60}[0],
+					},
+					Providers: []corev1alpha1.ProviderSpec{
+						{
+							Name: "openai",
+							Type: "openai",
+						},
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+
+			gatewayName := types.NamespacedName{Name: GatewayName + "-hpa", Namespace: GatewayNamespace}
+			createdGateway := &corev1alpha1.Gateway{}
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, gatewayName, createdGateway)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			deploymentName := types.NamespacedName{Name: GatewayName + "-hpa", Namespace: GatewayNamespace}
+			createdDeployment := &appsv1.Deployment{}
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, deploymentName, createdDeployment)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			hpaName := types.NamespacedName{Name: GatewayName + "-hpa-hpa", Namespace: GatewayNamespace}
+			createdHPA := &autoscalingv2.HorizontalPodAutoscaler{}
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, hpaName, createdHPA)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(createdHPA.Spec.MinReplicas).To(Equal(&[]int32{2}[0]))
+			Expect(createdHPA.Spec.MaxReplicas).To(Equal(int32(5)))
+			Expect(createdHPA.Spec.ScaleTargetRef.Name).To(Equal(GatewayName + "-hpa"))
+			Expect(createdHPA.Spec.ScaleTargetRef.Kind).To(Equal("Deployment"))
+
+			Expect(createdHPA.Spec.Metrics).To(HaveLen(2))
+
+			var cpuMetric *autoscalingv2.MetricSpec
+			var memoryMetric *autoscalingv2.MetricSpec
+
+			for i := range createdHPA.Spec.Metrics {
+				if createdHPA.Spec.Metrics[i].Resource != nil {
+					switch createdHPA.Spec.Metrics[i].Resource.Name {
+					case corev1.ResourceCPU:
+						cpuMetric = &createdHPA.Spec.Metrics[i]
+					case corev1.ResourceMemory:
+						memoryMetric = &createdHPA.Spec.Metrics[i]
+					}
+				}
+			}
+
+			Expect(cpuMetric).ToNot(BeNil())
+			Expect(cpuMetric.Resource.Target.AverageUtilization).To(Equal(&[]int32{70}[0]))
+
+			Expect(memoryMetric).ToNot(BeNil())
+			Expect(memoryMetric.Resource.Target.AverageUtilization).To(Equal(&[]int32{80}[0]))
+
+			Expect(createdHPA.Spec.Behavior).ToNot(BeNil())
+			Expect(createdHPA.Spec.Behavior.ScaleDown).ToNot(BeNil())
+			Expect(createdHPA.Spec.Behavior.ScaleDown.StabilizationWindowSeconds).To(Equal(&[]int32{300}[0]))
+			Expect(createdHPA.Spec.Behavior.ScaleUp).ToNot(BeNil())
+			Expect(createdHPA.Spec.Behavior.ScaleUp.StabilizationWindowSeconds).To(Equal(&[]int32{60}[0]))
+
+			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
+		})
+
+		It("Should delete HPA when disabled", func() {
+			gateway := &corev1alpha1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.inference-gateway.com/v1alpha1",
+					Kind:       "Gateway",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      GatewayName + "-hpa-disable",
+					Namespace: GatewayNamespace,
+				},
+				Spec: corev1alpha1.GatewaySpec{
+					Environment: "production",
+					HPA: &corev1alpha1.HPASpec{
+						Enabled:                        true,
+						MinReplicas:                    &[]int32{1}[0],
+						MaxReplicas:                    3,
+						TargetCPUUtilizationPercentage: &[]int32{80}[0],
+					},
+					Providers: []corev1alpha1.ProviderSpec{
+						{
+							Name: "openai",
+							Type: "openai",
+						},
+					},
+				},
+			}
+
+			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+
+			gatewayName := types.NamespacedName{Name: GatewayName + "-hpa-disable", Namespace: GatewayNamespace}
+			hpaName := types.NamespacedName{Name: GatewayName + "-hpa-disable-hpa", Namespace: GatewayNamespace}
+
+			createdHPA := &autoscalingv2.HorizontalPodAutoscaler{}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, hpaName, createdHPA)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			createdGateway := &corev1alpha1.Gateway{}
+			Expect(k8sClient.Get(ctx, gatewayName, createdGateway)).Should(Succeed())
+			createdGateway.Spec.HPA.Enabled = false
+			Expect(k8sClient.Update(ctx, createdGateway)).Should(Succeed())
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, hpaName, createdHPA)
+				return err != nil
+			}, timeout, interval).Should(BeTrue())
+
+			deploymentName := types.NamespacedName{Name: GatewayName + "-hpa-disable", Namespace: GatewayNamespace}
+			createdDeployment := &appsv1.Deployment{}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, deploymentName, createdDeployment)
+				if err != nil {
+					return false
+				}
+				return createdDeployment.Spec.Replicas != nil
+			}, timeout, interval).Should(BeTrue())
 
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})

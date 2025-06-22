@@ -81,6 +81,10 @@ type GatewaySpec struct {
 	// Ingress configuration
 	// +optional
 	Ingress *IngressSpec `json:"ingress,omitempty"`
+
+	// HPA (Horizontal Pod Autoscaler) configuration
+	// +optional
+	HPA *HPASpec `json:"hpa,omitempty"`
 }
 
 // TelemetrySpec contains telemetry and observability configuration
@@ -518,6 +522,89 @@ type IngressTLS struct {
 	// Hosts covered by the certificate
 	// +optional
 	Hosts []string `json:"hosts,omitempty"`
+}
+
+// HPASpec contains Horizontal Pod Autoscaler configuration
+type HPASpec struct {
+	// Enable HPA
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Minimum number of replicas
+	// +optional
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+
+	// Maximum number of replicas
+	// +optional
+	// +kubebuilder:default=10
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=1000
+	MaxReplicas int32 `json:"maxReplicas,omitempty"`
+
+	// Target CPU utilization percentage
+	// +optional
+	// +kubebuilder:default=80
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	TargetCPUUtilizationPercentage *int32 `json:"targetCPUUtilizationPercentage,omitempty"`
+
+	// Target memory utilization percentage
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	TargetMemoryUtilizationPercentage *int32 `json:"targetMemoryUtilizationPercentage,omitempty"`
+
+	// Custom metrics for scaling
+	// +optional
+	CustomMetrics []HPACustomMetric `json:"customMetrics,omitempty"`
+
+	// Scale down stabilization window (in seconds)
+	// +optional
+	// +kubebuilder:default=300
+	ScaleDownStabilizationWindowSeconds *int32 `json:"scaleDownStabilizationWindowSeconds,omitempty"`
+
+	// Scale up stabilization window (in seconds)
+	// +optional
+	// +kubebuilder:default=0
+	ScaleUpStabilizationWindowSeconds *int32 `json:"scaleUpStabilizationWindowSeconds,omitempty"`
+}
+
+// HPACustomMetric contains custom metric configuration for HPA
+type HPACustomMetric struct {
+	// Metric name
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// Metric type (Resource, Pods, Object, External)
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=Resource;Pods;Object;External
+	Type string `json:"type"`
+
+	// Target value for the metric
+	// +kubebuilder:validation:Required
+	Target HPAMetricTarget `json:"target"`
+}
+
+// HPAMetricTarget contains target configuration for HPA custom metrics
+type HPAMetricTarget struct {
+	// Target type (Utilization, Value, AverageValue)
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=Utilization;Value;AverageValue
+	Type string `json:"type"`
+
+	// Target value (for Value and AverageValue types)
+	// +optional
+	Value string `json:"value,omitempty"`
+
+	// Target average utilization percentage (for Utilization type)
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	AverageUtilization *int32 `json:"averageUtilization,omitempty"`
 }
 
 // GatewayStatus defines the observed state of Gateway.

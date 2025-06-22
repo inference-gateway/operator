@@ -166,6 +166,98 @@ spec:
                 - staging
                 - production
                 type: string
+              hpa:
+                description: HPA (Horizontal Pod Autoscaler) configuration
+                properties:
+                  customMetrics:
+                    description: Custom metrics for scaling
+                    items:
+                      description: HPACustomMetric contains custom metric configuration
+                        for HPA
+                      properties:
+                        name:
+                          description: Metric name
+                          type: string
+                        target:
+                          description: Target value for the metric
+                          properties:
+                            averageUtilization:
+                              description: Target average utilization percentage (for
+                                Utilization type)
+                              format: int32
+                              maximum: 100
+                              minimum: 1
+                              type: integer
+                            type:
+                              description: Target type (Utilization, Value, AverageValue)
+                              enum:
+                              - Utilization
+                              - Value
+                              - AverageValue
+                              type: string
+                            value:
+                              description: Target value (for Value and AverageValue
+                                types)
+                              type: string
+                          required:
+                          - type
+                          type: object
+                        type:
+                          description: Metric type (Resource, Pods, Object, External)
+                          enum:
+                          - Resource
+                          - Pods
+                          - Object
+                          - External
+                          type: string
+                      required:
+                      - name
+                      - target
+                      - type
+                      type: object
+                    type: array
+                  enabled:
+                    default: false
+                    description: Enable HPA
+                    type: boolean
+                  maxReplicas:
+                    default: 10
+                    description: Maximum number of replicas
+                    format: int32
+                    maximum: 1000
+                    minimum: 1
+                    type: integer
+                  minReplicas:
+                    default: 1
+                    description: Minimum number of replicas
+                    format: int32
+                    maximum: 100
+                    minimum: 1
+                    type: integer
+                  scaleDownStabilizationWindowSeconds:
+                    default: 300
+                    description: Scale down stabilization window (in seconds)
+                    format: int32
+                    type: integer
+                  scaleUpStabilizationWindowSeconds:
+                    default: 0
+                    description: Scale up stabilization window (in seconds)
+                    format: int32
+                    type: integer
+                  targetCPUUtilizationPercentage:
+                    default: 80
+                    description: Target CPU utilization percentage
+                    format: int32
+                    maximum: 100
+                    minimum: 1
+                    type: integer
+                  targetMemoryUtilizationPercentage:
+                    description: Target memory utilization percentage
+                    format: int32
+                    maximum: 100
+                    minimum: 1
+                    type: integer
+                type: object
               image:
                 default: ghcr.io/inference-gateway/inference-gateway:latest
                 description: Image is the container image to use for the gateway deployment

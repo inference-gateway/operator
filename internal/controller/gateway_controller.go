@@ -28,8 +28,10 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
@@ -59,6 +61,7 @@ type GatewayReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -89,15 +92,29 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	deployment, err := r.reconcileDeployment(ctx, gateway, configMap)
 	if err != nil {
+		if errors.IsConflict(err) {
+			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
+			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
+		}
 		logger.Error(err, "Failed to reconcile Deployment")
 		return ctrl.Result{}, err
 	}
 
+	logger.Info("About to reconcile Service", "gateway", gateway.Name)
 	err = r.reconcileService(ctx, gateway)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile Service")
 		return ctrl.Result{}, err
 	}
+	logger.Info("Service reconciliation completed", "gateway", gateway.Name)
+
+	logger.Info("About to reconcile HPA", "gateway", gateway.Name, "hpaConfig", gateway.Spec.HPA)
+	err = r.reconcileHPA(ctx, gateway, deployment)
+	if err != nil {
+		logger.Error(err, "Failed to reconcile HPA")
+		return ctrl.Result{}, err
+	}
+	logger.Info("HPA reconciliation completed", "gateway", gateway.Name)
 
 	logger.Info("Reconciled Gateway successfully",
 		"gateway", gateway.Name,
@@ -327,8 +344,53 @@ func (r *GatewayReconciler) reconcileConfigMap(ctx context.Context, gateway *cor
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
 func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway, configMap *corev1.ConfigMap) (*appsv1.Deployment, error) {
-	logger := log.FromContext(ctx)
+	deployment := r.buildDeployment(gateway, configMap)
 
+	if err := controllerutil.SetControllerReference(gateway, deployment, r.Scheme); err != nil {
+		return nil, err
+	}
+
+	return r.createOrUpdateDeployment(ctx, gateway, deployment)
+}
+
+// buildDeployment creates a Deployment resource based on Gateway spec
+func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, configMap *corev1.ConfigMap) *appsv1.Deployment {
+	envVars := r.buildEnvVars(gateway)
+	containerPorts := r.buildContainerPorts(gateway)
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gateway.Name,
+			Namespace: gateway.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": gateway.Name,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": gateway.Name,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						r.buildContainer(gateway, envVars, containerPorts),
+					},
+					Volumes: r.buildVolumes(gateway, configMap),
+				},
+			},
+		},
+	}
+
+	r.setDeploymentReplicas(gateway, deployment)
+	return deployment
+}
+
+// buildEnvVars creates environment variables for the container
+func (r *GatewayReconciler) buildEnvVars(gateway *corev1alpha1.Gateway) []corev1.EnvVar {
 	var envVars []corev1.EnvVar
 
 	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled && gateway.Spec.Auth.OIDC != nil && gateway.Spec.Auth.OIDC.ClientSecretRef != nil {
@@ -345,24 +407,27 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 		})
 	}
 
-	if len(gateway.Spec.Providers) > 0 {
-		for _, provider := range gateway.Spec.Providers {
-			if provider.Config != nil && provider.Config.TokenRef != nil {
-				envVars = append(envVars, corev1.EnvVar{
-					Name: fmt.Sprintf("%s_API_KEY", toUpperSnakeCase(provider.Name)),
-					ValueFrom: &corev1.EnvVarSource{
-						SecretKeyRef: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: provider.Config.TokenRef.Name,
-							},
-							Key: provider.Config.TokenRef.Key,
+	for _, provider := range gateway.Spec.Providers {
+		if provider.Config != nil && provider.Config.TokenRef != nil {
+			envVars = append(envVars, corev1.EnvVar{
+				Name: fmt.Sprintf("%s_API_KEY", toUpperSnakeCase(provider.Name)),
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: provider.Config.TokenRef.Name,
 						},
+						Key: provider.Config.TokenRef.Key,
 					},
-				})
-			}
+				},
+			})
 		}
 	}
 
+	return envVars
+}
+
+// buildContainerPorts creates container ports based on Gateway configuration
+func (r *GatewayReconciler) buildContainerPorts(gateway *corev1alpha1.Gateway) []corev1.ContainerPort {
 	port := int32(8080)
 	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
 		port = gateway.Spec.Server.Port
@@ -386,93 +451,92 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 		})
 	}
 
-	replicas := int32(1)
-	if gateway.Spec.Replicas != nil {
-		replicas = *gateway.Spec.Replicas
-	}
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      gateway.Name,
-			Namespace: gateway.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": gateway.Name,
-				},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app": gateway.Name,
-					},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "inference-gateway",
-							Image: "ghcr.io/inference-gateway/inference-gateway:latest",
-							Ports: containerPorts,
-							Env:   envVars,
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      gateway.Name + "-config-volume",
-									MountPath: "/app/config",
-								},
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
-									corev1.ResourceMemory: *resource.NewQuantity(256*1024*1024, resource.BinarySI),
-								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    *resource.NewQuantity(2, resource.DecimalSI),
-									corev1.ResourceMemory: *resource.NewQuantity(1024*1024*1024, resource.BinarySI),
-								},
-							},
-							LivenessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path: "/health",
-										Port: intstr.FromInt(int(port)),
-									},
-								},
-								InitialDelaySeconds: 5,
-								PeriodSeconds:       10,
-							},
-							ReadinessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path: "/health",
-										Port: intstr.FromInt(int(port)),
-									},
-								},
-								InitialDelaySeconds: 5,
-								PeriodSeconds:       10,
-							},
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: gateway.Name + "-config-volume",
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: configMap.Name,
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+	return containerPorts
+}
+
+// buildContainer creates the main container specification
+func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, envVars []corev1.EnvVar, containerPorts []corev1.ContainerPort) corev1.Container {
+	port := int32(8080)
+	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
+		port = gateway.Spec.Server.Port
 	}
 
-	if err := controllerutil.SetControllerReference(gateway, deployment, r.Scheme); err != nil {
-		return nil, err
+	return corev1.Container{
+		Name:  "inference-gateway",
+		Image: "ghcr.io/inference-gateway/inference-gateway:latest",
+		Ports: containerPorts,
+		Env:   envVars,
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      gateway.Name + "-config-volume",
+				MountPath: "/app/config",
+			},
+		},
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(256*1024*1024, resource.BinarySI),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewQuantity(2, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(1024*1024*1024, resource.BinarySI),
+			},
+		},
+		LivenessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/health",
+					Port: intstr.FromInt(int(port)),
+				},
+			},
+			InitialDelaySeconds: 5,
+			PeriodSeconds:       10,
+		},
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/health",
+					Port: intstr.FromInt(int(port)),
+				},
+			},
+			InitialDelaySeconds: 5,
+			PeriodSeconds:       10,
+		},
 	}
+}
+
+// buildVolumes creates volumes for the deployment
+func (r *GatewayReconciler) buildVolumes(gateway *corev1alpha1.Gateway, configMap *corev1.ConfigMap) []corev1.Volume {
+	return []corev1.Volume{
+		{
+			Name: gateway.Name + "-config-volume",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: configMap.Name,
+					},
+				},
+			},
+		},
+	}
+}
+
+// setDeploymentReplicas sets the replica count based on HPA configuration
+func (r *GatewayReconciler) setDeploymentReplicas(gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) {
+	if gateway.Spec.HPA != nil && gateway.Spec.HPA.Enabled {
+		deployment.Spec.Replicas = nil
+	} else {
+		replicas := int32(1)
+		if gateway.Spec.Replicas != nil {
+			replicas = *gateway.Spec.Replicas
+		}
+		deployment.Spec.Replicas = &replicas
+	}
+}
+
+// createOrUpdateDeployment handles deployment creation and updates
+func (r *GatewayReconciler) createOrUpdateDeployment(ctx context.Context, gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+	logger := log.FromContext(ctx)
 
 	found := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
@@ -481,20 +545,82 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 		if err = r.Create(ctx, deployment); err != nil {
 			return nil, err
 		}
+		return deployment, nil
 	} else if err != nil {
 		return nil, err
-	} else {
-		if !reflect.DeepEqual(found.Spec, deployment.Spec) {
-			found.Spec = deployment.Spec
-			logger.Info("Updating Deployment", "Deployment.Name", deployment.Name)
-			if err = r.Update(ctx, found); err != nil {
-				return nil, err
-			}
-		}
-		deployment = found
 	}
 
-	return deployment, nil
+	return r.updateDeploymentIfNeeded(ctx, gateway, deployment, found)
+}
+
+// updateDeploymentIfNeeded updates deployment if changes are detected
+func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gateway *corev1alpha1.Gateway, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
+	logger := log.FromContext(ctx)
+
+	for retries := 0; retries < 3; retries++ {
+		latestDeployment := &appsv1.Deployment{}
+		if err := r.Get(ctx, types.NamespacedName{Name: found.Name, Namespace: found.Namespace}, latestDeployment); err != nil {
+			return nil, err
+		}
+
+		needsUpdate := false
+		var changes []string
+
+		if gateway.Spec.HPA == nil || !gateway.Spec.HPA.Enabled {
+			desiredReplicas := int32(1)
+			if gateway.Spec.Replicas != nil {
+				desiredReplicas = *gateway.Spec.Replicas
+			}
+
+			if latestDeployment.Spec.Replicas == nil || *latestDeployment.Spec.Replicas != desiredReplicas {
+				latestDeployment.Spec.Replicas = &desiredReplicas
+				needsUpdate = true
+				changes = append(changes, fmt.Sprintf("replicas: %v -> %v",
+					func() interface{} {
+						if latestDeployment.Spec.Replicas == nil {
+							return "nil"
+						}
+						return *latestDeployment.Spec.Replicas
+					}(), desiredReplicas))
+			}
+		} else {
+			if latestDeployment.Spec.Replicas != nil {
+				logger.Info("HPA is enabled, not modifying replicas field",
+					"current", *latestDeployment.Spec.Replicas)
+			}
+		}
+
+		if !reflect.DeepEqual(latestDeployment.Spec.Template, desired.Spec.Template) {
+			latestDeployment.Spec.Template = desired.Spec.Template
+			needsUpdate = true
+			changes = append(changes, "pod template")
+		}
+
+		if !reflect.DeepEqual(latestDeployment.Spec.Selector, desired.Spec.Selector) {
+			latestDeployment.Spec.Selector = desired.Spec.Selector
+			needsUpdate = true
+			changes = append(changes, "selector")
+		}
+
+		if !needsUpdate {
+			logger.Info("No deployment changes needed")
+			return latestDeployment, nil
+		}
+
+		logger.Info("Updating Deployment", "Deployment.Name", desired.Name, "changes", strings.Join(changes, ", "))
+		if err := r.Update(ctx, latestDeployment); err != nil {
+			if errors.IsConflict(err) && retries < 2 {
+				logger.Info("Deployment update conflict, retrying", "retry", retries+1, "error", err)
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+			return nil, err
+		}
+		logger.Info("Deployment updated successfully")
+		return latestDeployment, nil
+	}
+
+	return nil, fmt.Errorf("failed to update deployment after 3 retries due to conflicts")
 }
 
 // reconcileService ensures the Service exists with the correct configuration
@@ -614,6 +740,221 @@ func (r *GatewayReconciler) shouldWatchNamespace(ctx context.Context, namespace 
 	return labelSelector.Matches(labels.Set(ns.Labels))
 }
 
+// reconcileHPA handles HPA creation, update, or deletion based on Gateway spec
+func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) error {
+	logger := log.FromContext(ctx)
+
+	var hpaEnabled bool
+	if gateway.Spec.HPA != nil {
+		hpaEnabled = gateway.Spec.HPA.Enabled
+	}
+	logger.Info("Starting HPA reconciliation", "gateway", gateway.Name, "hpaEnabled", hpaEnabled)
+
+	hpaName := fmt.Sprintf("%s-hpa", gateway.Name)
+	existingHPA := &autoscalingv2.HorizontalPodAutoscaler{}
+	err := r.Get(ctx, types.NamespacedName{Name: hpaName, Namespace: gateway.Namespace}, existingHPA)
+	hpaExists := err == nil
+
+	logger.Info("HPA existence check", "hpaName", hpaName, "hpaExists", hpaExists, "getError", err)
+
+	if gateway.Spec.HPA == nil || !gateway.Spec.HPA.Enabled {
+		logger.Info("HPA is disabled or not configured", "hpaConfigured", gateway.Spec.HPA != nil)
+		if hpaExists {
+			logger.Info("Deleting HPA as it's disabled", "hpa", hpaName)
+			if err := r.Delete(ctx, existingHPA); err != nil {
+				return fmt.Errorf("failed to delete HPA: %w", err)
+			}
+		}
+		return nil
+	}
+
+	logger.Info("HPA is enabled, proceeding with creation/update", "enabled", gateway.Spec.HPA.Enabled)
+
+	hpa := r.buildHPA(gateway, deployment)
+
+	if !hpaExists {
+		logger.Info("Creating HPA", "hpa", hpaName, "hpaSpec", hpa.Spec)
+		if err := controllerutil.SetControllerReference(gateway, hpa, r.Scheme); err != nil {
+			logger.Error(err, "Failed to set controller reference for HPA", "hpa", hpaName)
+			return fmt.Errorf("failed to set controller reference: %w", err)
+		}
+
+		if err := r.Create(ctx, hpa); err != nil {
+			logger.Error(err, "Failed to create HPA", "hpa", hpaName)
+			return fmt.Errorf("failed to create HPA: %w", err)
+		}
+		logger.Info("Successfully created HPA", "hpa", hpaName)
+	} else {
+		if !reflect.DeepEqual(existingHPA.Spec, hpa.Spec) {
+			logger.Info("Updating HPA", "hpa", hpaName)
+			existingHPA.Spec = hpa.Spec
+			if err := r.Update(ctx, existingHPA); err != nil {
+				logger.Error(err, "Failed to update HPA", "hpa", hpaName)
+				return fmt.Errorf("failed to update HPA: %w", err)
+			}
+			logger.Info("Successfully updated HPA", "hpa", hpaName)
+		} else {
+			logger.Info("HPA already up to date", "hpa", hpaName)
+		}
+	}
+
+	logger.Info("HPA reconciliation completed successfully", "hpa", hpaName)
+	return nil
+}
+
+// buildHPA creates an HPA resource based on Gateway spec
+func (r *GatewayReconciler) buildHPA(gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) *autoscalingv2.HorizontalPodAutoscaler {
+	hpaSpec := gateway.Spec.HPA
+
+	minReplicas := int32(1)
+	if hpaSpec.MinReplicas != nil {
+		minReplicas = *hpaSpec.MinReplicas
+	}
+
+	maxReplicas := int32(10)
+	if hpaSpec.MaxReplicas > 0 {
+		maxReplicas = hpaSpec.MaxReplicas
+	}
+
+	targetCPUPercent := int32(80)
+	if hpaSpec.TargetCPUUtilizationPercentage != nil {
+		targetCPUPercent = *hpaSpec.TargetCPUUtilizationPercentage
+	}
+
+	metrics := []autoscalingv2.MetricSpec{}
+
+	if hpaSpec.TargetCPUUtilizationPercentage != nil {
+		metrics = append(metrics, autoscalingv2.MetricSpec{
+			Type: autoscalingv2.ResourceMetricSourceType,
+			Resource: &autoscalingv2.ResourceMetricSource{
+				Name: corev1.ResourceCPU,
+				Target: autoscalingv2.MetricTarget{
+					Type:               autoscalingv2.UtilizationMetricType,
+					AverageUtilization: hpaSpec.TargetCPUUtilizationPercentage,
+				},
+			},
+		})
+	}
+
+	if hpaSpec.TargetMemoryUtilizationPercentage != nil {
+		metrics = append(metrics, autoscalingv2.MetricSpec{
+			Type: autoscalingv2.ResourceMetricSourceType,
+			Resource: &autoscalingv2.ResourceMetricSource{
+				Name: corev1.ResourceMemory,
+				Target: autoscalingv2.MetricTarget{
+					Type:               autoscalingv2.UtilizationMetricType,
+					AverageUtilization: hpaSpec.TargetMemoryUtilizationPercentage,
+				},
+			},
+		})
+	}
+
+	for _, customMetric := range hpaSpec.CustomMetrics {
+		metricSpec := autoscalingv2.MetricSpec{}
+
+		switch customMetric.Type {
+		case "Pods":
+			metricSpec.Type = autoscalingv2.PodsMetricSourceType
+			metricSpec.Pods = &autoscalingv2.PodsMetricSource{
+				Metric: autoscalingv2.MetricIdentifier{Name: customMetric.Name},
+				Target: r.buildMetricTarget(customMetric.Target),
+			}
+		case "Object":
+			metricSpec.Type = autoscalingv2.ObjectMetricSourceType
+			// Note: Object metrics need more configuration, this is a basic structure
+		case "External":
+			metricSpec.Type = autoscalingv2.ExternalMetricSourceType
+			metricSpec.External = &autoscalingv2.ExternalMetricSource{
+				Metric: autoscalingv2.MetricIdentifier{Name: customMetric.Name},
+				Target: r.buildMetricTarget(customMetric.Target),
+			}
+		}
+
+		if metricSpec.Type != "" {
+			metrics = append(metrics, metricSpec)
+		}
+	}
+
+	// If no metrics are specified, default to CPU
+	if len(metrics) == 0 {
+		metrics = append(metrics, autoscalingv2.MetricSpec{
+			Type: autoscalingv2.ResourceMetricSourceType,
+			Resource: &autoscalingv2.ResourceMetricSource{
+				Name: corev1.ResourceCPU,
+				Target: autoscalingv2.MetricTarget{
+					Type:               autoscalingv2.UtilizationMetricType,
+					AverageUtilization: &targetCPUPercent,
+				},
+			},
+		})
+	}
+
+	// Build behavior configuration
+	behavior := &autoscalingv2.HorizontalPodAutoscalerBehavior{}
+
+	if hpaSpec.ScaleDownStabilizationWindowSeconds != nil {
+		behavior.ScaleDown = &autoscalingv2.HPAScalingRules{
+			StabilizationWindowSeconds: hpaSpec.ScaleDownStabilizationWindowSeconds,
+		}
+	}
+
+	if hpaSpec.ScaleUpStabilizationWindowSeconds != nil {
+		behavior.ScaleUp = &autoscalingv2.HPAScalingRules{
+			StabilizationWindowSeconds: hpaSpec.ScaleUpStabilizationWindowSeconds,
+		}
+	}
+
+	hpa := &autoscalingv2.HorizontalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-hpa", gateway.Name),
+			Namespace: gateway.Namespace,
+			Labels: map[string]string{
+				"app": gateway.Name,
+			},
+		},
+		Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+			ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       deployment.Name,
+			},
+			MinReplicas: &minReplicas,
+			MaxReplicas: maxReplicas,
+			Metrics:     metrics,
+			Behavior:    behavior,
+		},
+	}
+
+	return hpa
+}
+
+// buildMetricTarget converts HPAMetricTarget to autoscalingv2.MetricTarget
+func (r *GatewayReconciler) buildMetricTarget(target corev1alpha1.HPAMetricTarget) autoscalingv2.MetricTarget {
+	metricTarget := autoscalingv2.MetricTarget{}
+
+	switch target.Type {
+	case "Utilization":
+		metricTarget.Type = autoscalingv2.UtilizationMetricType
+		metricTarget.AverageUtilization = target.AverageUtilization
+	case "Value":
+		metricTarget.Type = autoscalingv2.ValueMetricType
+		if target.Value != "" {
+			if value, err := resource.ParseQuantity(target.Value); err == nil {
+				metricTarget.Value = &value
+			}
+		}
+	case "AverageValue":
+		metricTarget.Type = autoscalingv2.AverageValueMetricType
+		if target.Value != "" {
+			if value, err := resource.ParseQuantity(target.Value); err == nil {
+				metricTarget.AverageValue = &value
+			}
+		}
+	}
+
+	return metricTarget
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -621,5 +962,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
+		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
 		Complete(r)
 }

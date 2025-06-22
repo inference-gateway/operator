@@ -60,7 +60,7 @@ spec:
         - name: WATCH_NAMESPACE_SELECTOR
           value: inference-gateway.com/managed=true
         image: ghcr.io/inference-gateway/operator:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
             path: /healthz

@@ -1,0 +1,91 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: gateway-hpa-sample
+spec:
+  # Basic gateway configuration
+  environment: production
+  replicas: 2 # This will be ignored when HPA is enabled
+
+  # Server configuration
+  server:
+    host: "0.0.0.0"
+    port: "8080"
+    timeouts:
+      read: "30s"
+      write: "30s"
+      idle: "120s"
+
+  # Enable telemetry for HPA metrics
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+      port: 9464
+
+  # Resource requirements (important for HPA CPU/Memory targeting)
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # HPA Configuration
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+    scaleDownStabilizationWindowSeconds: 300
+    scaleUpStabilizationWindowSeconds: 60
+    customMetrics:
+      - name: "http_requests_per_second"
+        type: "Pods"
+        target:
+          type: "AverageValue"
+          value: "100"
+
+  # Provider configuration
+  providers:
+    - name: "openai"
+      type: "openai"
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        authType: "bearer"
+        tokenRef:
+          name: "provider-secrets"
+          key: "openai-token"
+    - name: "anthropic"
+      type: "anthropic"
+      config:
+        baseUrl: "https://api.anthropic.com"
+        authType: "bearer"
+        tokenRef:
+          name: "provider-secrets"
+          key: "anthropic-token"
+
+  # Service configuration
+  service:
+    type: "ClusterIP"
+    port: 8080
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+
+  # Ingress configuration (optional)
+  ingress:
+    enabled: false
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: "/"
+    hosts:
+      - host: "gateway.example.com"
+        paths:
+          - path: "/"
+            pathType: "Prefix"
+    tls:
+      - secretName: "gateway-tls"
+        hosts:
+          - "gateway.example.com"
