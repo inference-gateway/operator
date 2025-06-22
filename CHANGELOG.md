@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0](https://github.com/inference-gateway/operator/compare/v0.3.5...v0.4.0) (2025-06-22)
+
+### ✨ Features
+
+* Add Horizontal Pod Auto Scaling (HPA) to Gateway ([#2](https://github.com/inference-gateway/operator/issues/2)) ([6d766e9](https://github.com/inference-gateway/operator/commit/6d766e943d10f8d20822aa0ce22cfe7751c62007))
+
 ## [0.3.5](https://github.com/inference-gateway/operator/compare/v0.3.4...v0.3.5) (2025-06-21)
 
 ### 🐛 Bug Fixes
