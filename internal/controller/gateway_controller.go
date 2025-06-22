@@ -100,21 +100,17 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	logger.Info("About to reconcile Service", "gateway", gateway.Name)
 	err = r.reconcileService(ctx, gateway)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile Service")
 		return ctrl.Result{}, err
 	}
-	logger.Info("Service reconciliation completed", "gateway", gateway.Name)
 
-	logger.Info("About to reconcile HPA", "gateway", gateway.Name, "hpaConfig", gateway.Spec.HPA)
 	err = r.reconcileHPA(ctx, gateway, deployment)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile HPA")
 		return ctrl.Result{}, err
 	}
-	logger.Info("HPA reconciliation completed", "gateway", gateway.Name)
 
 	logger.Info("Reconciled Gateway successfully",
 		"gateway", gateway.Name,
@@ -748,27 +744,29 @@ func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alp
 	if gateway.Spec.HPA != nil {
 		hpaEnabled = gateway.Spec.HPA.Enabled
 	}
-	logger.Info("Starting HPA reconciliation", "gateway", gateway.Name, "hpaEnabled", hpaEnabled)
+	logger.V(1).Info("Starting HPA reconciliation", "gateway", gateway.Name, "hpaEnabled", hpaEnabled)
 
 	hpaName := fmt.Sprintf("%s-hpa", gateway.Name)
 	existingHPA := &autoscalingv2.HorizontalPodAutoscaler{}
 	err := r.Get(ctx, types.NamespacedName{Name: hpaName, Namespace: gateway.Namespace}, existingHPA)
 	hpaExists := err == nil
 
-	logger.Info("HPA existence check", "hpaName", hpaName, "hpaExists", hpaExists, "getError", err)
+	logger.V(1).Info("HPA existence check", "hpaName", hpaName, "hpaExists", hpaExists, "getError", err)
 
 	if gateway.Spec.HPA == nil || !gateway.Spec.HPA.Enabled {
-		logger.Info("HPA is disabled or not configured", "hpaConfigured", gateway.Spec.HPA != nil)
-		if hpaExists {
-			logger.Info("Deleting HPA as it's disabled", "hpa", hpaName)
-			if err := r.Delete(ctx, existingHPA); err != nil {
-				return fmt.Errorf("failed to delete HPA: %w", err)
-			}
+		logger.V(1).Info("HPA is disabled or not configured", "hpaConfigured", gateway.Spec.HPA != nil)
+		if !hpaExists {
+			return nil
+		}
+
+		logger.V(1).Info("Deleting HPA as it's disabled", "hpa", hpaName)
+		if err := r.Delete(ctx, existingHPA); err != nil {
+			return fmt.Errorf("failed to delete HPA: %w", err)
 		}
 		return nil
 	}
 
-	logger.Info("HPA is enabled, proceeding with creation/update", "enabled", gateway.Spec.HPA.Enabled)
+	logger.V(1).Info("HPA is enabled, proceeding with creation/update", "enabled", gateway.Spec.HPA.Enabled)
 
 	hpa := r.buildHPA(gateway, deployment)
 
@@ -784,21 +782,24 @@ func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alp
 			return fmt.Errorf("failed to create HPA: %w", err)
 		}
 		logger.Info("Successfully created HPA", "hpa", hpaName)
-	} else {
-		if !reflect.DeepEqual(existingHPA.Spec, hpa.Spec) {
-			logger.Info("Updating HPA", "hpa", hpaName)
-			existingHPA.Spec = hpa.Spec
-			if err := r.Update(ctx, existingHPA); err != nil {
-				logger.Error(err, "Failed to update HPA", "hpa", hpaName)
-				return fmt.Errorf("failed to update HPA: %w", err)
-			}
-			logger.Info("Successfully updated HPA", "hpa", hpaName)
-		} else {
-			logger.Info("HPA already up to date", "hpa", hpaName)
-		}
+		logger.V(1).Info("HPA reconciliation completed successfully", "hpa", hpaName)
+		return nil
 	}
 
-	logger.Info("HPA reconciliation completed successfully", "hpa", hpaName)
+	if reflect.DeepEqual(existingHPA.Spec, hpa.Spec) {
+		logger.V(1).Info("HPA already up to date", "hpa", hpaName)
+		logger.V(1).Info("HPA reconciliation completed successfully", "hpa", hpaName)
+		return nil
+	}
+
+	logger.Info("Updating HPA", "hpa", hpaName)
+	existingHPA.Spec = hpa.Spec
+	if err := r.Update(ctx, existingHPA); err != nil {
+		logger.Error(err, "Failed to update HPA", "hpa", hpaName)
+		return fmt.Errorf("failed to update HPA: %w", err)
+	}
+	logger.Info("Successfully updated HPA", "hpa", hpaName)
+	logger.V(1).Info("HPA reconciliation completed successfully", "hpa", hpaName)
 	return nil
 }
 
@@ -875,7 +876,6 @@ func (r *GatewayReconciler) buildHPA(gateway *corev1alpha1.Gateway, deployment *
 		}
 	}
 
-	// If no metrics are specified, default to CPU
 	if len(metrics) == 0 {
 		metrics = append(metrics, autoscalingv2.MetricSpec{
 			Type: autoscalingv2.ResourceMetricSourceType,
@@ -889,7 +889,6 @@ func (r *GatewayReconciler) buildHPA(gateway *corev1alpha1.Gateway, deployment *
 		})
 	}
 
-	// Build behavior configuration
 	behavior := &autoscalingv2.HorizontalPodAutoscalerBehavior{}
 
 	if hpaSpec.ScaleDownStabilizationWindowSeconds != nil {
