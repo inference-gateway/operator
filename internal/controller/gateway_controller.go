@@ -33,6 +33,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,6 +61,7 @@ type GatewayReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 
@@ -103,6 +105,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	err = r.reconcileService(ctx, gateway)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile Service")
+		return ctrl.Result{}, err
+	}
+
+	err = r.reconcileIngress(ctx, gateway)
+	if err != nil {
+		logger.Error(err, "Failed to reconcile Ingress")
 		return ctrl.Result{}, err
 	}
 
@@ -693,6 +701,251 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 	return nil
 }
 
+// reconcileIngress ensures the Ingress exists with the correct configuration
+func (r *GatewayReconciler) reconcileIngress(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+	logger := log.FromContext(ctx)
+
+	if gateway.Spec.Ingress == nil || !gateway.Spec.Ingress.Enabled {
+		ingress := &networkingv1.Ingress{}
+		err := r.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}, ingress)
+		if err == nil {
+			logger.Info("Deleting Ingress (ingress disabled)", "Ingress.Name", ingress.Name)
+			return r.Delete(ctx, ingress)
+		} else if !errors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	ingress := r.buildIngress(gateway)
+	if err := controllerutil.SetControllerReference(gateway, ingress, r.Scheme); err != nil {
+		return err
+	}
+
+	found := &networkingv1.Ingress{}
+	err := r.Get(ctx, types.NamespacedName{Name: ingress.Name, Namespace: ingress.Namespace}, found)
+
+	if err != nil && errors.IsNotFound(err) {
+		logger.Info("Creating Ingress", "Ingress.Name", ingress.Name)
+		if err = r.Create(ctx, ingress); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	} else {
+		if !reflect.DeepEqual(found.Spec, ingress.Spec) || !reflect.DeepEqual(found.Annotations, ingress.Annotations) {
+			found.Spec = ingress.Spec
+			found.Annotations = ingress.Annotations
+			logger.Info("Updating Ingress", "Ingress.Name", ingress.Name)
+			if err = r.Update(ctx, found); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// buildIngress creates an Ingress resource based on Gateway spec
+func (r *GatewayReconciler) buildIngress(gateway *corev1alpha1.Gateway) *networkingv1.Ingress {
+	ingressSpec := gateway.Spec.Ingress
+
+	servicePort := int32(8080)
+	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
+		servicePort = gateway.Spec.Server.Port
+	}
+	if gateway.Spec.Service != nil && gateway.Spec.Service.Port > 0 {
+		servicePort = gateway.Spec.Service.Port
+	}
+
+	ingress := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gateway.Name,
+			Namespace: gateway.Namespace,
+			Labels: map[string]string{
+				"app": gateway.Name,
+			},
+			Annotations: r.buildIngressAnnotations(gateway),
+		},
+		Spec: networkingv1.IngressSpec{
+			IngressClassName: r.getIngressClassName(ingressSpec),
+			Rules:            r.buildIngressRules(gateway, servicePort),
+			TLS:              r.buildIngressTLS(gateway),
+		},
+	}
+
+	return ingress
+}
+
+// buildIngressAnnotations builds annotations for the ingress
+func (r *GatewayReconciler) buildIngressAnnotations(gateway *corev1alpha1.Gateway) map[string]string {
+	annotations := make(map[string]string)
+	ingressSpec := gateway.Spec.Ingress
+
+	if ingressSpec.Annotations != nil {
+		for k, v := range ingressSpec.Annotations {
+			annotations[k] = v
+		}
+	}
+
+	if ingressSpec.TLS != nil && ingressSpec.TLS.Issuer != "" {
+		annotations["cert-manager.io/cluster-issuer"] = ingressSpec.TLS.Issuer
+	}
+
+	className := r.getIngressClassName(ingressSpec)
+	if className != nil && *className == "nginx" {
+		if _, exists := annotations["nginx.ingress.kubernetes.io/ssl-redirect"]; !exists {
+			annotations["nginx.ingress.kubernetes.io/ssl-redirect"] = "true"
+		}
+		if _, exists := annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"]; !exists {
+			annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = "true"
+		}
+	}
+
+	return annotations
+}
+
+// getIngressClassName returns the ingress class name
+func (r *GatewayReconciler) getIngressClassName(ingressSpec *corev1alpha1.IngressSpec) *string {
+	if ingressSpec.ClassName != "" {
+		return &ingressSpec.ClassName
+	}
+
+	defaultClass := "nginx"
+	return &defaultClass
+}
+
+// buildIngressRules builds the ingress rules
+func (r *GatewayReconciler) buildIngressRules(gateway *corev1alpha1.Gateway, servicePort int32) []networkingv1.IngressRule {
+	ingressSpec := gateway.Spec.Ingress
+	var rules []networkingv1.IngressRule
+
+	if ingressSpec.Host != "" {
+		rule := networkingv1.IngressRule{
+			Host: ingressSpec.Host,
+			IngressRuleValue: networkingv1.IngressRuleValue{
+				HTTP: &networkingv1.HTTPIngressRuleValue{
+					Paths: []networkingv1.HTTPIngressPath{
+						{
+							Path:     "/",
+							PathType: (*networkingv1.PathType)(stringPtr("Prefix")),
+							Backend: networkingv1.IngressBackend{
+								Service: &networkingv1.IngressServiceBackend{
+									Name: gateway.Name,
+									Port: networkingv1.ServiceBackendPort{
+										Number: servicePort,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		rules = append(rules, rule)
+	} else if len(ingressSpec.Hosts) > 0 {
+		for _, host := range ingressSpec.Hosts {
+			paths := host.Paths
+			if len(paths) == 0 {
+				paths = []corev1alpha1.IngressPath{
+					{
+						Path:     "/",
+						PathType: "Prefix",
+					},
+				}
+			}
+
+			var httpPaths []networkingv1.HTTPIngressPath
+			for _, path := range paths {
+				pathType := path.PathType
+				if pathType == "" {
+					pathType = "Prefix"
+				}
+				httpPaths = append(httpPaths, networkingv1.HTTPIngressPath{
+					Path:     path.Path,
+					PathType: (*networkingv1.PathType)(&pathType),
+					Backend: networkingv1.IngressBackend{
+						Service: &networkingv1.IngressServiceBackend{
+							Name: gateway.Name,
+							Port: networkingv1.ServiceBackendPort{
+								Number: servicePort,
+							},
+						},
+					},
+				})
+			}
+
+			rule := networkingv1.IngressRule{
+				Host: host.Host,
+				IngressRuleValue: networkingv1.IngressRuleValue{
+					HTTP: &networkingv1.HTTPIngressRuleValue{
+						Paths: httpPaths,
+					},
+				},
+			}
+			rules = append(rules, rule)
+		}
+	}
+
+	return rules
+}
+
+// buildIngressTLS builds the TLS configuration for ingress
+func (r *GatewayReconciler) buildIngressTLS(gateway *corev1alpha1.Gateway) []networkingv1.IngressTLS {
+	ingressSpec := gateway.Spec.Ingress
+	tlsConfigs := make([]networkingv1.IngressTLS, 0, 1)
+
+	if ingressSpec.TLS == nil {
+		return tlsConfigs
+	}
+
+	if ingressSpec.TLS.Enabled {
+		secretName := ingressSpec.TLS.SecretName
+		if secretName == "" {
+			host := ingressSpec.Host
+			if host == "" && len(ingressSpec.Hosts) > 0 {
+				host = ingressSpec.Hosts[0].Host
+			}
+			if host != "" {
+				secretName = fmt.Sprintf("%s-tls", gateway.Name)
+			}
+		}
+
+		if secretName != "" {
+			var hosts []string
+			if ingressSpec.Host != "" {
+				hosts = append(hosts, ingressSpec.Host)
+			} else {
+				for _, host := range ingressSpec.Hosts {
+					hosts = append(hosts, host.Host)
+				}
+			}
+
+			if len(hosts) > 0 {
+				tlsConfig := networkingv1.IngressTLS{
+					SecretName: secretName,
+					Hosts:      hosts,
+				}
+				tlsConfigs = append(tlsConfigs, tlsConfig)
+			}
+		}
+	}
+
+	for _, tlsConfig := range ingressSpec.TLS.Config {
+		tlsConfigs = append(tlsConfigs, networkingv1.IngressTLS{
+			SecretName: tlsConfig.SecretName,
+			Hosts:      tlsConfig.Hosts,
+		})
+	}
+
+	return tlsConfigs
+}
+
+// stringPtr returns a pointer to the given string
+func stringPtr(s string) *string {
+	return &s
+}
+
 // toUpperSnakeCase converts a camelCase or kebab-case string to UPPER_SNAKE_CASE
 func toUpperSnakeCase(s string) string {
 	result := ""
@@ -961,6 +1214,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
+		Owns(&networkingv1.Ingress{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
 		Complete(r)
 }

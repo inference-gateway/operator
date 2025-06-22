@@ -39,8 +39,11 @@ import (
 	utils "github.com/inference-gateway/operator/test/utils"
 )
 
-// namespace where the project is deployed in
+// namespace where the operator is deployed in
 const namespace = "inference-gateway-system"
+
+// namespace where the test resources are created
+const testNamespace = "inference-gateway"
 
 // serviceAccountName created for the project
 const serviceAccountName = "operator-inference-gateway"
@@ -307,7 +310,7 @@ var _ = Describe("Operator", Ordered, func() {
 		Context("Gateway Controller", func() {
 			const (
 				gatewayName      = "e2e-test-gateway"
-				gatewayNamespace = "default"
+				gatewayNamespace = testNamespace
 				configMapName    = "e2e-test-gateway-config"
 				deploymentName   = "e2e-test-gateway"
 				serviceName      = "e2e-test-gateway"
@@ -873,7 +876,7 @@ spec:
 			Context("OpenTelemetry Integration", func() {
 				const (
 					otelGatewayName      = "otel-test-gateway"
-					otelGatewayNamespace = "default"
+					otelGatewayNamespace = testNamespace
 					otelConfigMapName    = "otel-test-gateway-config"
 					otelDeploymentName   = "otel-test-gateway"
 					otelServiceName      = "otel-test-gateway"
@@ -1122,8 +1125,8 @@ spec:
       endpoint: "http://otel-collector:4317"  # OTLP gRPC endpoint
   
   providers:
-    - name: "openai"
-      type: "openai"
+    - name: openai
+      type: openai
       config:
         baseUrl: "https://api.openai.com/v1"
         authType: "bearer"
@@ -1213,6 +1216,101 @@ spec:
 					cmd = exec.Command("kubectl", "delete", "gateway", otelGatewayName+"-invalid", "-n", otelGatewayNamespace, "--ignore-not-found=true")
 					_, _ = utils.Run(cmd)
 				})
+			})
+
+			It("should recreate ingress if deleted manually", func() {
+				gwName := "ingress-e2e-recreate"
+				gwNs := testNamespace
+				gatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  environment: development
+  image: ghcr.io/inference-gateway/inference-gateway:latest
+  ingress:
+    enabled: true
+    host: e2e-recreate.local
+`, gwName, gwNs)
+
+				gatewayFile := filepath.Join(os.TempDir(), "ingress-e2e-recreate.yaml")
+				err := os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)
+				Expect(err).NotTo(HaveOccurred(), "Failed to write Gateway YAML file")
+
+				cmd := exec.Command("kubectl", "apply", "-f", gatewayFile)
+				_, err = utils.Run(cmd)
+				Expect(err).NotTo(HaveOccurred(), "Failed to create Gateway CR")
+
+				By("waiting for the ingress to be created")
+				verifyIngress := func() bool {
+					cmd := exec.Command("kubectl", "get", "ingress", gwName, "-n", gwNs, "-o", "jsonpath={.spec.rules[0].host}")
+					output, err := utils.Run(cmd)
+					return err == nil && strings.TrimSpace(output) == "e2e-recreate.local"
+				}
+				Eventually(verifyIngress, 2*time.Minute, 2*time.Second).Should(BeTrue())
+
+				By("deleting the ingress manually")
+				cmd = exec.Command("kubectl", "delete", "ingress", gwName, "-n", gwNs)
+				_, err = utils.Run(cmd)
+				Expect(err).NotTo(HaveOccurred(), "Failed to delete ingress")
+
+				By("waiting for the ingress to be recreated")
+				Eventually(verifyIngress, 2*time.Minute, 2*time.Second).Should(BeTrue())
+
+				By("cleaning up the gateway")
+				cmd = exec.Command("kubectl", "delete", "gateway", gwName, "-n", gwNs, "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			It("should update ingress when host is changed in Gateway", func() {
+				gwName := "ingress-e2e-update"
+				gwNs := testNamespace
+				initialHost := "ingress-update.local"
+				updatedHost := "ingress-updated.local"
+				gatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  environment: development
+  image: ghcr.io/inference-gateway/inference-gateway:latest
+  ingress:
+    enabled: true
+    host: %s
+`, gwName, gwNs, initialHost)
+
+				gatewayFile := filepath.Join(os.TempDir(), "ingress-e2e-update.yaml")
+				err := os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)
+				Expect(err).NotTo(HaveOccurred(), "Failed to write Gateway YAML file")
+
+				cmd := exec.Command("kubectl", "apply", "-f", gatewayFile)
+				_, err = utils.Run(cmd)
+				Expect(err).NotTo(HaveOccurred(), "Failed to create Gateway CR")
+
+				By("waiting for the ingress to be created with the initial host")
+				verifyIngressHost := func(expectedHost string) bool {
+					cmd := exec.Command("kubectl", "get", "ingress", gwName, "-n", gwNs, "-o", "jsonpath={.spec.rules[0].host}")
+					output, err := utils.Run(cmd)
+					return err == nil && strings.TrimSpace(output) == expectedHost
+				}
+				Eventually(func() bool { return verifyIngressHost(initialHost) }, 2*time.Minute, 2*time.Second).Should(BeTrue())
+
+				By("patching the Gateway to update the host")
+				patch := fmt.Sprintf(`{"spec":{"ingress":{"enabled":true,"host":"%s"}}}`, updatedHost)
+				cmd = exec.Command("kubectl", "patch", "gateway", gwName, "-n", gwNs, "--type=merge", "-p", patch)
+				_, err = utils.Run(cmd)
+				Expect(err).NotTo(HaveOccurred(), "Failed to patch Gateway ingress host")
+
+				By("waiting for the ingress to be updated with the new host")
+				Eventually(func() bool { return verifyIngressHost(updatedHost) }, 2*time.Minute, 2*time.Second).Should(BeTrue())
+
+				By("cleaning up the gateway")
+				cmd = exec.Command("kubectl", "delete", "gateway", gwName, "-n", gwNs, "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
 			})
 		})
 	})

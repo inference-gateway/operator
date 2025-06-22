@@ -285,8 +285,15 @@ spec:
                     default: false
                     description: Enable ingress
                     type: boolean
+                  host:
+                    description: |-
+                      Simple host configuration (alternative to hosts array)
+                      When specified, this will be used as the primary host with automatic TLS and path configuration
+                    type: string
                   hosts:
-                    description: Ingress hosts configuration
+                    description: |-
+                      Ingress hosts configuration (advanced usage)
+                      Use 'host' field for simple single-host configuration
                     items:
                       description: IngressHost contains ingress host configuration
                       properties:
@@ -319,21 +326,39 @@ spec:
                     type: array
                   tls:
                     description: TLS configuration
-                    items:
-                      description: IngressTLS contains ingress TLS configuration
-                      properties:
-                        hosts:
-                          description: Hosts covered by the certificate
-                          items:
-                            type: string
-                          type: array
-                        secretName:
-                          description: Secret name containing TLS certificate
-                          type: string
-                      required:
-                      - secretName
-                      type: object
-                    type: array
+                    properties:
+                      config:
+                        description: Advanced TLS configuration (alternative to simple
+                          config above)
+                        items:
+                          description: IngressTLS contains ingress TLS configuration
+                          properties:
+                            hosts:
+                              description: Hosts covered by the certificate
+                              items:
+                                type: string
+                              type: array
+                            secretName:
+                              description: Secret name containing TLS certificate
+                              type: string
+                          required:
+                          - secretName
+                          type: object
+                        type: array
+                      enabled:
+                        default: true
+                        description: Enable TLS for ingress
+                        type: boolean
+                      issuer:
+                        description: |-
+                          Certificate issuer for cert-manager (automatically sets annotation)
+                          Examples: "letsencrypt-prod", "letsencrypt-staging", "selfsigned-issuer"
+                        type: string
+                      secretName:
+                        description: Secret name for TLS certificate (auto-generated
+                          if not specified)
+                        type: string
+                    type: object
                 type: object
               mcp:
                 description: MCP (Model Context Protocol) configuration
@@ -892,6 +917,18 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

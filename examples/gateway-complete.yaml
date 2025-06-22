@@ -156,18 +156,11 @@ spec:
   # Ingress configuration
   ingress:
     enabled: true
+    host: "api.inference-gateway.local"
     className: "nginx"
-    annotations:
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    hosts:
-      - host: "api.inference-gateway.local"
-        paths:
-          - path: "/"
-            pathType: Prefix
     tls:
-      - secretName: inference-gateway-tls
-        hosts:
-          - "api.inference-gateway.local"
+      enabled: true
+      issuer: "letsencrypt-prod"
 ---
 apiVersion: v1
 kind: Secret

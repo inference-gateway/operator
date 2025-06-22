@@ -472,6 +472,11 @@ type IngressSpec struct {
 	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 
+	// Simple host configuration (alternative to hosts array)
+	// When specified, this will be used as the primary host with automatic TLS and path configuration
+	// +optional
+	Host string `json:"host,omitempty"`
+
 	// Ingress class name
 	// +optional
 	ClassName string `json:"className,omitempty"`
@@ -480,13 +485,35 @@ type IngressSpec struct {
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 
-	// Ingress hosts configuration
+	// Ingress hosts configuration (advanced usage)
+	// Use 'host' field for simple single-host configuration
 	// +optional
 	Hosts []IngressHost `json:"hosts,omitempty"`
 
 	// TLS configuration
 	// +optional
-	TLS []IngressTLS `json:"tls,omitempty"`
+	TLS *IngressTLSConfig `json:"tls,omitempty"`
+}
+
+// IngressTLSConfig contains simplified TLS configuration
+type IngressTLSConfig struct {
+	// Enable TLS for ingress
+	// +optional
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Certificate issuer for cert-manager (automatically sets annotation)
+	// Examples: "letsencrypt-prod", "letsencrypt-staging", "selfsigned-issuer"
+	// +optional
+	Issuer string `json:"issuer,omitempty"`
+
+	// Secret name for TLS certificate (auto-generated if not specified)
+	// +optional
+	SecretName string `json:"secretName,omitempty"`
+
+	// Advanced TLS configuration (alternative to simple config above)
+	// +optional
+	Config []IngressTLS `json:"config,omitempty"`
 }
 
 // IngressHost contains ingress host configuration

@@ -213,8 +213,9 @@ tasks:
 
   deploy:
     desc: Deploy controller to the K8s cluster specified in ~/.kube/config
-    deps: [manifests]
+    deps: [docker-build, manifests]
     cmds:
+      - k3d image import {{.IMG}} -c dev
       - cd config/operator && {{.KUSTOMIZE}} edit set image ghcr.io/inference-gateway/operator={{.IMG}}
       - "{{.KUSTOMIZE}} build config/default | {{.KUBECTL}} apply -f -"
 

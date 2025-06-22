@@ -31,6 +31,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -582,5 +583,55 @@ var _ = Describe("Gateway controller", func() {
 
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})
+
+		DescribeTable("Ingress reconciliation",
+			func(name, host string, tlsEnabled bool) {
+				ctx := context.Background()
+				gwName := name
+				gwNs := GatewayNamespace
+				gateway := &corev1alpha1.Gateway{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "core.inference-gateway.com/v1alpha1",
+						Kind:       "Gateway",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      gwName,
+						Namespace: gwNs,
+					},
+					Spec: corev1alpha1.GatewaySpec{
+						Environment: "development",
+						Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
+						Ingress: &corev1alpha1.IngressSpec{
+							Enabled: true,
+							Host:    host,
+							TLS: &corev1alpha1.IngressTLSConfig{
+								Enabled: tlsEnabled,
+							},
+						},
+					},
+				}
+				Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+
+				ingressName := types.NamespacedName{Name: gwName, Namespace: gwNs}
+				createdIngress := &networkingv1.Ingress{}
+				Eventually(func() bool {
+					return k8sClient.Get(ctx, ingressName, createdIngress) == nil
+				}, timeout, interval).Should(BeTrue())
+				Expect(createdIngress.Spec.Rules).ToNot(BeEmpty())
+				Expect(createdIngress.Spec.Rules[0].Host).To(Equal(host))
+				if tlsEnabled {
+					Expect(createdIngress.Spec.TLS).ToNot(BeEmpty())
+				}
+
+				if len(createdIngress.Spec.TLS) > 0 {
+					Expect(createdIngress.Spec.TLS[0].Hosts).To(ContainElement(host))
+					Expect(createdIngress.Spec.TLS[0].SecretName).To(ContainSubstring(gwName))
+				}
+
+				Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
+			},
+			Entry("should create ingress without TLS", "ingress-no-tls", "test-no-tls.local", false),
+			Entry("should create ingress with TLS", "ingress-with-tls", "test-with-tls.local", true),
+		)
 	})
 })
