@@ -19,9 +19,13 @@ metadata:
     app.kubernetes.io/version: "0.12.0"
 spec:
   # Core gateway configuration
-  replicas: 3
-  image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
   environment: production
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+  image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
 
   # OpenTelemetry observability configuration
   telemetry:

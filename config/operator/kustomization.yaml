@@ -7,6 +7,6 @@ resources:
 - operator.yaml
 
 images:
-- name: controller
+- name: ghcr.io/inference-gateway/operator
   newName: ghcr.io/inference-gateway/operator
   newTag: latest

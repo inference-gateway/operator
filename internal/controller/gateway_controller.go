@@ -28,6 +28,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -91,21 +92,29 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	deployment, err := r.reconcileDeployment(ctx, gateway, configMap)
 	if err != nil {
+		if errors.IsConflict(err) {
+			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
+			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
+		}
 		logger.Error(err, "Failed to reconcile Deployment")
 		return ctrl.Result{}, err
 	}
 
+	logger.Info("About to reconcile Service", "gateway", gateway.Name)
 	err = r.reconcileService(ctx, gateway)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile Service")
 		return ctrl.Result{}, err
 	}
+	logger.Info("Service reconciliation completed", "gateway", gateway.Name)
 
+	logger.Info("About to reconcile HPA", "gateway", gateway.Name, "hpaConfig", gateway.Spec.HPA)
 	err = r.reconcileHPA(ctx, gateway, deployment)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile HPA")
 		return ctrl.Result{}, err
 	}
+	logger.Info("HPA reconciliation completed", "gateway", gateway.Name)
 
 	logger.Info("Reconciled Gateway successfully",
 		"gateway", gateway.Name,
@@ -515,11 +524,7 @@ func (r *GatewayReconciler) buildVolumes(gateway *corev1alpha1.Gateway, configMa
 // setDeploymentReplicas sets the replica count based on HPA configuration
 func (r *GatewayReconciler) setDeploymentReplicas(gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) {
 	if gateway.Spec.HPA != nil && gateway.Spec.HPA.Enabled {
-		minReplicas := int32(1)
-		if gateway.Spec.HPA.MinReplicas != nil {
-			minReplicas = *gateway.Spec.HPA.MinReplicas
-		}
-		deployment.Spec.Replicas = &minReplicas
+		deployment.Spec.Replicas = nil
 	} else {
 		replicas := int32(1)
 		if gateway.Spec.Replicas != nil {
@@ -551,53 +556,71 @@ func (r *GatewayReconciler) createOrUpdateDeployment(ctx context.Context, gatewa
 // updateDeploymentIfNeeded updates deployment if changes are detected
 func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gateway *corev1alpha1.Gateway, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
 	logger := log.FromContext(ctx)
-	specChanged := r.updateReplicasIfNeeded(gateway, found)
 
-	if !reflect.DeepEqual(found.Spec.Selector, desired.Spec.Selector) {
-		found.Spec.Selector = desired.Spec.Selector
-		specChanged = true
-	}
-	if !reflect.DeepEqual(found.Spec.Template, desired.Spec.Template) {
-		found.Spec.Template = desired.Spec.Template
-		specChanged = true
-	}
-	if !reflect.DeepEqual(found.Spec.Strategy, desired.Spec.Strategy) {
-		found.Spec.Strategy = desired.Spec.Strategy
-		specChanged = true
-	}
-
-	if specChanged {
-		logger.Info("Updating Deployment", "Deployment.Name", desired.Name)
-		if err := r.Update(ctx, found); err != nil {
+	for retries := 0; retries < 3; retries++ {
+		latestDeployment := &appsv1.Deployment{}
+		if err := r.Get(ctx, types.NamespacedName{Name: found.Name, Namespace: found.Namespace}, latestDeployment); err != nil {
 			return nil, err
 		}
+
+		needsUpdate := false
+		var changes []string
+
+		if gateway.Spec.HPA == nil || !gateway.Spec.HPA.Enabled {
+			desiredReplicas := int32(1)
+			if gateway.Spec.Replicas != nil {
+				desiredReplicas = *gateway.Spec.Replicas
+			}
+
+			if latestDeployment.Spec.Replicas == nil || *latestDeployment.Spec.Replicas != desiredReplicas {
+				latestDeployment.Spec.Replicas = &desiredReplicas
+				needsUpdate = true
+				changes = append(changes, fmt.Sprintf("replicas: %v -> %v",
+					func() interface{} {
+						if latestDeployment.Spec.Replicas == nil {
+							return "nil"
+						}
+						return *latestDeployment.Spec.Replicas
+					}(), desiredReplicas))
+			}
+		} else {
+			if latestDeployment.Spec.Replicas != nil {
+				logger.Info("HPA is enabled, not modifying replicas field",
+					"current", *latestDeployment.Spec.Replicas)
+			}
+		}
+
+		if !reflect.DeepEqual(latestDeployment.Spec.Template, desired.Spec.Template) {
+			latestDeployment.Spec.Template = desired.Spec.Template
+			needsUpdate = true
+			changes = append(changes, "pod template")
+		}
+
+		if !reflect.DeepEqual(latestDeployment.Spec.Selector, desired.Spec.Selector) {
+			latestDeployment.Spec.Selector = desired.Spec.Selector
+			needsUpdate = true
+			changes = append(changes, "selector")
+		}
+
+		if !needsUpdate {
+			logger.Info("No deployment changes needed")
+			return latestDeployment, nil
+		}
+
+		logger.Info("Updating Deployment", "Deployment.Name", desired.Name, "changes", strings.Join(changes, ", "))
+		if err := r.Update(ctx, latestDeployment); err != nil {
+			if errors.IsConflict(err) && retries < 2 {
+				logger.Info("Deployment update conflict, retrying", "retry", retries+1, "error", err)
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+			return nil, err
+		}
+		logger.Info("Deployment updated successfully")
+		return latestDeployment, nil
 	}
 
-	return found, nil
-}
-
-// updateReplicasIfNeeded updates replicas based on HPA configuration
-func (r *GatewayReconciler) updateReplicasIfNeeded(gateway *corev1alpha1.Gateway, found *appsv1.Deployment) bool {
-	if gateway.Spec.HPA != nil && gateway.Spec.HPA.Enabled {
-		minReplicas := int32(1)
-		if gateway.Spec.HPA.MinReplicas != nil {
-			minReplicas = *gateway.Spec.HPA.MinReplicas
-		}
-		if found.Spec.Replicas == nil || *found.Spec.Replicas != minReplicas {
-			found.Spec.Replicas = &minReplicas
-			return true
-		}
-	} else {
-		replicas := int32(1)
-		if gateway.Spec.Replicas != nil {
-			replicas = *gateway.Spec.Replicas
-		}
-		if found.Spec.Replicas == nil || *found.Spec.Replicas != replicas {
-			found.Spec.Replicas = &replicas
-			return true
-		}
-	}
-	return false
+	return nil, fmt.Errorf("failed to update deployment after 3 retries due to conflicts")
 }
 
 // reconcileService ensures the Service exists with the correct configuration
@@ -721,12 +744,21 @@ func (r *GatewayReconciler) shouldWatchNamespace(ctx context.Context, namespace 
 func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) error {
 	logger := log.FromContext(ctx)
 
+	var hpaEnabled bool
+	if gateway.Spec.HPA != nil {
+		hpaEnabled = gateway.Spec.HPA.Enabled
+	}
+	logger.Info("Starting HPA reconciliation", "gateway", gateway.Name, "hpaEnabled", hpaEnabled)
+
 	hpaName := fmt.Sprintf("%s-hpa", gateway.Name)
 	existingHPA := &autoscalingv2.HorizontalPodAutoscaler{}
 	err := r.Get(ctx, types.NamespacedName{Name: hpaName, Namespace: gateway.Namespace}, existingHPA)
 	hpaExists := err == nil
 
+	logger.Info("HPA existence check", "hpaName", hpaName, "hpaExists", hpaExists, "getError", err)
+
 	if gateway.Spec.HPA == nil || !gateway.Spec.HPA.Enabled {
+		logger.Info("HPA is disabled or not configured", "hpaConfigured", gateway.Spec.HPA != nil)
 		if hpaExists {
 			logger.Info("Deleting HPA as it's disabled", "hpa", hpaName)
 			if err := r.Delete(ctx, existingHPA); err != nil {
@@ -736,27 +768,37 @@ func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alp
 		return nil
 	}
 
+	logger.Info("HPA is enabled, proceeding with creation/update", "enabled", gateway.Spec.HPA.Enabled)
+
 	hpa := r.buildHPA(gateway, deployment)
 
 	if !hpaExists {
-		logger.Info("Creating HPA", "hpa", hpaName)
+		logger.Info("Creating HPA", "hpa", hpaName, "hpaSpec", hpa.Spec)
 		if err := controllerutil.SetControllerReference(gateway, hpa, r.Scheme); err != nil {
+			logger.Error(err, "Failed to set controller reference for HPA", "hpa", hpaName)
 			return fmt.Errorf("failed to set controller reference: %w", err)
 		}
 
 		if err := r.Create(ctx, hpa); err != nil {
+			logger.Error(err, "Failed to create HPA", "hpa", hpaName)
 			return fmt.Errorf("failed to create HPA: %w", err)
 		}
+		logger.Info("Successfully created HPA", "hpa", hpaName)
 	} else {
 		if !reflect.DeepEqual(existingHPA.Spec, hpa.Spec) {
 			logger.Info("Updating HPA", "hpa", hpaName)
 			existingHPA.Spec = hpa.Spec
 			if err := r.Update(ctx, existingHPA); err != nil {
+				logger.Error(err, "Failed to update HPA", "hpa", hpaName)
 				return fmt.Errorf("failed to update HPA: %w", err)
 			}
+			logger.Info("Successfully updated HPA", "hpa", hpaName)
+		} else {
+			logger.Info("HPA already up to date", "hpa", hpaName)
 		}
 	}
 
+	logger.Info("HPA reconciliation completed successfully", "hpa", hpaName)
 	return nil
 }
 

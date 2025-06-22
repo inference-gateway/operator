@@ -61,7 +61,7 @@ spec:
             - --zap-log-level=info
             - --zap-encoder=json
           image: ghcr.io/inference-gateway/operator:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           name: operator
           env:
             - name: WATCH_NAMESPACE_SELECTOR

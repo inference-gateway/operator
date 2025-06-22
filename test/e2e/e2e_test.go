@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -109,12 +110,23 @@ var _ = Describe("Operator", Ordered, func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
 			By("Fetching operator pod logs")
-			cmd := exec.Command("kubectl", "logs", controllerPodName, "-c", "operator", "-n", namespace)
-			controllerLogs, err := utils.Run(cmd)
-			if err == nil {
-				_, _ = fmt.Fprintf(GinkgoWriter, "Operator logs:\n %s", controllerLogs)
+			cmd := exec.Command("kubectl", "get", "pods", "-l", "app.kubernetes.io/name=operator", "-n", namespace, "-o", "jsonpath={.items[0].metadata.name}")
+			podName, err := utils.Run(cmd)
+			if err != nil {
+				_, _ = fmt.Fprintf(GinkgoWriter, "Failed to find operator pod: %s", err)
 			} else {
-				_, _ = fmt.Fprintf(GinkgoWriter, "Failed to get Operator logs: %s", err)
+				podName = strings.TrimSpace(podName)
+				if podName != "" {
+					cmd = exec.Command("kubectl", "logs", podName, "-c", "operator", "-n", namespace)
+					controllerLogs, err := utils.Run(cmd)
+					if err == nil {
+						_, _ = fmt.Fprintf(GinkgoWriter, "Operator logs:\n %s", controllerLogs)
+					} else {
+						_, _ = fmt.Fprintf(GinkgoWriter, "Failed to get Operator logs: %s", err)
+					}
+				} else {
+					_, _ = fmt.Fprintf(GinkgoWriter, "No operator pod found")
+				}
 			}
 
 			By("Fetching Kubernetes events")
@@ -136,17 +148,32 @@ var _ = Describe("Operator", Ordered, func() {
 			}
 
 			By("Fetching controller manager pod description")
-			cmd = exec.Command("kubectl", "describe", "pod", controllerPodName, "-n", namespace)
-			podDescription, err := utils.Run(cmd)
-			if err == nil {
-				fmt.Println("Pod description:\n", podDescription)
+			// Use the same podName we found earlier or find it again
+			if podName == "" {
+				cmd = exec.Command("kubectl", "get", "pods", "-l", "app.kubernetes.io/name=operator", "-n", namespace, "-o", "jsonpath={.items[0].metadata.name}")
+				podName, err = utils.Run(cmd)
+				if err != nil {
+					_, _ = fmt.Fprintf(GinkgoWriter, "Failed to find operator pod for description: %s", err)
+					return
+				}
+				podName = strings.TrimSpace(podName)
+			}
+
+			if podName != "" {
+				cmd = exec.Command("kubectl", "describe", "pod", podName, "-n", namespace)
+				podDescription, err := utils.Run(cmd)
+				if err == nil {
+					fmt.Println("Pod description:\n", podDescription)
+				} else {
+					fmt.Println("Failed to describe controller pod:", err)
+				}
 			} else {
-				fmt.Println("Failed to describe controller pod")
+				fmt.Println("No operator pod found for description")
 			}
 		}
 	})
 
-	SetDefaultEventuallyTimeout(2 * time.Minute)
+	SetDefaultEventuallyTimeout(30 * time.Second)
 	SetDefaultEventuallyPollingInterval(time.Second)
 
 	Context("Operator", func() {
@@ -284,7 +311,7 @@ var _ = Describe("Operator", Ordered, func() {
 				configMapName    = "e2e-test-gateway-config"
 				deploymentName   = "e2e-test-gateway"
 				serviceName      = "e2e-test-gateway"
-				timeout          = 2 * time.Minute
+				timeout          = 30 * time.Second
 				interval         = time.Second
 			)
 
@@ -850,7 +877,7 @@ spec:
 					otelConfigMapName    = "otel-test-gateway-config"
 					otelDeploymentName   = "otel-test-gateway"
 					otelServiceName      = "otel-test-gateway"
-					timeout              = 3 * time.Minute
+					timeout              = 30 * time.Second
 					interval             = 2 * time.Second
 				)
 

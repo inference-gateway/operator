@@ -26,6 +26,8 @@ Today is June 20, 2025.
 4. Run `task fmt` to ensure code formatting is consistent.
 5. Run `task build` to verify successful compilation.
 6. Run `task test` to ensure all tests pass.
+7. Run `task test:e2e` to run all end-to-end tests if applicable.
+8. Run `task test:e2e:focus` to run focused end-to-end test if applicable.
 
 ## Available Tools and MCPs
 

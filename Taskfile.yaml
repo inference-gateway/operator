@@ -42,7 +42,7 @@ tasks:
     cmds:
       - '{{.CONTROLLER_GEN}} rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases'
       - mkdir -p manifests
-      - cd config/operator && {{.KUSTOMIZE}} edit set image controller=ghcr.io/inference-gateway/operator:latest
+      - cd config/operator && {{.KUSTOMIZE}} edit set image ghcr.io/inference-gateway/operator=ghcr.io/inference-gateway/operator:latest
       - "{{.KUSTOMIZE}} build config/crd > manifests/crds.yaml"
       - "{{.KUSTOMIZE}} build config/default > manifests/install.yaml"
       - "{{.KUSTOMIZE}} build config/operator > manifests/namespace-install.yaml"
@@ -98,7 +98,7 @@ tasks:
     cmds:
       - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path)" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-  test-e2e:
+  test:e2e:
     desc: Run the e2e tests using ctlptl with k3d
     deps: [manifests, generate, fmt, vet]
     cmds:
@@ -118,6 +118,32 @@ tasks:
           exit 1
         fi
       - go test ./test/e2e/ -v -ginkgo.v
+
+  test:e2e:focus:
+    desc: 'Run specific e2e tests using ginkgo focus (usage: task test-e2e-focus FOCUS="test name")'
+    deps: [manifests, generate, fmt, vet]
+    cmds:
+      - |
+        if ! command -v ctlptl &>/dev/null; then
+          echo "ctlptl is not installed. Please install ctlptl manually."
+          exit 1
+        fi
+      - |
+        if ! command -v k3d &>/dev/null; then
+          echo "k3d is not installed. Please install k3d manually."
+          exit 1
+        fi
+      - |
+        if ! ctlptl get cluster | grep -q 'k3d'; then
+          echo "No k3d cluster is running. Please start a k3d cluster with ctlptl before running the e2e tests."
+          exit 1
+        fi
+      - |
+        if [ -z "{{.FOCUS}}" ]; then
+          echo "Please provide a FOCUS parameter, e.g.: task test-e2e-focus FOCUS=\"creates Gateway with HPA\""
+          exit 1
+        fi
+      - go test ./test/e2e/ -v -ginkgo.v -ginkgo.focus="{{.FOCUS}}"
 
   lint:
     desc: Run golangci-lint linter
@@ -184,7 +210,7 @@ tasks:
     desc: Deploy controller to the K8s cluster specified in ~/.kube/config
     deps: [manifests]
     cmds:
-      - cd config/operator && {{.KUSTOMIZE}} edit set image controller={{.IMG}}
+      - cd config/operator && {{.KUSTOMIZE}} edit set image ghcr.io/inference-gateway/operator={{.IMG}}
       - "{{.KUSTOMIZE}} build config/default | {{.KUBECTL}} apply -f -"
 
   undeploy:
