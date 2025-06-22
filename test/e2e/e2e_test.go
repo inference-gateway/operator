@@ -32,6 +32,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 
 	utils "github.com/inference-gateway/operator/test/utils"
 )
@@ -583,6 +585,262 @@ spec:
 					g.Expect(currentGen).To(Equal(observedGen), "Deployment not fully reconciled")
 				}
 				Eventually(verifyDeploymentStatus, timeout, interval).Should(Succeed())
+			})
+
+			Context("Horizontal Pod Autoscaler (HPA) Integration", func() {
+				hpaGatewayName := "test-hpa-gateway"
+
+				BeforeEach(func() {
+					By("ensuring the test namespace has the required label for HPA tests")
+					cmd := exec.Command("kubectl", "label", "namespace", gatewayNamespace, "inference-gateway.com/managed=true", "--overwrite")
+					_, err := utils.Run(cmd)
+					Expect(err).NotTo(HaveOccurred(), "Failed to label namespace")
+
+					By("cleaning up any existing HPA test gateway resources")
+					cmd = exec.Command("kubectl", "delete", "gateway", hpaGatewayName, "-n", gatewayNamespace, "--ignore-not-found=true")
+					_, _ = utils.Run(cmd)
+
+					time.Sleep(5 * time.Second)
+				})
+
+				AfterEach(func() {
+					By("cleaning up HPA test gateway resources")
+					cmd := exec.Command("kubectl", "delete", "gateway", hpaGatewayName, "-n", gatewayNamespace, "--ignore-not-found=true")
+					_, _ = utils.Run(cmd)
+
+					By("removing the label from the test namespace")
+					cmd = exec.Command("kubectl", "label", "namespace", gatewayNamespace, "inference-gateway.com/managed-", "--ignore-not-found=true")
+					_, _ = utils.Run(cmd)
+				})
+
+				It("should create and manage HPA when enabled in Gateway spec", func() {
+					By("creating a Gateway with HPA enabled")
+					hpaGatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  environment: development
+  replicas: 2
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+    scaleDownStabilizationWindowSeconds: 300
+    scaleUpStabilizationWindowSeconds: 60
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+      port: 9464
+  providers:
+    - name: openai
+      type: openai
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        tokenRef:
+          name: provider-keys
+          key: openai-key
+`, hpaGatewayName, gatewayNamespace)
+
+					hpaGatewayFile := filepath.Join(os.TempDir(), "test-hpa-gateway.yaml")
+					err := os.WriteFile(hpaGatewayFile, []byte(hpaGatewayYAML), 0644)
+					Expect(err).NotTo(HaveOccurred(), "Failed to write HPA Gateway YAML file")
+
+					cmd := exec.Command("kubectl", "apply", "-f", hpaGatewayFile)
+					_, err = utils.Run(cmd)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create HPA Gateway")
+
+					By("verifying that HPA is created")
+					Eventually(func() error {
+						cmd := exec.Command("kubectl", "get", "hpa", fmt.Sprintf("%s-hpa", hpaGatewayName), "-n", gatewayNamespace, "-o", "json")
+						output, err := utils.Run(cmd)
+						if err != nil {
+							return fmt.Errorf("HPA not found: %v", err)
+						}
+
+						var hpa autoscalingv2.HorizontalPodAutoscaler
+						if err := json.Unmarshal([]byte(output), &hpa); err != nil {
+							return fmt.Errorf("failed to parse HPA JSON: %v", err)
+						}
+
+						if hpa.Spec.MinReplicas == nil || *hpa.Spec.MinReplicas != 1 {
+							return fmt.Errorf("HPA minReplicas incorrect: expected 1, got %v", hpa.Spec.MinReplicas)
+						}
+
+						if hpa.Spec.MaxReplicas != 5 {
+							return fmt.Errorf("HPA maxReplicas incorrect: expected 5, got %d", hpa.Spec.MaxReplicas)
+						}
+
+						if len(hpa.Spec.Metrics) == 0 {
+							return fmt.Errorf("HPA metrics not configured")
+						}
+
+						foundCPU, foundMemory := false, false
+						for _, metric := range hpa.Spec.Metrics {
+							if metric.Type == autoscalingv2.ResourceMetricSourceType && metric.Resource != nil {
+								switch metric.Resource.Name {
+								case "cpu":
+									if metric.Resource.Target.Type == autoscalingv2.UtilizationMetricType &&
+										metric.Resource.Target.AverageUtilization != nil &&
+										*metric.Resource.Target.AverageUtilization == 70 {
+										foundCPU = true
+									}
+								case "memory":
+									if metric.Resource.Target.Type == autoscalingv2.UtilizationMetricType &&
+										metric.Resource.Target.AverageUtilization != nil &&
+										*metric.Resource.Target.AverageUtilization == 80 {
+										foundMemory = true
+									}
+								}
+							}
+						}
+
+						if !foundCPU {
+							return fmt.Errorf("CPU metric with 70%% target not found")
+						}
+						if !foundMemory {
+							return fmt.Errorf("Memory metric with 80%% target not found")
+						}
+
+						return nil
+					}, timeout, interval).Should(Succeed(), "HPA should be created with correct configuration")
+
+					By("verifying that the Deployment has correct replica configuration for HPA")
+					Eventually(func() error {
+						cmd := exec.Command("kubectl", "get", "deployment", hpaGatewayName, "-n", gatewayNamespace, "-o", "json")
+						output, err := utils.Run(cmd)
+						if err != nil {
+							return fmt.Errorf("Deployment not found: %v", err)
+						}
+
+						var deployment appsv1.Deployment
+						if err := json.Unmarshal([]byte(output), &deployment); err != nil {
+							return fmt.Errorf("failed to parse Deployment JSON: %v", err)
+						}
+
+						if deployment.Spec.Replicas == nil || *deployment.Spec.Replicas != 1 {
+							return fmt.Errorf("Deployment replicas should be set to minReplicas (1), got %v", deployment.Spec.Replicas)
+						}
+
+						return nil
+					}, timeout, interval).Should(Succeed(), "Deployment should have correct replica configuration")
+
+					By("verifying that HPA target reference is correct")
+					cmd = exec.Command("kubectl", "get", "hpa", fmt.Sprintf("%s-hpa", hpaGatewayName), "-n", gatewayNamespace, "-o", "json")
+					output, err := utils.Run(cmd)
+					Expect(err).NotTo(HaveOccurred(), "Failed to get HPA")
+
+					var hpa autoscalingv2.HorizontalPodAutoscaler
+					err = json.Unmarshal([]byte(output), &hpa)
+					Expect(err).NotTo(HaveOccurred(), "Failed to parse HPA JSON")
+
+					Expect(hpa.Spec.ScaleTargetRef.APIVersion).To(Equal("apps/v1"))
+					Expect(hpa.Spec.ScaleTargetRef.Kind).To(Equal("Deployment"))
+					Expect(hpa.Spec.ScaleTargetRef.Name).To(Equal(hpaGatewayName))
+				})
+
+				It("should remove HPA when disabled in Gateway spec", func() {
+					By("creating a Gateway with HPA enabled initially")
+					hpaGatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  environment: development
+  replicas: 3
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+  providers:
+    - name: openai
+      type: openai
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        tokenRef:
+          name: provider-keys
+          key: openai-key
+`, hpaGatewayName, gatewayNamespace)
+
+					hpaGatewayFile := filepath.Join(os.TempDir(), "test-hpa-gateway-disable.yaml")
+					err := os.WriteFile(hpaGatewayFile, []byte(hpaGatewayYAML), 0644)
+					Expect(err).NotTo(HaveOccurred(), "Failed to write HPA Gateway YAML file")
+
+					cmd := exec.Command("kubectl", "apply", "-f", hpaGatewayFile)
+					_, err = utils.Run(cmd)
+					Expect(err).NotTo(HaveOccurred(), "Failed to create HPA Gateway")
+
+					By("waiting for HPA to be created")
+					Eventually(func() error {
+						cmd := exec.Command("kubectl", "get", "hpa", fmt.Sprintf("%s-hpa", hpaGatewayName), "-n", gatewayNamespace)
+						_, err := utils.Run(cmd)
+						return err
+					}, timeout, interval).Should(Succeed(), "HPA should be created")
+
+					By("updating Gateway to disable HPA")
+					disabledHpaGatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  environment: development
+  replicas: 3
+  hpa:
+    enabled: false
+  providers:
+    - name: openai
+      type: openai
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        tokenRef:
+          name: provider-keys
+          key: openai-key
+`, hpaGatewayName, gatewayNamespace)
+
+					err = os.WriteFile(hpaGatewayFile, []byte(disabledHpaGatewayYAML), 0644)
+					Expect(err).NotTo(HaveOccurred(), "Failed to write updated Gateway YAML file")
+
+					cmd = exec.Command("kubectl", "apply", "-f", hpaGatewayFile)
+					_, err = utils.Run(cmd)
+					Expect(err).NotTo(HaveOccurred(), "Failed to update Gateway")
+
+					By("verifying that HPA is deleted")
+					Eventually(func() bool {
+						cmd := exec.Command("kubectl", "get", "hpa", fmt.Sprintf("%s-hpa", hpaGatewayName), "-n", gatewayNamespace)
+						_, err := utils.Run(cmd)
+						return err != nil
+					}, timeout, interval).Should(BeTrue(), "HPA should be deleted")
+
+					By("verifying that Deployment replicas are set to the specified value")
+					Eventually(func() error {
+						cmd := exec.Command("kubectl", "get", "deployment", hpaGatewayName, "-n", gatewayNamespace, "-o", "json")
+						output, err := utils.Run(cmd)
+						if err != nil {
+							return fmt.Errorf("Deployment not found: %v", err)
+						}
+
+						var deployment appsv1.Deployment
+						if err := json.Unmarshal([]byte(output), &deployment); err != nil {
+							return fmt.Errorf("failed to parse Deployment JSON: %v", err)
+						}
+
+						if deployment.Spec.Replicas == nil || *deployment.Spec.Replicas != 3 {
+							return fmt.Errorf("Deployment replicas should be 3 when HPA is disabled, got %v", deployment.Spec.Replicas)
+						}
+
+						return nil
+					}, timeout, interval).Should(Succeed(), "Deployment should have correct replica count when HPA is disabled")
+				})
 			})
 
 			Context("OpenTelemetry Integration", func() {

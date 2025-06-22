@@ -17,7 +17,7 @@
 [![Container Registry](https://img.shields.io/badge/Container-ghcr.io-blue.svg?style=flat-square&logo=github)](https://github.com/inference-gateway/operator/pkgs/container/operator)
 [![Multi-Arch](https://img.shields.io/badge/Architecture-amd64%20%7C%20arm64-green?style=flat-square)](https://github.com/inference-gateway/operator/releases)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=flat-square)](https://github.com/inference-gateway/operator)
-[![Tests](https://img.shields.io/badge/Tests-61.2%25%20Coverage-yellow.svg?style=flat-square)](https://github.com/inference-gateway/operator)
+[![Tests](https://img.shields.io/badge/Tests-69.4%25%20Coverage-yellow.svg?style=flat-square)](https://github.com/inference-gateway/operator)
 [![Lint](https://img.shields.io/badge/Lint-Passing-brightgreen.svg?style=flat-square)](https://golangci-lint.run/)
 
 ---
@@ -30,7 +30,7 @@ A Kubernetes operator for automating the deployment and management of Inference 
 
 This Kubernetes operator extends the Kubernetes API to create, configure and manage Inference Gateway instances within a Kubernetes cluster. It provides a comprehensive CRD (Custom Resource Definition) that allows you to declaratively manage:
 
-- **Gateway Deployment**: Automated deployment with configurable replicas, resources, and scaling
+- **Gateway Deployment**: Automated deployment with configurable replicas, resources, and Horizontal Pod Autoscaling (HPA)
 - **AI Provider Integration**: Support for OpenAI, Anthropic, Ollama, and other AI/ML providers
 - **Authentication & Authorization**: OIDC integration with configurable identity providers
 - **Model Context Protocol (MCP)**: Integration with MCP servers for extended AI capabilities
@@ -90,6 +90,13 @@ The `Gateway` CRD supports the following key configuration areas:
 - **Image**: Container image and version
 - **Environment**: Deployment environment (development, staging, production)
 - **Resources**: CPU and memory requests/limits
+
+### Auto-scaling (HPA)
+
+- **Horizontal Pod Autoscaler**: Automatic scaling based on CPU, memory, or custom metrics
+- **Min/Max Replicas**: Configurable scaling boundaries
+- **Multiple Metrics**: CPU utilization, memory utilization, custom metrics support
+- **Stabilization Windows**: Fine-tuned scaling behavior control
 
 ### Observability (Telemetry)
 
