@@ -52,6 +52,11 @@ tasks:
     cmds:
       - '{{.CONTROLLER_GEN}} object:headerFile="hack/boilerplate.go.txt" paths="./..."'
 
+  tidy:
+    desc: Run go mod tidy
+    cmds:
+      - find . -name go.mod -execdir go mod tidy \;
+
   fmt:
     desc: Run go fmt against code
     cmds:
