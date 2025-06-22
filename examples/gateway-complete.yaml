@@ -182,3 +182,5 @@ stringData:
   GROQ_API_KEY: ""
   COHERE_API_KEY: ""
   CLOUDFLARE_API_KEY: ""
+  DEEPSEEK_API_KEY: ""
+  OLLAMA_API_KEY: ""
