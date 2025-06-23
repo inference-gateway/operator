@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1](https://github.com/inference-gateway/operator/compare/v0.5.0...v0.5.1) (2025-06-23)
+
+### ♻️ Improvements
+
+* Remove redundant comment in e2e test for controller pod description ([d8c3a32](https://github.com/inference-gateway/operator/commit/d8c3a32d2b41b645002a9a045018ae933011c351))
+
+### 🐛 Bug Fixes
+
+* Correct symlink path for pre-commit hook activation ([84c19a2](https://github.com/inference-gateway/operator/commit/84c19a2d8443eebab12bb9a73e115b1cf0a13000))
+* Make ssl configuration of nginx more explicit ([#5](https://github.com/inference-gateway/operator/issues/5)) ([8c9875c](https://github.com/inference-gateway/operator/commit/8c9875c47439ca1892d5b7ce932bb29534982020))
+* Preserve existing annotations when updating deployment template ([#7](https://github.com/inference-gateway/operator/issues/7)) ([acfa571](https://github.com/inference-gateway/operator/commit/acfa57153b76342d55356d71067b795a1facdf55))
+
+### 🔨 Miscellaneous
+
+* Add .gitattributes to manage linguist settings for hooks and manifests ([87405d0](https://github.com/inference-gateway/operator/commit/87405d05c0d20b36c2140b4565d40bf55d9d7596))
+* Add missing test task to pre-commit hook for improved code quality ([656ca7a](https://github.com/inference-gateway/operator/commit/656ca7a66356c05e59abd57bbd970943a5fe4e13))
+* Add operator-sdk installation and update zsh autocompletions ([7e8a19e](https://github.com/inference-gateway/operator/commit/7e8a19e6c852688f49223b55e7e7eb2eca71d9b0))
+* Add pre-commit hook and update Taskfile for activation/deactivation ([7a18069](https://github.com/inference-gateway/operator/commit/7a18069ada2d8b4af01c8aaad878797d9568bfd7))
+
 ## [0.5.0](https://github.com/inference-gateway/operator/compare/v0.4.0...v0.5.0) (2025-06-23)
 
 ### ✨ Features
