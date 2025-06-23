@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.2](https://github.com/inference-gateway/operator/compare/v0.5.1...v0.5.2) (2025-06-23)
+
+### 🐛 Bug Fixes
+
+* Make deployment more configurable ([#8](https://github.com/inference-gateway/operator/issues/8)) ([f21d13d](https://github.com/inference-gateway/operator/commit/f21d13df8b93ed28fcd5e80503995f067250b661))
+
 ## [0.5.1](https://github.com/inference-gateway/operator/compare/v0.5.0...v0.5.1) (2025-06-23)
 
 ### ♻️ Improvements
