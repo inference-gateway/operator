@@ -120,7 +120,14 @@ tasks:
   cert-manager:install:
     desc: Install cert-manager in the cluster
     cmds:
-      - kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+      - helm repo add jetstack https://charts.jetstack.io
+      - helm repo update
+      - |
+        helm upgrade --install cert-manager jetstack/cert-manager \
+          --create-namespace \
+          --namespace cert-manager \
+          --version 1.18.1 \
+          --set crds.enabled=true
 
   cert-manager:clusterissuer:
     desc: Install a self-signed ClusterIssuer for cert-manager
@@ -141,8 +148,9 @@ tasks:
       - helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
       - helm repo update
       - |
-        helm install ingress-nginx ingress-nginx/ingress-nginx \
+        helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
           --namespace ingress-nginx \
+          --version 4.12.3 \
           --create-namespace \
           --set controller.publishService.enabled=true
 
