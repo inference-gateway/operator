@@ -231,13 +231,11 @@ tasks:
   # Deployment tasks
   install:
     desc: Install CRDs into the K8s cluster specified in ~/.kube/config
-    deps: [manifests]
     cmds:
       - "{{.KUSTOMIZE}} build config/crd | {{.KUBECTL}} apply -f -"
 
   uninstall:
     desc: Uninstall CRDs from the K8s cluster specified in ~/.kube/config
-    deps: [manifests]
     cmds:
       - "{{.KUSTOMIZE}} build config/crd | {{.KUBECTL}} delete --ignore-not-found={{.IGNORE_NOT_FOUND}} -f -"
 
