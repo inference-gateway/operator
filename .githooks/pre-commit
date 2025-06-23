@@ -4,24 +4,29 @@
 
 set -e
 
-cd "$(dirname "$0")/.."
+# Change to repo root
+cd "$(git rev-parse --show-toplevel)" || exit 1
 
 if ! command -v task >/dev/null 2>&1; then
-  echo "task not found. Please install Taskfile runner."
+  echo "❌ task not found. Please install Taskfile runner."
   exit 1
 fi
 
+# Generate code
 task manifests
 task generate
 
+# Check for unstaged changes AFTER formatting or generation
 if ! git diff --quiet; then
-  echo "There are uncommitted changes. Please commit or stash them before running pre-commit checks."
+  echo "❌ Unstaged changes detected after running tasks. Please stage or discard them before committing:"
+  git diff --name-only
   exit 1
 fi
 
+# Run quality checks
 task lint
 task fmt
 task vet
 task test
 
-echo "Pre-commit checks passed."
+echo "✅ Pre-commit checks passed."

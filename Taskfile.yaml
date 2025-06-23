@@ -41,7 +41,7 @@ tasks:
   precommit:activate:
     desc: Activate pre-commit hooks
     cmds:
-      - ln -sf ../operator/.githooks/pre-commit .git/hooks/pre-commit
+      - ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit
 
   precommit:deactivate:
     desc: Deactivate pre-commit hooks
