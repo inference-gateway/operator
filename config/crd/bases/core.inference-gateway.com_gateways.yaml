@@ -719,7 +719,7 @@ spec:
                 - Unknown
                 type: string
               providerSummary:
-                description: ProviderSummary is a comma-separated list of the configured providers
+                description: ProviderSummary is a comma-separated list of provider
                   names
                 type: string
               readyReplicas:

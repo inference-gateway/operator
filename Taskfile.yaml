@@ -29,7 +29,8 @@ vars:
 tasks:
   default:
     desc: Default task runs build
-    deps: [build]
+    cmds:
+      - task: help
 
   help:
     desc: Display help for all tasks
@@ -37,6 +38,16 @@ tasks:
       - task --list
 
   # Development tasks
+  precommit:activate:
+    desc: Activate pre-commit hooks
+    cmds:
+      - ln -sf ../operator/.githooks/pre-commit .git/hooks/pre-commit
+
+  precommit:deactivate:
+    desc: Deactivate pre-commit hooks
+    cmds:
+      - rm -f .git/hooks/pre-commit
+
   manifests:
     desc: Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects and installation manifests
     cmds:

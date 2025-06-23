@@ -1,0 +1,26 @@
+#!/bin/sh
+# Pre-commit hook for Inference Gateway Operator (Go)
+# Ensures code quality and consistency before commit
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+if ! command -v task >/dev/null 2>&1; then
+  echo "task not found. Please install Taskfile runner."
+  exit 1
+fi
+
+task manifests
+task generate
+
+if ! git diff --quiet; then
+  echo "There are uncommitted changes. Please commit or stash them before running pre-commit checks."
+  exit 1
+fi
+
+task lint
+task fmt
+task vet
+
+echo "Pre-commit checks passed."
