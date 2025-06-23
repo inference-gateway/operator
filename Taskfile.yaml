@@ -131,13 +131,12 @@ tasks:
 
   test:
     desc: Run tests
-    deps: [manifests, generate, fmt, vet, ensure-k8s-envtest]
+    deps: [ensure-k8s-envtest]
     cmds:
       - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path)" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
 
   test:e2e:
     desc: Run the e2e tests using ctlptl with k3d
-    deps: [manifests, generate, fmt, vet]
     cmds:
       - |
         if ! command -v ctlptl &>/dev/null; then
