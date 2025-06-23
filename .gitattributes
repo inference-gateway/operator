@@ -1,0 +1,4 @@
+.githooks/** linguist-vendored=true
+
+manifests/crds.yaml linguist-generated=true
+manifests/install.yaml linguist-generated=true
