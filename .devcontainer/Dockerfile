@@ -53,6 +53,10 @@ RUN curl -L -o kubebuilder https://github.com/kubernetes-sigs/kubebuilder/releas
     chmod +x kubebuilder && \
     mv kubebuilder /usr/local/bin/
 
+# Install operator-sdk
+RUN curl -fsSL https://github.com/operator-framework/operator-sdk/releases/download/v1.40.0/operator-sdk_linux_$(dpkg --print-architecture) -o /usr/local/bin/operator-sdk && \
+    chmod +x /usr/local/bin/operator-sdk
+
 # Install prettier for YAML formatting
 RUN npm install -g prettier
 
@@ -75,15 +79,16 @@ RUN echo 'export GOPATH=/home/vscode/go' >> /home/vscode/.zshrc
 RUN echo 'export PATH=$GOPATH/bin:$PATH' >> /home/vscode/.zshrc
 
 # Auto-completions
-RUN echo '# Enable autocompletion' >> /home/vscode/.zshrc
-RUN echo 'autoload -Uz compinit && compinit' >> /home/vscode/.zshrc
-RUN echo 'source <(kubectl completion zsh)' >> /home/vscode/.zshrc
-RUN echo 'source <(k3d completion zsh)' >> /home/vscode/.zshrc
-RUN echo 'source <(task --completion zsh)' >> /home/vscode/.zshrc
-RUN echo 'source <(ctlptl completion zsh)' >> /home/vscode/.zshrc
-RUN echo 'source <(gh completion -s zsh)' >> /home/vscode/.zshrc
-RUN echo 'source <(kubebuilder completion zsh)' >> /home/vscode/.zshrc
-RUN echo 'source <(kustomize completion zsh)' >> /home/vscode/.zshrc
+RUN echo '# Enable autocompletion' >> /home/vscode/.zshrc && \
+    echo 'autoload -Uz compinit && compinit' >> /home/vscode/.zshrc && \
+    echo 'source <(kubectl completion zsh)' >> /home/vscode/.zshrc && \
+    echo 'source <(k3d completion zsh)' >> /home/vscode/.zshrc && \
+    echo 'source <(task --completion zsh)' >> /home/vscode/.zshrc && \
+    echo 'source <(ctlptl completion zsh)' >> /home/vscode/.zshrc && \
+    echo 'source <(gh completion -s zsh)' >> /home/vscode/.zshrc && \
+    echo 'source <(kubebuilder completion zsh)' >> /home/vscode/.zshrc && \
+    echo 'source <(kustomize completion zsh)' >> /home/vscode/.zshrc && \
+    echo 'source <(operator-sdk completion zsh)' >> /home/vscode/.zshrc
 
 WORKDIR /workspaces/operator
 USER vscode
