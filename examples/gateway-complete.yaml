@@ -46,7 +46,7 @@ spec:
       write: "60s"
       idle: "300s"
     tls:
-      enabled: true
+      enabled: false
       # Default behavior: If enabled is true and no custom secret is specified, the controller will automatically mount the
       # same TLS secret used by the Ingress (inference-gateway-tls) into the backend pod for end-to-end TLS.
       # To override, specify certificateRef and keyRef explicitly.
