@@ -127,7 +127,6 @@ var _ = Describe("Operator", Ordered, func() {
 			}
 
 			By("Fetching controller manager pod description")
-			// Use the same podName we found earlier or find it again
 			if podName == "" {
 				cmd = exec.Command("kubectl", "get", "pods", "-l", "app.kubernetes.io/name=operator", "-n", namespace, "-o", "jsonpath={.items[0].metadata.name}")
 				podName, err = utils.Run(cmd)
