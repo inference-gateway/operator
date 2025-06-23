@@ -22,5 +22,6 @@ fi
 task lint
 task fmt
 task vet
+task test
 
 echo "Pre-commit checks passed."
