@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0](https://github.com/inference-gateway/operator/compare/v0.4.0...v0.5.0) (2025-06-23)
+
+### ✨ Features
+
+* Enhance Ingress configuration with host and TLS options ([#3](https://github.com/inference-gateway/operator/issues/3)) ([83fb37c](https://github.com/inference-gateway/operator/commit/83fb37c30cec55e8c404233ff8b693588ef2f3ff))
+
+### ♻️ Improvements
+
+* Improve logging verbosity and streamline HPA reconciliation logic ([3e48073](https://github.com/inference-gateway/operator/commit/3e48073643fdde4b7a7f15cfe4638299a4e10d92))
+
 ## [0.4.0](https://github.com/inference-gateway/operator/compare/v0.3.5...v0.4.0) (2025-06-22)
 
 ### ✨ Features
