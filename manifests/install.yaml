@@ -12,6 +12,334 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
+  name: a2aservers.core.inference-gateway.com
+spec:
+  group: core.inference-gateway.com
+  names:
+    kind: A2AServer
+    listKind: A2AServerList
+    plural: a2aservers
+    singular: a2aserver
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: A2AServer is the Schema for the a2aservers API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: A2AServerSpec defines the desired state of A2AServer.
+            properties:
+              agent:
+                properties:
+                  apiKey:
+                    properties:
+                      secretRef:
+                        type: string
+                    required:
+                    - secretRef
+                    type: object
+                  enabled:
+                    type: boolean
+                  llm:
+                    properties:
+                      customHeaders:
+                        items:
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                          required:
+                          - name
+                          - value
+                          type: object
+                        type: array
+                      maxTokens:
+                        format: int32
+                        type: integer
+                      model:
+                        type: string
+                      systemPrompt:
+                        type: string
+                      temperature:
+                        type: string
+                    required:
+                    - customHeaders
+                    - maxTokens
+                    - model
+                    - systemPrompt
+                    - temperature
+                    type: object
+                  maxChatCompletionIterations:
+                    format: int32
+                    type: integer
+                  maxConversationHistory:
+                    format: int32
+                    type: integer
+                  maxRetries:
+                    format: int32
+                    type: integer
+                  tls:
+                    properties:
+                      enabled:
+                        type: boolean
+                      secretRef:
+                        type: string
+                    required:
+                    - enabled
+                    - secretRef
+                    type: object
+                required:
+                - apiKey
+                - enabled
+                - llm
+                - maxChatCompletionIterations
+                - maxConversationHistory
+                - maxRetries
+                - tls
+                type: object
+              card:
+                properties:
+                  capabilities:
+                    properties:
+                      pushNotifications:
+                        type: boolean
+                      stateTransitionHistory:
+                        type: boolean
+                      streaming:
+                        type: boolean
+                    required:
+                    - pushNotifications
+                    - stateTransitionHistory
+                    - streaming
+                    type: object
+                  defaultInputModes:
+                    items:
+                      type: string
+                    type: array
+                  defaultOutputModes:
+                    items:
+                      type: string
+                    type: array
+                  description:
+                    type: string
+                  documentationUrl:
+                    type: string
+                  name:
+                    type: string
+                  skills:
+                    items:
+                      type: string
+                    type: array
+                  url:
+                    type: string
+                required:
+                - capabilities
+                - defaultInputModes
+                - defaultOutputModes
+                - description
+                - documentationUrl
+                - name
+                - skills
+                - url
+                type: object
+              host:
+                type: string
+              idleTimeout:
+                type: string
+              image:
+                type: string
+              logging:
+                properties:
+                  format:
+                    type: string
+                  level:
+                    type: string
+                required:
+                - format
+                - level
+                type: object
+              port:
+                format: int32
+                type: integer
+              queue:
+                properties:
+                  cleanupInterval:
+                    type: string
+                  enabled:
+                    type: boolean
+                  maxSize:
+                    format: int32
+                    type: integer
+                required:
+                - cleanupInterval
+                - enabled
+                - maxSize
+                type: object
+              readTimeout:
+                type: string
+              telemetry:
+                description: TelemetrySpec contains telemetry and observability configuration
+                properties:
+                  enabled:
+                    default: true
+                    description: Enable telemetry collection
+                    type: boolean
+                  metrics:
+                    description: Metrics configuration
+                    properties:
+                      enabled:
+                        default: true
+                        description: Enable metrics collection
+                        type: boolean
+                      port:
+                        default: 9464
+                        description: Port for metrics endpoint
+                        format: int32
+                        maximum: 65535
+                        minimum: 1024
+                        type: integer
+                    type: object
+                  tracing:
+                    description: Tracing configuration
+                    properties:
+                      enabled:
+                        default: false
+                        description: Enable tracing
+                        type: boolean
+                      endpoint:
+                        description: Tracing endpoint URL
+                        type: string
+                    type: object
+                type: object
+              timezone:
+                type: string
+              tls:
+                properties:
+                  enabled:
+                    type: boolean
+                  secretRef:
+                    type: string
+                required:
+                - enabled
+                - secretRef
+                type: object
+              writeTimeout:
+                type: string
+            required:
+            - agent
+            - card
+            - host
+            - idleTimeout
+            - image
+            - logging
+            - port
+            - queue
+            - readTimeout
+            - telemetry
+            - timezone
+            - tls
+            - writeTimeout
+            type: object
+          status:
+            description: A2AServerStatus defines the observed state of A2AServer.
+            properties:
+              conditions:
+                description: Conditions represent the latest available observations
+                  of the resource's state.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              observedGeneration:
+                description: ObservedGeneration is the most recent generation observed
+                  for this resource.
+                format: int64
+                type: integer
+              ready:
+                description: Ready indicates if the resource is ready.
+                type: boolean
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.2
   name: gateways.core.inference-gateway.com
 spec:
   group: core.inference-gateway.com
@@ -797,6 +1125,77 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: operator
+  name: operator-a2aserver-admin-role
+rules:
+- apiGroups:
+  - core.inference-gateway.com
+  resources:
+  - a2aservers
+  verbs:
+  - '*'
+- apiGroups:
+  - core.inference-gateway.com
+  resources:
+  - a2aservers/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: operator
+  name: operator-a2aserver-editor-role
+rules:
+- apiGroups:
+  - core.inference-gateway.com
+  resources:
+  - a2aservers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.inference-gateway.com
+  resources:
+  - a2aservers/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: operator
+  name: operator-a2aserver-viewer-role
+rules:
+- apiGroups:
+  - core.inference-gateway.com
+  resources:
+  - a2aservers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.inference-gateway.com
+  resources:
+  - a2aservers/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: operator
   name: operator-gateway-admin-role
 rules:
 - apiGroups:
@@ -922,6 +1321,7 @@ rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
+  - a2aservers
   - gateways
   verbs:
   - create
@@ -934,12 +1334,14 @@ rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
+  - a2aservers/finalizers
   - gateways/finalizers
   verbs:
   - update
 - apiGroups:
   - core.inference-gateway.com
   resources:
+  - a2aservers/status
   - gateways/status
   verbs:
   - get

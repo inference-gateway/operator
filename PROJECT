@@ -17,4 +17,13 @@ resources:
   kind: Gateway
   path: github.com/inference-gateway/operator/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: inference-gateway.com
+  group: core
+  kind: A2AServer
+  path: github.com/inference-gateway/operator/api/v1alpha1
+  version: v1alpha1
 version: "3"

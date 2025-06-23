@@ -1,4 +1,5 @@
 ## Append samples of your project ##
 resources:
   - core_v1alpha1_gateway.yaml
+  - core_v1alpha1_a2aserver.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples
