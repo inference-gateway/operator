@@ -33,6 +33,9 @@ RUN curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TA
 RUN curl -L "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/$(dpkg --print-architecture)/kubectl" -o /usr/local/bin/kubectl && \
     chmod +x /usr/local/bin/kubectl
 
+# Install Helm
+RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
 # Install golangci-lint
 RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANG_CI_LINT_VERSION}
 
@@ -82,6 +85,7 @@ RUN echo 'export PATH=$GOPATH/bin:$PATH' >> /home/vscode/.zshrc
 RUN echo '# Enable autocompletion' >> /home/vscode/.zshrc && \
     echo 'autoload -Uz compinit && compinit' >> /home/vscode/.zshrc && \
     echo 'source <(kubectl completion zsh)' >> /home/vscode/.zshrc && \
+    echo 'source <(helm completion zsh)' >> /home/vscode/.zshrc && \
     echo 'source <(k3d completion zsh)' >> /home/vscode/.zshrc && \
     echo 'source <(task --completion zsh)' >> /home/vscode/.zshrc && \
     echo 'source <(ctlptl completion zsh)' >> /home/vscode/.zshrc && \
