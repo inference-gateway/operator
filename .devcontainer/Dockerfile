@@ -18,7 +18,7 @@ ENV TASK_VERSION=v3.43.3 \
 
 # Install common
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-RUN apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg nodejs
+RUN apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg nodejs tmux
 
 # Install task
 RUN curl -fsSL https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin ${TASK_VERSION}
@@ -71,15 +71,25 @@ RUN npm install -g semantic-release@${SEMANTIC_RELEASE_VERSION} \
     conventional-changelog-cli \
     conventional-changelog-conventionalcommits
 
-# Install powerlevel10k theme for zsh
-RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git /home/vscode/.oh-my-zsh/custom/themes/powerlevel10k
-RUN echo 'source /home/vscode/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme' >> /home/vscode/.zshrc
-RUN echo 'POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true' >> /home/vscode/.zshrc
-
 # Setup Go environment for vscode user
 RUN mkdir -p /home/vscode/go && chown -R vscode:vscode /home/vscode/go
 RUN echo 'export GOPATH=/home/vscode/go' >> /home/vscode/.zshrc
 RUN echo 'export PATH=$GOPATH/bin:$PATH' >> /home/vscode/.zshrc
+
+WORKDIR /workspaces/operator
+USER vscode
+
+# Use Powerlevel10k theme
+RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git /home/vscode/.powerlevel10k
+
+# Configure Powerlevel10k
+RUN echo 'source /home/vscode/.powerlevel10k/powerlevel10k.zsh-theme' >> /home/vscode/.zshrc && \
+    echo 'POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true' >> /home/vscode/.zshrc && \
+    echo 'POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(dir vcs)' >> /home/vscode/.zshrc && \
+    echo 'POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(command_execution_time status)' >> /home/vscode/.zshrc && \
+    echo 'POWERLEVEL9K_COMMAND_EXECUTION_TIME_THRESHOLD=0' >> /home/vscode/.zshrc && \
+    echo 'POWERLEVEL9K_COMMAND_EXECUTION_TIME_PRECISION=2' >> /home/vscode/.zshrc && \
+    echo 'POWERLEVEL9K_COMMAND_EXECUTION_TIME_FORMAT="duration"' >> /home/vscode/.zshrc
 
 # Auto-completions
 RUN echo '# Enable autocompletion' >> /home/vscode/.zshrc && \
@@ -94,5 +104,10 @@ RUN echo '# Enable autocompletion' >> /home/vscode/.zshrc && \
     echo 'source <(kustomize completion zsh)' >> /home/vscode/.zshrc && \
     echo 'source <(operator-sdk completion zsh)' >> /home/vscode/.zshrc
 
-WORKDIR /workspaces/operator
-USER vscode
+# Configure tmux to use zsh as default shell
+RUN echo "set-option -g default-shell /usr/bin/zsh" > /home/vscode/.tmux.conf && \
+    echo "set-option -g default-command /usr/bin/zsh" >> /home/vscode/.tmux.conf && \
+    echo "# Enable mouse support" >> /home/vscode/.tmux.conf && \
+    echo "set -g mouse on" >> /home/vscode/.tmux.conf && \
+    echo "# Set default terminal" >> /home/vscode/.tmux.conf && \
+    echo "set -g default-terminal \"screen-256color\"" >> /home/vscode/.tmux.conf
