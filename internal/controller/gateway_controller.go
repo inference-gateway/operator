@@ -795,17 +795,25 @@ func (r *GatewayReconciler) buildIngressAnnotations(gateway *corev1alpha1.Gatewa
 	}
 
 	className := r.getIngressClassName(ingressSpec)
+	if className != nil && *className != "nginx" {
+		return annotations
+	}
+
+	// Currently supporting only NGINX Ingress Controller, to be extended later
 	if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && !gateway.Spec.Server.TLS.Enabled {
-		if className != nil && *className == "nginx" {
-			if _, exists := annotations["nginx.ingress.kubernetes.io/ssl-redirect"]; !exists {
-				annotations["nginx.ingress.kubernetes.io/ssl-redirect"] = "true"
-			}
-			if _, exists := annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"]; !exists {
-				annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = "true"
-			}
+		if _, exists := annotations["nginx.ingress.kubernetes.io/ssl-redirect"]; !exists {
+			annotations["nginx.ingress.kubernetes.io/ssl-redirect"] = "true"
+		}
+		if _, exists := annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"]; !exists {
+			annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = "true"
+		}
+		if _, exists := annotations["nginx.ingress.kubernetes.io/backend-protocol"]; !exists {
+			annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTP"
 		}
 	} else if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
-		annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
+		if _, exists := annotations["nginx.ingress.kubernetes.io/backend-protocol"]; !exists {
+			annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
+		}
 	}
 
 	return annotations
