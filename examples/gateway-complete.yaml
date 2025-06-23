@@ -20,9 +20,10 @@ metadata:
 spec:
   # Core gateway configuration
   environment: production
+  # replicas: 3
   hpa:
     enabled: true
-    minReplicas: 1
+    minReplicas: 3
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
   image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"

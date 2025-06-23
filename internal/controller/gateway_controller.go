@@ -575,7 +575,15 @@ func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gatewa
 		}
 
 		if !reflect.DeepEqual(latestDeployment.Spec.Template, desired.Spec.Template) {
+			existingAnnotations := latestDeployment.Spec.Template.Annotations
+			if existingAnnotations == nil {
+				existingAnnotations = map[string]string{}
+			}
+			for k, v := range desired.Spec.Template.Annotations {
+				existingAnnotations[k] = v
+			}
 			latestDeployment.Spec.Template = desired.Spec.Template
+			latestDeployment.Spec.Template.Annotations = existingAnnotations
 			needsUpdate = true
 			changes = append(changes, "pod template")
 		}
