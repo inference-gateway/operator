@@ -450,22 +450,55 @@ func (r *GatewayReconciler) buildContainerWithMounts(gateway *corev1alpha1.Gatew
 		port = gateway.Spec.Server.Port
 	}
 
+	image := gateway.Spec.Image
+	if image == "" {
+		image = "ghcr.io/inference-gateway/inference-gateway:latest"
+	}
+
+	resources := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+			corev1.ResourceMemory: *resource.NewQuantity(256*1024*1024, resource.BinarySI),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    *resource.NewQuantity(2, resource.DecimalSI),
+			corev1.ResourceMemory: *resource.NewQuantity(1024*1024*1024, resource.BinarySI),
+		},
+	}
+	if gateway.Spec.Resources != nil {
+		if gateway.Spec.Resources.Requests != nil {
+			if gateway.Spec.Resources.Requests.CPU != "" {
+				if cpuQty, err := resource.ParseQuantity(gateway.Spec.Resources.Requests.CPU); err == nil {
+					resources.Requests[corev1.ResourceCPU] = cpuQty
+				}
+			}
+			if gateway.Spec.Resources.Requests.Memory != "" {
+				if memQty, err := resource.ParseQuantity(gateway.Spec.Resources.Requests.Memory); err == nil {
+					resources.Requests[corev1.ResourceMemory] = memQty
+				}
+			}
+		}
+		if gateway.Spec.Resources.Limits != nil {
+			if gateway.Spec.Resources.Limits.CPU != "" {
+				if cpuQty, err := resource.ParseQuantity(gateway.Spec.Resources.Limits.CPU); err == nil {
+					resources.Limits[corev1.ResourceCPU] = cpuQty
+				}
+			}
+			if gateway.Spec.Resources.Limits.Memory != "" {
+				if memQty, err := resource.ParseQuantity(gateway.Spec.Resources.Limits.Memory); err == nil {
+					resources.Limits[corev1.ResourceMemory] = memQty
+				}
+			}
+		}
+	}
+
 	return corev1.Container{
 		Name:         "inference-gateway",
-		Image:        "ghcr.io/inference-gateway/inference-gateway:latest",
+		Image:        image,
 		Ports:        containerPorts,
 		Env:          envVars,
 		VolumeMounts: volumeMounts,
-		Resources: corev1.ResourceRequirements{
-			Requests: corev1.ResourceList{
-				corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
-				corev1.ResourceMemory: *resource.NewQuantity(256*1024*1024, resource.BinarySI),
-			},
-			Limits: corev1.ResourceList{
-				corev1.ResourceCPU:    *resource.NewQuantity(2, resource.DecimalSI),
-				corev1.ResourceMemory: *resource.NewQuantity(1024*1024*1024, resource.BinarySI),
-			},
-		},
+		Resources:    resources,
 		LivenessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{
