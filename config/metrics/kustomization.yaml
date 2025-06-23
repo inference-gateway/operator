@@ -1,0 +1,5 @@
+---
+namespace: inference-gateway-system
+
+resources:
+  - service.yaml

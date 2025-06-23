@@ -13,7 +13,24 @@ spec:
     singular: gateway
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Gateway IP address
+      jsonPath: .spec.server.host
+      name: IP
+      type: string
+    - description: Gateway port
+      jsonPath: .spec.server.port
+      name: Port
+      type: integer
+    - description: Configured providers
+      jsonPath: .status.providerSummary
+      name: Providers
+      type: string
+    - description: Age of the resource
+      jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Gateway is the Schema for the gateways API.
@@ -699,6 +716,10 @@ spec:
                 - Running
                 - Failed
                 - Unknown
+                type: string
+              providerSummary:
+                description: ProviderSummary is a comma-separated list of provider
+                  names
                 type: string
               readyReplicas:
                 description: Current number of ready replicas

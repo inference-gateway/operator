@@ -22,7 +22,24 @@ spec:
     singular: gateway
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Gateway IP address
+      jsonPath: .spec.server.host
+      name: IP
+      type: string
+    - description: Gateway port
+      jsonPath: .spec.server.port
+      name: Port
+      type: integer
+    - description: Configured providers
+      jsonPath: .status.providerSummary
+      name: Providers
+      type: string
+    - description: Age of the resource
+      jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Gateway is the Schema for the gateways API.
@@ -709,6 +726,10 @@ spec:
                 - Failed
                 - Unknown
                 type: string
+              providerSummary:
+                description: ProviderSummary is a comma-separated list of provider
+                  names
+                type: string
               readyReplicas:
                 description: Current number of ready replicas
                 format: int32
@@ -867,6 +888,13 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
 - apiGroups:
   - apps
   resources:
@@ -1043,7 +1071,7 @@ spec:
   template:
     metadata:
       annotations:
-        kubectl.kubernetes.io/default-container: manager
+        kubectl.kubernetes.io/default-container: operator
         prometheus.io/path: /metrics
         prometheus.io/port: "9090"
         prometheus.io/scrape: "true"
@@ -1067,8 +1095,6 @@ spec:
                 - linux
       containers:
       - args:
-        - --metrics-bind-address=:9090
-        - --metrics-secure=false
         - --leader-elect
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:9090

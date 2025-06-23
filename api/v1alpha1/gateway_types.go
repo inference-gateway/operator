@@ -660,6 +660,10 @@ type GatewayStatus struct {
 	// ObservedGeneration is the most recent generation observed
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// ProviderSummary is a comma-separated list of provider names
+	// +optional
+	ProviderSummary string `json:"providerSummary,omitempty"`
 }
 
 // GatewayCondition represents a condition of a Gateway deployment
@@ -687,6 +691,10 @@ type GatewayCondition struct {
 	Message string `json:"message,omitempty"`
 }
 
+// +kubebuilder:printcolumn:name="IP",type=string,JSONPath=".spec.server.host",description="Gateway IP address"
+// +kubebuilder:printcolumn:name="Port",type=integer,JSONPath=".spec.server.port",description="Gateway port"
+// +kubebuilder:printcolumn:name="Providers",type=string,JSONPath=".status.providerSummary",description="Configured providers"
+// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 

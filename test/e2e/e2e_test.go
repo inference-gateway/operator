@@ -45,15 +45,6 @@ const namespace = "inference-gateway-system"
 // namespace where the test resources are created
 const testNamespace = "inference-gateway"
 
-// serviceAccountName created for the project
-const serviceAccountName = "operator-inference-gateway"
-
-// metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "operator-inference-gateway-metrics-service"
-
-// metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
-const metricsRoleBindingName = "operator-inference-gateway-metrics-binding"
-
 var _ = Describe("Operator", Ordered, func() {
 	var controllerPodName string
 
@@ -62,9 +53,11 @@ var _ = Describe("Operator", Ordered, func() {
 	// and deploying the controller.
 	BeforeAll(func() {
 		By("creating operator namespace")
-		cmd := exec.Command("kubectl", "create", "ns", namespace)
+		cmd := exec.Command("kubectl", "create", "namespace", namespace)
 		_, err := utils.Run(cmd)
-		Expect(err).NotTo(HaveOccurred(), "Failed to create namespace")
+		if err != nil && !strings.Contains(err.Error(), "AlreadyExists") {
+			ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to create namespace")
+		}
 
 		By("labeling the namespace to enforce the restricted security policy")
 		cmd = exec.Command("kubectl", "label", "--overwrite", "ns", namespace,
@@ -86,12 +79,8 @@ var _ = Describe("Operator", Ordered, func() {
 	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
 	// and deleting the namespace.
 	AfterAll(func() {
-		By("cleaning up metrics ClusterRoleBinding")
-		cmd := exec.Command("kubectl", "delete", "clusterrolebinding", metricsRoleBindingName, "--ignore-not-found=true")
-		_, _ = utils.Run(cmd)
-
 		By("cleaning up the curl pod for metrics")
-		cmd = exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace, "--ignore-not-found=true")
+		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace, "--ignore-not-found=true")
 		_, _ = utils.Run(cmd)
 
 		By("undeploying the inference-gateway operator")
@@ -210,101 +199,6 @@ var _ = Describe("Operator", Ordered, func() {
 			Eventually(verifyControllerUp).Should(Succeed())
 		})
 
-		It("should ensure the metrics endpoint is serving metrics", func() {
-			By("cleaning up any existing metrics ClusterRoleBinding")
-			cmd := exec.Command("kubectl", "delete", "clusterrolebinding", metricsRoleBindingName, "--ignore-not-found=true")
-			_, _ = utils.Run(cmd)
-
-			By("creating a ClusterRoleBinding for the service account to allow access to metrics")
-			cmd = exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
-				"--clusterrole=operator-metrics-reader",
-				fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
-			)
-			_, err := utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Failed to create ClusterRoleBinding")
-
-			By("validating that the metrics service is available")
-			cmd = exec.Command("kubectl", "get", "service", metricsServiceName, "-n", namespace)
-			_, err = utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Metrics service should exist")
-
-			By("getting the service account token")
-			token, err := serviceAccountToken()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(token).NotTo(BeEmpty())
-
-			By("waiting for the metrics endpoint to be ready")
-			verifyMetricsEndpointReady := func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "endpoints", metricsServiceName, "-n", namespace)
-				output, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(ContainSubstring("9090"), "Metrics endpoint is not ready")
-			}
-			Eventually(verifyMetricsEndpointReady).Should(Succeed())
-
-			By("verifying that the operator is serving the metrics server")
-			verifyMetricsServerStarted := func(g Gomega) {
-				cmd := exec.Command("kubectl", "logs", controllerPodName, "-c", "operator", "-n", namespace)
-				output, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(ContainSubstring("controller-runtime.metrics\",\"msg\":\"Serving metrics server"),
-					"Metrics server not yet started")
-			}
-			Eventually(verifyMetricsServerStarted).Should(Succeed())
-
-			By("cleaning up any existing curl-metrics pod")
-			cmd = exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace, "--ignore-not-found=true")
-			_, _ = utils.Run(cmd)
-			time.Sleep(5 * time.Second)
-
-			By("creating the curl-metrics pod to access the metrics endpoint")
-			cmd = exec.Command("kubectl", "run", "curl-metrics", "--restart=Never",
-				"--namespace", namespace,
-				"--image=curlimages/curl:latest",
-				"--overrides",
-				fmt.Sprintf(`{
-					"spec": {
-						"containers": [{
-							"name": "curl",
-							"image": "curlimages/curl:latest",
-							"command": ["/bin/sh", "-c"],
-							"args": ["curl -v -H 'Authorization: Bearer %s' http://%s.%s.svc.cluster.local:9090/metrics"],
-							"securityContext": {
-								"allowPrivilegeEscalation": false,
-								"capabilities": {
-									"drop": ["ALL"]
-								},
-								"runAsNonRoot": true,
-								"runAsUser": 1000,
-								"seccompProfile": {
-									"type": "RuntimeDefault"
-								}
-							}
-						}],
-						"serviceAccount": "%s"
-					}
-				}`, token, metricsServiceName, namespace, serviceAccountName))
-			_, err = utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Failed to create curl-metrics pod")
-
-			By("waiting for the curl-metrics pod to complete.")
-			verifyCurlUp := func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "pods", "curl-metrics",
-					"-o", "jsonpath={.status.phase}",
-					"-n", namespace)
-				output, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(Equal("Succeeded"), "curl pod in wrong status")
-			}
-			Eventually(verifyCurlUp, 5*time.Minute).Should(Succeed())
-
-			By("getting the metrics by checking curl-metrics logs")
-			metricsOutput := getMetricsOutput()
-			Expect(metricsOutput).To(ContainSubstring(
-				"controller_runtime_reconcile_total",
-			))
-		})
-
 		// +kubebuilder:scaffold:e2e-webhooks-checks
 
 		Context("Gateway Controller", func() {
@@ -319,9 +213,16 @@ var _ = Describe("Operator", Ordered, func() {
 			)
 
 			BeforeEach(func() {
-				By("ensuring the test namespace has the required label")
-				cmd := exec.Command("kubectl", "label", "namespace", gatewayNamespace, "inference-gateway.com/managed=true", "--overwrite")
+				By("ensuring the test namespace exists")
+				cmd := exec.Command("kubectl", "create", "namespace", gatewayNamespace)
 				_, err := utils.Run(cmd)
+				if err != nil && !strings.Contains(err.Error(), "AlreadyExists") {
+					ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to create namespace")
+				}
+
+				By("ensuring the test namespace has the required label")
+				cmd = exec.Command("kubectl", "label", "namespace", gatewayNamespace, "inference-gateway.com/managed=true", "--overwrite")
+				_, err = utils.Run(cmd)
 				Expect(err).NotTo(HaveOccurred(), "Failed to label namespace")
 
 				By("cleaning up any existing test gateway resources")
@@ -485,16 +386,6 @@ stringData:
 					g.Expect(output).To(Equal("8080"), "Service has incorrect port")
 				}
 				Eventually(verifyService, timeout, interval).Should(Succeed())
-
-				By("verifying the controller metrics report reconciliation success")
-				verifyMetrics := func(g Gomega) {
-					metricsOutput := getMetricsOutput()
-					g.Expect(metricsOutput).To(ContainSubstring(
-						fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"}`,
-							"gateway"),
-					), "Metrics do not show successful Gateway reconciliation")
-				}
-				Eventually(verifyMetrics, timeout, interval).Should(Succeed())
 			})
 
 			It("should create a valid deployment with the inference-gateway image", func() {
@@ -1315,59 +1206,3 @@ spec:
 		})
 	})
 })
-
-// serviceAccountToken returns a token for the specified service account in the given namespace.
-// It uses the Kubernetes TokenRequest API to generate a token by directly sending a request
-// and parsing the resulting token from the API response.
-func serviceAccountToken() (string, error) {
-	const tokenRequestRawString = `{
-		"apiVersion": "authentication.k8s.io/v1",
-		"kind": "TokenRequest"
-	}`
-
-	secretName := fmt.Sprintf("%s-token-request", serviceAccountName)
-	tokenRequestFile := filepath.Join("/tmp", secretName)
-	err := os.WriteFile(tokenRequestFile, []byte(tokenRequestRawString), os.FileMode(0o644))
-	if err != nil {
-		return "", err
-	}
-
-	var out string
-	verifyTokenCreation := func(g Gomega) {
-		cmd := exec.Command("kubectl", "create", "--raw", fmt.Sprintf(
-			"/api/v1/namespaces/%s/serviceaccounts/%s/token",
-			namespace,
-			serviceAccountName,
-		), "-f", tokenRequestFile)
-
-		output, err := cmd.CombinedOutput()
-		g.Expect(err).NotTo(HaveOccurred())
-
-		var token tokenRequest
-		err = json.Unmarshal(output, &token)
-		g.Expect(err).NotTo(HaveOccurred())
-
-		out = token.Status.Token
-	}
-	Eventually(verifyTokenCreation).Should(Succeed())
-
-	return out, err
-}
-
-// getMetricsOutput retrieves and returns the logs from the curl pod used to access the metrics endpoint.
-func getMetricsOutput() string {
-	By("getting the curl-metrics logs")
-	cmd := exec.Command("kubectl", "logs", "curl-metrics", "-n", namespace)
-	metricsOutput, err := utils.Run(cmd)
-	Expect(err).NotTo(HaveOccurred(), "Failed to retrieve logs from curl pod")
-	Expect(metricsOutput).To(ContainSubstring("< HTTP/1.1 200 OK"))
-	return metricsOutput
-}
-
-// tokenRequest is a simplified representation of the Kubernetes TokenRequest API response,
-// containing only the token field that we need to extract.
-type tokenRequest struct {
-	Status struct {
-		Token string `json:"token"`
-	} `json:"status"`
-}

@@ -4,12 +4,12 @@ namespace: inference-gateway-system
 namePrefix: operator-
 
 resources:
-  - ../crd
-  - ../rbac
-  - ../operator
-  - ../metrics
+  - ../../crd
+  - ../../rbac
+  - ../../operator
+  - ../../metrics
 
 patches:
-  - path: manager_metrics_patch.yaml
+  - path: patch.yaml
     target:
       kind: Deployment

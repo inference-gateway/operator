@@ -15,3 +15,10 @@ k3d:
           - arg: --disable=traefik
             nodeFilters:
               - server:0
+    ports:
+      - port: 80:80
+        nodeFilters:
+          - server:0
+      - port: 443:443
+        nodeFilters:
+          - server:0

@@ -64,6 +64,7 @@ type GatewayReconciler struct {
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -118,6 +119,31 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		logger.Error(err, "Failed to reconcile HPA")
 		return ctrl.Result{}, err
+	}
+
+	var configuredProviderNames []string
+	for _, p := range gateway.Spec.Providers {
+		if p.Config != nil && p.Config.TokenRef != nil && p.Config.TokenRef.Name != "" && p.Config.TokenRef.Key != "" {
+			secret := &corev1.Secret{}
+			secretNamespacedName := types.NamespacedName{Name: p.Config.TokenRef.Name, Namespace: gateway.Namespace}
+			err := r.Get(ctx, secretNamespacedName, secret)
+			if err != nil {
+				continue
+			}
+			apiKeyBytes, ok := secret.Data[p.Config.TokenRef.Key]
+			if !ok || len(apiKeyBytes) == 0 {
+				continue
+			}
+			configuredProviderNames = append(configuredProviderNames, p.Name)
+		}
+	}
+	summary := strings.Join(configuredProviderNames, ",")
+	if gateway.Status.ProviderSummary != summary {
+		gateway.Status.ProviderSummary = summary
+		if err := r.Status().Update(ctx, gateway); err != nil {
+			logger.Error(err, "Failed to update ProviderSummary in status")
+			return ctrl.Result{}, err
+		}
 	}
 
 	logger.Info("Reconciled Gateway successfully",
@@ -362,6 +388,30 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, confi
 	envVars := r.buildEnvVars(gateway)
 	containerPorts := r.buildContainerPorts(gateway)
 
+	volumes := r.buildVolumes(gateway, configMap)
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      gateway.Name + "-config-volume",
+			MountPath: "/app/config",
+		},
+	}
+
+	if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
+		volumes = append(volumes, corev1.Volume{
+			Name: "inference-gateway-tls",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "inference-gateway-tls",
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "inference-gateway-tls",
+			MountPath: "/app/tls",
+			ReadOnly:  true,
+		})
+	}
+
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gateway.Name,
@@ -381,9 +431,9 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, confi
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						r.buildContainer(gateway, envVars, containerPorts),
+						r.buildContainerWithMounts(gateway, envVars, containerPorts, volumeMounts),
 					},
-					Volumes: r.buildVolumes(gateway, configMap),
+					Volumes: volumes,
 				},
 			},
 		},
@@ -393,89 +443,19 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, confi
 	return deployment
 }
 
-// buildEnvVars creates environment variables for the container
-func (r *GatewayReconciler) buildEnvVars(gateway *corev1alpha1.Gateway) []corev1.EnvVar {
-	var envVars []corev1.EnvVar
-
-	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled && gateway.Spec.Auth.OIDC != nil && gateway.Spec.Auth.OIDC.ClientSecretRef != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name: "OIDC_CLIENT_SECRET",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: gateway.Spec.Auth.OIDC.ClientSecretRef.Name,
-					},
-					Key: gateway.Spec.Auth.OIDC.ClientSecretRef.Key,
-				},
-			},
-		})
-	}
-
-	for _, provider := range gateway.Spec.Providers {
-		if provider.Config != nil && provider.Config.TokenRef != nil {
-			envVars = append(envVars, corev1.EnvVar{
-				Name: fmt.Sprintf("%s_API_KEY", toUpperSnakeCase(provider.Name)),
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: provider.Config.TokenRef.Name,
-						},
-						Key: provider.Config.TokenRef.Key,
-					},
-				},
-			})
-		}
-	}
-
-	return envVars
-}
-
-// buildContainerPorts creates container ports based on Gateway configuration
-func (r *GatewayReconciler) buildContainerPorts(gateway *corev1alpha1.Gateway) []corev1.ContainerPort {
-	port := int32(8080)
-	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
-		port = gateway.Spec.Server.Port
-	}
-
-	containerPorts := []corev1.ContainerPort{
-		{
-			ContainerPort: port,
-			Name:          "http",
-		},
-	}
-
-	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled && gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Enabled {
-		metricsPort := int32(9464)
-		if gateway.Spec.Telemetry.Metrics.Port > 0 {
-			metricsPort = gateway.Spec.Telemetry.Metrics.Port
-		}
-		containerPorts = append(containerPorts, corev1.ContainerPort{
-			ContainerPort: metricsPort,
-			Name:          "metrics",
-		})
-	}
-
-	return containerPorts
-}
-
-// buildContainer creates the main container specification
-func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, envVars []corev1.EnvVar, containerPorts []corev1.ContainerPort) corev1.Container {
+// buildContainerWithMounts creates the main container specification with custom volume mounts
+func (r *GatewayReconciler) buildContainerWithMounts(gateway *corev1alpha1.Gateway, envVars []corev1.EnvVar, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container {
 	port := int32(8080)
 	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
 		port = gateway.Spec.Server.Port
 	}
 
 	return corev1.Container{
-		Name:  "inference-gateway",
-		Image: "ghcr.io/inference-gateway/inference-gateway:latest",
-		Ports: containerPorts,
-		Env:   envVars,
-		VolumeMounts: []corev1.VolumeMount{
-			{
-				Name:      gateway.Name + "-config-volume",
-				MountPath: "/app/config",
-			},
-		},
+		Name:         "inference-gateway",
+		Image:        "ghcr.io/inference-gateway/inference-gateway:latest",
+		Ports:        containerPorts,
+		Env:          envVars,
+		VolumeMounts: volumeMounts,
 		Resources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
@@ -589,7 +569,7 @@ func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gatewa
 			}
 		} else {
 			if latestDeployment.Spec.Replicas != nil {
-				logger.Info("HPA is enabled, not modifying replicas field",
+				logger.V(1).Info("HPA is enabled, not modifying replicas field",
 					"current", *latestDeployment.Spec.Replicas)
 			}
 		}
@@ -631,21 +611,28 @@ func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gatewa
 func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev1alpha1.Gateway) error {
 	logger := log.FromContext(ctx)
 
-	port := int32(8080)
-	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
-		port = gateway.Spec.Server.Port
+	var mainPort int32
+	if gateway.Spec.Service != nil && gateway.Spec.Service.Port > 0 {
+		mainPort = gateway.Spec.Service.Port
+	} else if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
+		mainPort = gateway.Spec.Server.Port
+	} else if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
+		mainPort = 8443
+	} else {
+		mainPort = 8080
 	}
 
 	servicePorts := []corev1.ServicePort{
 		{
-			Port:       port,
-			TargetPort: intstr.FromInt(int(port)),
+			Port:       mainPort,
+			TargetPort: intstr.FromInt(int(mainPort)),
 			Protocol:   corev1.ProtocolTCP,
 			Name:       "http",
 		},
 	}
 
 	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled && gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Enabled {
+		logger.V(1).Info("Adding metrics port to Service", "port", gateway.Spec.Telemetry.Metrics.Port)
 		metricsPort := int32(9464)
 		if gateway.Spec.Telemetry.Metrics.Port > 0 {
 			metricsPort = gateway.Spec.Telemetry.Metrics.Port
@@ -655,6 +642,16 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 			TargetPort: intstr.FromInt(int(metricsPort)),
 			Protocol:   corev1.ProtocolTCP,
 			Name:       "metrics",
+		})
+	}
+
+	if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled && mainPort != 8443 {
+		logger.V(1).Info("Adding HTTPS port to Service", "port", 8443)
+		servicePorts = append(servicePorts, corev1.ServicePort{
+			Port:       8443,
+			TargetPort: intstr.FromInt(8443),
+			Protocol:   corev1.ProtocolTCP,
+			Name:       "https",
 		})
 	}
 
@@ -704,6 +701,7 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 // reconcileIngress ensures the Ingress exists with the correct configuration
 func (r *GatewayReconciler) reconcileIngress(ctx context.Context, gateway *corev1alpha1.Gateway) error {
 	logger := log.FromContext(ctx)
+	logger.V(1).Info("Reconciling Ingress", "Gateway.Name", gateway.Name, "Gateway.Namespace", gateway.Namespace)
 
 	if gateway.Spec.Ingress == nil || !gateway.Spec.Ingress.Enabled {
 		ingress := &networkingv1.Ingress{}
@@ -750,12 +748,16 @@ func (r *GatewayReconciler) reconcileIngress(ctx context.Context, gateway *corev
 func (r *GatewayReconciler) buildIngress(gateway *corev1alpha1.Gateway) *networkingv1.Ingress {
 	ingressSpec := gateway.Spec.Ingress
 
-	servicePort := int32(8080)
-	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
-		servicePort = gateway.Spec.Server.Port
-	}
+	var servicePort int32
 	if gateway.Spec.Service != nil && gateway.Spec.Service.Port > 0 {
 		servicePort = gateway.Spec.Service.Port
+	} else if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
+		servicePort = gateway.Spec.Server.Port
+	} else if (gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled) ||
+		(ingressSpec != nil && ingressSpec.TLS != nil && ingressSpec.TLS.Enabled) {
+		servicePort = 8443
+	} else {
+		servicePort = 8080
 	}
 
 	ingress := &networkingv1.Ingress{
@@ -793,13 +795,17 @@ func (r *GatewayReconciler) buildIngressAnnotations(gateway *corev1alpha1.Gatewa
 	}
 
 	className := r.getIngressClassName(ingressSpec)
-	if className != nil && *className == "nginx" {
-		if _, exists := annotations["nginx.ingress.kubernetes.io/ssl-redirect"]; !exists {
-			annotations["nginx.ingress.kubernetes.io/ssl-redirect"] = "true"
+	if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && !gateway.Spec.Server.TLS.Enabled {
+		if className != nil && *className == "nginx" {
+			if _, exists := annotations["nginx.ingress.kubernetes.io/ssl-redirect"]; !exists {
+				annotations["nginx.ingress.kubernetes.io/ssl-redirect"] = "true"
+			}
+			if _, exists := annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"]; !exists {
+				annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = "true"
+			}
 		}
-		if _, exists := annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"]; !exists {
-			annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = "true"
-		}
+	} else if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
+		annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
 	}
 
 	return annotations
@@ -944,27 +950,6 @@ func (r *GatewayReconciler) buildIngressTLS(gateway *corev1alpha1.Gateway) []net
 // stringPtr returns a pointer to the given string
 func stringPtr(s string) *string {
 	return &s
-}
-
-// toUpperSnakeCase converts a camelCase or kebab-case string to UPPER_SNAKE_CASE
-func toUpperSnakeCase(s string) string {
-	result := ""
-	for i, c := range s {
-		if i > 0 && ((c >= 'A' && c <= 'Z') || c == '-') {
-			if c == '-' {
-				result += "_"
-			} else {
-				result += "_" + string(c)
-			}
-		} else {
-			if c >= 'a' && c <= 'z' {
-				result += string(c - 32)
-			} else {
-				result += string(c)
-			}
-		}
-	}
-	return result
 }
 
 // shouldWatchNamespace checks if the operator should watch resources in the given namespace
@@ -1205,6 +1190,93 @@ func (r *GatewayReconciler) buildMetricTarget(target corev1alpha1.HPAMetricTarge
 	}
 
 	return metricTarget
+}
+
+// buildEnvVars returns the environment variables for the gateway container
+func (r *GatewayReconciler) buildEnvVars(gateway *corev1alpha1.Gateway) []corev1.EnvVar {
+	if gateway == nil {
+		return nil
+	}
+
+	envVars := []corev1.EnvVar{
+		{
+			Name:  "ENVIRONMENT",
+			Value: gateway.Spec.Environment,
+		},
+	}
+
+	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled && gateway.Spec.Auth.OIDC != nil && gateway.Spec.Auth.OIDC.ClientSecretRef != nil {
+		envVars = append(envVars, corev1.EnvVar{
+			Name: "OIDC_CLIENT_SECRET",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: gateway.Spec.Auth.OIDC.ClientSecretRef.Name,
+					},
+					Key: gateway.Spec.Auth.OIDC.ClientSecretRef.Key,
+				},
+			},
+		})
+	}
+
+	for _, provider := range gateway.Spec.Providers {
+		if provider.Config != nil && provider.Config.TokenRef != nil {
+			name := strings.ToUpper(provider.Name) + "_API_KEY"
+			envVars = append(envVars, corev1.EnvVar{
+				Name: name,
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: provider.Config.TokenRef.Name,
+						},
+						Key: provider.Config.TokenRef.Key,
+					},
+				},
+			})
+		}
+	}
+
+	return envVars
+}
+
+// buildContainerPorts returns the container ports for the gateway container
+func (r *GatewayReconciler) buildContainerPorts(gateway *corev1alpha1.Gateway) []corev1.ContainerPort {
+	if gateway == nil || gateway.Spec.Server == nil {
+		return []corev1.ContainerPort{
+			{
+				ContainerPort: 8080,
+				Name:          "http",
+			},
+		}
+	}
+
+	ports := []corev1.ContainerPort{
+		{
+			ContainerPort: gateway.Spec.Server.Port,
+			Name:          "http",
+		},
+	}
+
+	if gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
+		ports = append(ports, corev1.ContainerPort{
+			ContainerPort: 8443,
+			Name:          "https",
+		})
+	}
+
+	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled &&
+		gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Enabled {
+		metricsPort := int32(9464)
+		if gateway.Spec.Telemetry.Metrics.Port > 0 {
+			metricsPort = gateway.Spec.Telemetry.Metrics.Port
+		}
+		ports = append(ports, corev1.ContainerPort{
+			ContainerPort: metricsPort,
+			Name:          "metrics",
+		})
+	}
+
+	return ports
 }
 
 // SetupWithManager sets up the controller with the Manager.
