@@ -157,7 +157,6 @@ tasks:
 
   test:e2e:focus:
     desc: 'Run specific e2e tests using ginkgo focus (usage: task test-e2e-focus FOCUS="test name")'
-    deps: [manifests, generate, fmt, vet]
     cmds:
       - |
         if ! command -v ctlptl &>/dev/null; then
