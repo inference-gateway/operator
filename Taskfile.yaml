@@ -138,7 +138,13 @@ tasks:
   nginx-ingress:install:
     desc: Install NGINX Ingress Controller in the cluster
     cmds:
-      - kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.3/deploy/static/provider/baremetal/deploy.yaml
+      - helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      - helm repo update
+      - |
+        helm install ingress-nginx ingress-nginx/ingress-nginx \
+          --namespace ingress-nginx \
+          --create-namespace \
+          --set controller.publishService.enabled=true
 
   test:
     desc: Run tests
