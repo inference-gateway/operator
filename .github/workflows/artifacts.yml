@@ -57,7 +57,6 @@ jobs:
         run: |
           gh release upload ${TAG} manifests/crds.yaml --clobber
           gh release upload ${TAG} manifests/install.yaml --clobber
-          gh release upload ${TAG} manifests/namespace-install.yaml --clobber
 
       - name: Push container images
         env:

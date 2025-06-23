@@ -41,11 +41,10 @@ tasks:
     desc: Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects and installation manifests
     cmds:
       - '{{.CONTROLLER_GEN}} rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases'
+      - "prettier --write config/**/*.yaml"
       - mkdir -p manifests
-      - cd config/operator && {{.KUSTOMIZE}} edit set image ghcr.io/inference-gateway/operator=ghcr.io/inference-gateway/operator:latest
       - "{{.KUSTOMIZE}} build config/crd > manifests/crds.yaml"
-      - "{{.KUSTOMIZE}} build config/default > manifests/install.yaml"
-      - "{{.KUSTOMIZE}} build config/operator > manifests/namespace-install.yaml"
+      - "{{.KUSTOMIZE}} build config/environments/prod > manifests/install.yaml"
 
   generate:
     desc: Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations
@@ -96,16 +95,48 @@ tasks:
     desc: Create a local Kubernetes cluster
     cmds:
       - ctlptl apply -f Cluster.yaml
+      - |
+        if [ "${CERT_MANAGER_INSTALL_SKIP}" != "true" ]; then
+          task cert-manager:install
+          kubectl -n cert-manager wait --for=condition=Available --timeout=60s deployment/cert-manager
+          kubectl -n cert-manager wait --for=condition=Available --timeout=60s deployment/cert-manager-webhook
+          kubectl -n cert-manager wait --for=condition=Available --timeout=60s deployment/cert-manager-cainjector
+          task cert-manager:clusterissuer
+        fi
+      - task: nginx-ingress:install
+      - kubectl -n ingress-nginx wait --for=condition=Available --timeout=60s deployment/ingress-nginx-controller
+
+  cert-manager:install:
+    desc: Install cert-manager in the cluster
+    cmds:
+      - kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+
+  cert-manager:clusterissuer:
+    desc: Install a self-signed ClusterIssuer for cert-manager
+    cmds:
+      - |
+        kubectl apply -f - <<EOF
+        apiVersion: cert-manager.io/v1
+        kind: ClusterIssuer
+        metadata:
+          name: selfsigned-cluster-issuer
+        spec:
+          selfSigned: {}
+        EOF
+
+  nginx-ingress:install:
+    desc: Install NGINX Ingress Controller in the cluster
+    cmds:
+      - kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.3/deploy/static/provider/baremetal/deploy.yaml
 
   test:
     desc: Run tests
-    deps: [manifests, generate, fmt, vet, ensure-k8s-envtest]
+    deps: [ensure-k8s-envtest]
     cmds:
       - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path)" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
 
   test:e2e:
     desc: Run the e2e tests using ctlptl with k3d
-    deps: [manifests, generate, fmt, vet]
     cmds:
       - |
         if ! command -v ctlptl &>/dev/null; then
@@ -122,11 +153,10 @@ tasks:
           echo "No k3d cluster is running. Please start a k3d cluster with ctlptl before running the e2e tests."
           exit 1
         fi
-      - go test ./test/e2e/ -v -ginkgo.v
+      - CERT_MANAGER_INSTALL_SKIP=true go test ./test/e2e/ -v -ginkgo.v
 
   test:e2e:focus:
     desc: 'Run specific e2e tests using ginkgo focus (usage: task test-e2e-focus FOCUS="test name")'
-    deps: [manifests, generate, fmt, vet]
     cmds:
       - |
         if ! command -v ctlptl &>/dev/null; then
@@ -201,27 +231,25 @@ tasks:
   # Deployment tasks
   install:
     desc: Install CRDs into the K8s cluster specified in ~/.kube/config
-    deps: [manifests]
     cmds:
       - "{{.KUSTOMIZE}} build config/crd | {{.KUBECTL}} apply -f -"
 
   uninstall:
     desc: Uninstall CRDs from the K8s cluster specified in ~/.kube/config
-    deps: [manifests]
     cmds:
       - "{{.KUSTOMIZE}} build config/crd | {{.KUBECTL}} delete --ignore-not-found={{.IGNORE_NOT_FOUND}} -f -"
 
   deploy:
     desc: Deploy controller to the K8s cluster specified in ~/.kube/config
-    deps: [manifests]
+    deps: [docker-build]
     cmds:
-      - cd config/operator && {{.KUSTOMIZE}} edit set image ghcr.io/inference-gateway/operator={{.IMG}}
-      - "{{.KUSTOMIZE}} build config/default | {{.KUBECTL}} apply -f -"
+      - k3d image import {{.IMG}} -c dev
+      - "{{.KUSTOMIZE}} build config/environments/dev | {{.KUBECTL}} apply -f -"
 
   undeploy:
     desc: Undeploy controller from the K8s cluster specified in ~/.kube/config
     cmds:
-      - "{{.KUSTOMIZE}} build config/default | {{.KUBECTL}} delete --ignore-not-found={{.IGNORE_NOT_FOUND}} -f -"
+      - "{{.KUSTOMIZE}} build config/environments/dev | {{.KUBECTL}} delete --ignore-not-found={{.IGNORE_NOT_FOUND}} -f -"
 
   # Dependency installation tasks
   ensure-bin-dir:

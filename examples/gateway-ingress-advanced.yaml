@@ -1,0 +1,102 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway-advanced
+  namespace: inference-gateway
+  labels:
+    app.kubernetes.io/name: inference-gateway
+    app.kubernetes.io/instance: inference-gateway-advanced
+    app.kubernetes.io/component: api-gateway
+    app.kubernetes.io/part-of: inference-gateway
+    app.kubernetes.io/version: "0.12.0"
+spec:
+  # Core gateway configuration
+  environment: production
+  image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
+
+  # AI Provider configurations
+  providers:
+    - name: openai
+      type: openai
+      config:
+        baseUrl: "https://api.openai.com/v1"
+        authType: bearer
+        tokenRef:
+          name: inference-gateway-secrets
+          key: OPENAI_API_KEY
+
+  # Advanced ingress configuration with custom settings
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      # Custom annotations for advanced features
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "https://ui.inference-gateway.local"
+
+    # Multiple hosts configuration (advanced usage)
+    hosts:
+      - host: "api.inference-gateway.local"
+        paths:
+          - path: "/"
+            pathType: "Prefix"
+      - host: "gateway.example.com"
+        paths:
+          - path: "/v1"
+            pathType: "Prefix"
+          - path: "/health"
+            pathType: "Exact"
+
+    # Advanced TLS configuration
+    tls:
+      enabled: true
+      issuer: "letsencrypt-prod"
+      config:
+        - secretName: "api-inference-gateway-tls"
+          hosts:
+            - "api.inference-gateway.local"
+        - secretName: "gateway-example-tls"
+          hosts:
+            - "gateway.example.com"
+
+  # Resource management
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "1000m"
+      memory: "512Mi"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inference-gateway-secrets
+  namespace: inference-gateway
+  labels:
+    app.kubernetes.io/name: inference-gateway
+    app.kubernetes.io/instance: inference-gateway-advanced
+    app.kubernetes.io/component: secrets
+    app.kubernetes.io/part-of: inference-gateway
+    app.kubernetes.io/version: "0.12.0"
+type: Opaque
+stringData:
+  OIDC_CLIENT_SECRET: ""
+
+  OPENAI_API_KEY: ""
+  ANTHROPIC_API_KEY: ""
+  GROQ_API_KEY: ""
+  COHERE_API_KEY: ""
+  CLOUDFLARE_API_KEY: ""
+  DEEPSEEK_API_KEY: ""
+  OLLAMA_API_KEY: ""

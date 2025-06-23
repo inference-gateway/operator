@@ -13,7 +13,24 @@ spec:
     singular: gateway
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Gateway IP address
+      jsonPath: .spec.server.host
+      name: IP
+      type: string
+    - description: Gateway port
+      jsonPath: .spec.server.port
+      name: Port
+      type: integer
+    - description: Configured providers
+      jsonPath: .status.providerSummary
+      name: Providers
+      type: string
+    - description: Age of the resource
+      jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Gateway is the Schema for the gateways API.
@@ -276,8 +293,15 @@ spec:
                     default: false
                     description: Enable ingress
                     type: boolean
+                  host:
+                    description: |-
+                      Simple host configuration (alternative to hosts array)
+                      When specified, this will be used as the primary host with automatic TLS and path configuration
+                    type: string
                   hosts:
-                    description: Ingress hosts configuration
+                    description: |-
+                      Ingress hosts configuration (advanced usage)
+                      Use 'host' field for simple single-host configuration
                     items:
                       description: IngressHost contains ingress host configuration
                       properties:
@@ -310,21 +334,39 @@ spec:
                     type: array
                   tls:
                     description: TLS configuration
-                    items:
-                      description: IngressTLS contains ingress TLS configuration
-                      properties:
-                        hosts:
-                          description: Hosts covered by the certificate
-                          items:
-                            type: string
-                          type: array
-                        secretName:
-                          description: Secret name containing TLS certificate
-                          type: string
-                      required:
-                      - secretName
-                      type: object
-                    type: array
+                    properties:
+                      config:
+                        description: Advanced TLS configuration (alternative to simple
+                          config above)
+                        items:
+                          description: IngressTLS contains ingress TLS configuration
+                          properties:
+                            hosts:
+                              description: Hosts covered by the certificate
+                              items:
+                                type: string
+                              type: array
+                            secretName:
+                              description: Secret name containing TLS certificate
+                              type: string
+                          required:
+                          - secretName
+                          type: object
+                        type: array
+                      enabled:
+                        default: true
+                        description: Enable TLS for ingress
+                        type: boolean
+                      issuer:
+                        description: |-
+                          Certificate issuer for cert-manager (automatically sets annotation)
+                          Examples: "letsencrypt-prod", "letsencrypt-staging", "selfsigned-issuer"
+                        type: string
+                      secretName:
+                        description: Secret name for TLS certificate (auto-generated
+                          if not specified)
+                        type: string
+                    type: object
                 type: object
               mcp:
                 description: MCP (Model Context Protocol) configuration
@@ -674,6 +716,10 @@ spec:
                 - Running
                 - Failed
                 - Unknown
+                type: string
+              providerSummary:
+                description: ProviderSummary is a comma-separated list of provider
+                  names
                 type: string
               readyReplicas:
                 description: Current number of ready replicas

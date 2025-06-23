@@ -75,7 +75,4 @@ jobs:
 
       - name: Running Test e2e
         run: |
-          go mod tidy
-          task generate
-          task manifests
           task test:e2e

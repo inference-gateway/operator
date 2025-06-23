@@ -53,6 +53,9 @@ RUN curl -L -o kubebuilder https://github.com/kubernetes-sigs/kubebuilder/releas
     chmod +x kubebuilder && \
     mv kubebuilder /usr/local/bin/
 
+# Install prettier for YAML formatting
+RUN npm install -g prettier
+
 # Install semantic-release
 RUN npm install -g semantic-release@${SEMANTIC_RELEASE_VERSION} \
     @semantic-release/changelog \

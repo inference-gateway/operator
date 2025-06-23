@@ -1,0 +1,10 @@
+---
+namespace: inference-gateway-system
+
+namePrefix: operator-
+
+resources:
+  - ../../crd
+  - ../../rbac
+  - ../../operator
+  - ../../metrics
