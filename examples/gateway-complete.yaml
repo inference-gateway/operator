@@ -11,22 +11,15 @@ kind: Gateway
 metadata:
   name: inference-gateway
   namespace: inference-gateway
-  labels:
-    app.kubernetes.io/name: inference-gateway
-    app.kubernetes.io/instance: inference-gateway
-    app.kubernetes.io/component: api-gateway
-    app.kubernetes.io/part-of: inference-gateway
-    app.kubernetes.io/version: "0.12.0"
 spec:
   # Core gateway configuration
   environment: production
-  # replicas: 3
   hpa:
     enabled: true
     minReplicas: 3
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
-  image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
+  image: "ghcr.io/inference-gateway/inference-gateway:0.13.0-rc.1"
 
   # OpenTelemetry observability configuration
   telemetry:
@@ -146,12 +139,6 @@ spec:
       cpu: "1000m"
       memory: "512Mi"
 
-  # Service configuration
-  # service:
-  #   type: ClusterIP
-  #   port: 8080
-  #   annotations: {}
-
   # Ingress configuration
   ingress:
     enabled: true
@@ -167,12 +154,6 @@ kind: Secret
 metadata:
   name: inference-gateway-secrets
   namespace: inference-gateway
-  labels:
-    app.kubernetes.io/name: inference-gateway
-    app.kubernetes.io/instance: inference-gateway
-    app.kubernetes.io/component: secrets
-    app.kubernetes.io/part-of: inference-gateway
-    app.kubernetes.io/version: "0.12.0"
 type: Opaque
 stringData:
   OIDC_CLIENT_SECRET: ""
