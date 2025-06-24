@@ -142,10 +142,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 			continue
 		}
-		apiKeyBytes, ok := secret.Data[strings.ToUpper(p.SecretRef.Key)]
-		if !ok || len(apiKeyBytes) == 0 {
-			logger.V(1).Info("Skipping provider with missing or empty API key", "provider", p, "secret", secretNamespacedName)
-			continue
+		if p.SecretRef != nil {
+			apiKeyBytes, ok := secret.Data[strings.ToUpper(p.SecretRef.Key)]
+			if !ok || len(apiKeyBytes) == 0 {
+				logger.V(1).Info("Skipping provider with missing or empty API key", "provider", p, "secret", secretNamespacedName)
+				continue
+			}
 		}
 		configuredProviderNames = append(configuredProviderNames, p.Name)
 	}
