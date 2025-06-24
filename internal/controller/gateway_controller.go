@@ -122,7 +122,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	var allowedProviders map[string]string = map[string]string{
-		"anthropic": "", "cloudflare": "", "cohere": "", "groq": "", "ollama": "", "openai": "", "deepseek": "",
+		"custom": "", "anthropic": "", "cloudflare": "", "cohere": "", "groq": "", "ollama": "", "openai": "", "deepseek": "",
 	}
 	var configuredProviderNames []string = []string{}
 	for _, p := range gateway.Spec.Providers {

@@ -237,9 +237,14 @@ type ProviderSpec struct {
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
-	// Secret Reference for providers API keys
+	// URL of the provider API
+	// This is the base URL for the provider's OpenAI-compatible API endpoints
 	// +kubebuilder:validation:Required
-	SecretRef *SecretKeySelector `json:"secretRef"`
+	URL string `json:"url,omitempty"`
+
+	// Secret Reference for providers API keys
+	// +optional
+	SecretRef *SecretKeySelector `json:"secretRef,omitempty"`
 }
 
 // ProviderConfig contains provider-specific configuration

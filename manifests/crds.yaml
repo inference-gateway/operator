@@ -452,9 +452,14 @@ spec:
                       required:
                       - name
                       type: object
+                    url:
+                      description: |-
+                        URL of the provider API
+                        This is the base URL for the provider's OpenAI-compatible API endpoints
+                      type: string
                   required:
                   - name
-                  - secretRef
+                  - url
                   type: object
                 type: array
               replicas:

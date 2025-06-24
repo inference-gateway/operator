@@ -59,29 +59,45 @@ spec:
   # AI Provider configurations
   providers:
     - name: OpenAI
+      url: "https://api.openai.com/v1"
       secretRef:
         name: inference-gateway-providers-secret
         key: OPENAI_API_KEY
     - name: Anthropic
+      url: "https://api.anthropic.com/v1"
       secretRef:
         name: inference-gateway-providers-secret
         key: ANTHROPIC_API_KEY
     - name: Groq
+      url: "https://api.groq.com/v1"
       secretRef:
         name: inference-gateway-providers-secret
         key: GROQ_API_KEY
     - name: Cohere
+      url: "https://api.cohere.ai/v1"
       secretRef:
         name: inference-gateway-providers-secret
         key: COHERE_API_KEY
     - name: Cloudflare
+      url: "https://api.cloudflare.com/v1"
       secretRef:
         name: inference-gateway-providers-secret
         key: CLOUDFLARE_API_KEY
     - name: DeepSeek
+      url: "https://api.deepseek.ai/v1"
       secretRef:
         name: inference-gateway-providers-secret
         key: DEEPSEEK_API_KEY
+    - name: Ollama
+      url: "http://ollama:11434"
+      secretRef:
+        name: inference-gateway-providers-secret
+        key: OLLAMA_API_KEY
+    - name: Custom
+      url: "https://api.custom.com/v1"
+      secretRef:
+        name: inference-gateway-providers-secret
+        key: CUSTOM_API_KEY
 
   # Model Context Protocol configuration
   mcp:
