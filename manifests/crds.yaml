@@ -147,15 +147,10 @@ spec:
                         description: Reference to a secret containing the client secret
                         properties:
                           key:
-                            default: value
                             description: Key within the secret
                             type: string
                           name:
                             description: Name of the secret
-                            type: string
-                          namespace:
-                            description: Namespace of the secret (defaults to Gateway
-                              namespace)
                             type: string
                         required:
                         - name
@@ -442,55 +437,24 @@ spec:
                   description: ProviderSpec contains configuration for a specific
                     provider
                   properties:
-                    config:
-                      description: Provider configuration
-                      properties:
-                        authType:
-                          description: Authentication type
-                          enum:
-                          - bearer
-                          - basic
-                          - none
-                          type: string
-                        baseUrl:
-                          description: Base URL for the provider API
-                          type: string
-                        tokenRef:
-                          description: Reference to secret containing authentication
-                            token
-                          properties:
-                            key:
-                              default: value
-                              description: Key within the secret
-                              type: string
-                            name:
-                              description: Name of the secret
-                              type: string
-                            namespace:
-                              description: Namespace of the secret (defaults to Gateway
-                                namespace)
-                              type: string
-                          required:
-                          - name
-                          type: object
-                      type: object
                     name:
-                      description: Provider name (unique identifier)
+                      description: Name of the secret
                       type: string
-                    type:
-                      description: Provider type
-                      enum:
-                      - openai
-                      - anthropic
-                      - ollama
-                      - groq
-                      - cohere
-                      - cloudflare
-                      - deepseek
-                      type: string
+                    secretRef:
+                      description: Secret Reference for providers API keys
+                      properties:
+                        key:
+                          description: Key within the secret
+                          type: string
+                        name:
+                          description: Name of the secret
+                          type: string
+                      required:
+                      - name
+                      type: object
                   required:
                   - name
-                  - type
+                  - secretRef
                   type: object
                 type: array
               replicas:
@@ -561,15 +525,10 @@ spec:
                         description: Reference to a secret containing the TLS certificate
                         properties:
                           key:
-                            default: value
                             description: Key within the secret
                             type: string
                           name:
                             description: Name of the secret
-                            type: string
-                          namespace:
-                            description: Namespace of the secret (defaults to Gateway
-                              namespace)
                             type: string
                         required:
                         - name
@@ -583,15 +542,10 @@ spec:
                           key
                         properties:
                           key:
-                            default: value
                             description: Key within the secret
                             type: string
                           name:
                             description: Name of the secret
-                            type: string
-                          namespace:
-                            description: Namespace of the secret (defaults to Gateway
-                              namespace)
                             type: string
                         required:
                         - name

@@ -228,28 +228,18 @@ type SecretKeySelector struct {
 
 	// Key within the secret
 	// +optional
-	// +kubebuilder:default="value"
 	Key string `json:"key,omitempty"`
-
-	// Namespace of the secret (defaults to Gateway namespace)
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
 }
 
 // ProviderSpec contains configuration for a specific provider
 type ProviderSpec struct {
-	// Provider name (unique identifier)
+	// Name of the secret
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
-	// Provider type
+	// Secret Reference for providers API keys
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=openai;anthropic;ollama;groq;cohere;cloudflare;deepseek
-	Type string `json:"type"`
-
-	// Provider configuration
-	// +optional
-	Config *ProviderConfig `json:"config,omitempty"`
+	SecretRef *SecretKeySelector `json:"secretRef"`
 }
 
 // ProviderConfig contains provider-specific configuration

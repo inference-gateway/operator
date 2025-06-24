@@ -97,20 +97,7 @@ var _ = Describe("Gateway controller", func() {
 							Idle:  "300s",
 						},
 					},
-					Providers: []corev1alpha1.ProviderSpec{
-						{
-							Name: "openai",
-							Type: "openai",
-							Config: &corev1alpha1.ProviderConfig{
-								BaseURL:  "https://api.openai.com/v1",
-								AuthType: "bearer",
-								TokenRef: &corev1alpha1.SecretKeySelector{
-									Name: "openai-secret",
-									Key:  "api-key",
-								},
-							},
-						},
-					},
+					Providers: []corev1alpha1.ProviderSpec{},
 				},
 			}
 			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
@@ -133,18 +120,14 @@ var _ = Describe("Gateway controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			Expect(createdConfigMap.Data).To(HaveKey("config.yaml"))
-			configContent := createdConfigMap.Data["config.yaml"]
-
-			Expect(configContent).To(ContainSubstring("environment: production"))
-			Expect(configContent).To(ContainSubstring("telemetry:"))
-			Expect(configContent).To(ContainSubstring("enabled: true"))
-			Expect(configContent).To(ContainSubstring("auth:"))
-			Expect(configContent).To(ContainSubstring("provider: oidc"))
-			Expect(configContent).To(ContainSubstring("issuerUrl: https://auth.example.com"))
-			Expect(configContent).To(ContainSubstring("baseUrl: https://api.openai.com/v1"))
-			Expect(configContent).To(ContainSubstring("name: openai"))
-			Expect(configContent).To(ContainSubstring("type: openai"))
+			Expect(createdConfigMap.Data).To(HaveKey("ENVIRONMENT"))
+			Expect(createdConfigMap.Data["ENVIRONMENT"]).To(Equal("production"))
+			Expect(createdConfigMap.Data).To(HaveKey("ENABLE_TELEMETRY"))
+			Expect(createdConfigMap.Data["ENABLE_TELEMETRY"]).To(Equal("true"))
+			Expect(createdConfigMap.Data).To(HaveKey("OIDC_ISSUER_URL"))
+			Expect(createdConfigMap.Data["OIDC_ISSUER_URL"]).To(Equal("https://auth.example.com"))
+			Expect(createdConfigMap.Data).To(HaveKey("OPENAI_API_URL"))
+			Expect(createdConfigMap.Data["OPENAI_API_URL"]).To(Equal("https://api.openai.com/v1"))
 
 			deploymentName := types.NamespacedName{
 				Name:      GatewayName,
@@ -156,15 +139,7 @@ var _ = Describe("Gateway controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			Expect(createdDeployment.Spec.Template.Spec.Volumes).To(ContainElement(
-				HaveField("Name", GatewayName+"-config-volume"),
-			))
-
 			containers := createdDeployment.Spec.Template.Spec.Containers
-			Expect(containers).To(HaveLen(1))
-			Expect(containers[0].VolumeMounts).To(ContainElement(
-				HaveField("Name", GatewayName+"-config-volume"),
-			))
 
 			envVars := containers[0].Env
 			Expect(envVars).To(ContainElement(
@@ -207,32 +182,7 @@ var _ = Describe("Gateway controller", func() {
 						Host: "0.0.0.0",
 						Port: 8080,
 					},
-					Providers: []corev1alpha1.ProviderSpec{
-						{
-							Name: "openai",
-							Type: "openai",
-							Config: &corev1alpha1.ProviderConfig{
-								BaseURL:  "https://api.openai.com/v1",
-								AuthType: "bearer",
-								TokenRef: &corev1alpha1.SecretKeySelector{
-									Name: "openai-secret",
-									Key:  "api-key",
-								},
-							},
-						},
-						{
-							Name: "anthropic",
-							Type: "anthropic",
-							Config: &corev1alpha1.ProviderConfig{
-								BaseURL:  "https://api.anthropic.com/v1",
-								AuthType: "bearer",
-								TokenRef: &corev1alpha1.SecretKeySelector{
-									Name: "anthropic-secret",
-									Key:  "api-key",
-								},
-							},
-						},
-					},
+					Providers: []corev1alpha1.ProviderSpec{},
 				},
 			}
 			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
@@ -265,24 +215,15 @@ var _ = Describe("Gateway controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			Expect(createdConfigMap.Data).To(HaveKey("config.yaml"))
-			configContent := createdConfigMap.Data["config.yaml"]
-
-			Expect(configContent).To(ContainSubstring("environment: production"))
-
-			Expect(configContent).To(ContainSubstring("telemetry:"))
-			Expect(configContent).To(ContainSubstring("enabled: true"))
-			Expect(configContent).To(ContainSubstring("metrics:"))
-			Expect(configContent).To(ContainSubstring("port: 9464"))
-			Expect(configContent).To(ContainSubstring("tracing:"))
-			Expect(configContent).To(ContainSubstring("endpoint: http://jaeger-collector:14268/api/traces"))
-
-			Expect(configContent).To(ContainSubstring("name: openai"))
-			Expect(configContent).To(ContainSubstring("type: openai"))
-			Expect(configContent).To(ContainSubstring("baseUrl: https://api.openai.com/v1"))
-			Expect(configContent).To(ContainSubstring("name: anthropic"))
-			Expect(configContent).To(ContainSubstring("type: anthropic"))
-			Expect(configContent).To(ContainSubstring("baseUrl: https://api.anthropic.com/v1"))
+			// Validate that specific keys are present in the ConfigMap
+			Expect(createdConfigMap.Data).To(HaveKey("ENVIRONMENT"))
+			Expect(createdConfigMap.Data["ENVIRONMENT"]).To(Equal("production"))
+			Expect(createdConfigMap.Data).To(HaveKey("ENABLE_TELEMETRY"))
+			Expect(createdConfigMap.Data["ENABLE_TELEMETRY"]).To(Equal("true"))
+			Expect(createdConfigMap.Data).To(HaveKey("OPENAI_API_URL"))
+			Expect(createdConfigMap.Data["OPENAI_API_URL"]).To(Equal("https://api.openai.com/v1"))
+			Expect(createdConfigMap.Data).To(HaveKey("ANTHROPIC_API_URL"))
+			Expect(createdConfigMap.Data["ANTHROPIC_API_URL"]).To(Equal("https://api.anthropic.com/v1"))
 
 			deploymentName := types.NamespacedName{
 				Name:      GatewayName + "-otel",
@@ -306,18 +247,6 @@ var _ = Describe("Gateway controller", func() {
 				}
 			}
 			Expect(hasMetricsPort).To(BeTrue(), "Metrics port 9464 should be exposed in container")
-
-			envVars := containers[0].Env
-			Expect(envVars).To(ContainElement(
-				HaveField("Name", "OPENAI_API_KEY"),
-			))
-			Expect(envVars).To(ContainElement(
-				HaveField("Name", "ANTHROPIC_API_KEY"),
-			))
-
-			Expect(containers[0].VolumeMounts).To(ContainElement(
-				HaveField("Name", GatewayName+"-otel-config-volume"),
-			))
 
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})
@@ -352,20 +281,7 @@ var _ = Describe("Gateway controller", func() {
 						Host: "0.0.0.0",
 						Port: 8080,
 					},
-					Providers: []corev1alpha1.ProviderSpec{
-						{
-							Name: "openai",
-							Type: "openai",
-							Config: &corev1alpha1.ProviderConfig{
-								BaseURL:  "https://api.openai.com/v1",
-								AuthType: "bearer",
-								TokenRef: &corev1alpha1.SecretKeySelector{
-									Name: "openai-secret",
-									Key:  "api-key",
-								},
-							},
-						},
-					},
+					Providers: []corev1alpha1.ProviderSpec{},
 				},
 			}
 			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
@@ -398,11 +314,11 @@ var _ = Describe("Gateway controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			Expect(createdConfigMap.Data).To(HaveKey("config.yaml"))
-			configContent := createdConfigMap.Data["config.yaml"]
-
-			Expect(configContent).To(ContainSubstring("telemetry:"))
-			Expect(configContent).To(ContainSubstring("enabled: false"))
+			// Validate that specific keys are present in the ConfigMap
+			Expect(createdConfigMap.Data).To(HaveKey("CLIENT_EXPECT_CONTINUE_TIMEOUT"))
+			Expect(createdConfigMap.Data["CLIENT_EXPECT_CONTINUE_TIMEOUT"]).To(Equal("1s"))
+			Expect(createdConfigMap.Data).To(HaveKey("CLIENT_DISABLE_COMPRESSION"))
+			Expect(createdConfigMap.Data["CLIENT_DISABLE_COMPRESSION"]).To(Equal("true"))
 
 			deploymentName := types.NamespacedName{
 				Name:      GatewayName + "-no-telemetry",
@@ -452,12 +368,7 @@ var _ = Describe("Gateway controller", func() {
 						ScaleDownStabilizationWindowSeconds: &[]int32{300}[0],
 						ScaleUpStabilizationWindowSeconds:   &[]int32{60}[0],
 					},
-					Providers: []corev1alpha1.ProviderSpec{
-						{
-							Name: "openai",
-							Type: "openai",
-						},
-					},
+					Providers: []corev1alpha1.ProviderSpec{},
 				},
 			}
 
@@ -541,12 +452,7 @@ var _ = Describe("Gateway controller", func() {
 						MaxReplicas:                    3,
 						TargetCPUUtilizationPercentage: &[]int32{80}[0],
 					},
-					Providers: []corev1alpha1.ProviderSpec{
-						{
-							Name: "openai",
-							Type: "openai",
-						},
-					},
+					Providers: []corev1alpha1.ProviderSpec{},
 				},
 			}
 

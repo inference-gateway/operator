@@ -49,12 +49,6 @@ import (
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
-// GatewayReconciler reconciles a Gateway object
-type GatewayReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
-}
-
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/finalizers,verbs=update
@@ -65,6 +59,12 @@ type GatewayReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+
+// GatewayReconciler reconciles a Gateway object
+type GatewayReconciler struct {
+	client.Client
+	Scheme *runtime.Scheme
+}
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -87,13 +87,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	configMap, err := r.reconcileConfigMap(ctx, gateway)
+	cm, err := r.reconcileConfigMap(ctx, gateway)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile ConfigMap")
 		return ctrl.Result{}, err
 	}
 
-	deployment, err := r.reconcileDeployment(ctx, gateway, configMap)
+	deployment, err := r.reconcileDeployment(ctx, gateway, cm)
 	if err != nil {
 		if errors.IsConflict(err) {
 			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
@@ -121,21 +121,33 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	var configuredProviderNames []string
+	var allowedProviders map[string]string = map[string]string{
+		"anthropic": "", "cloudflare": "", "cohere": "", "groq": "", "ollama": "", "openai": "", "deepseek": "",
+	}
+	var configuredProviderNames []string = []string{}
 	for _, p := range gateway.Spec.Providers {
-		if p.Config != nil && p.Config.TokenRef != nil && p.Config.TokenRef.Name != "" && p.Config.TokenRef.Key != "" {
-			secret := &corev1.Secret{}
-			secretNamespacedName := types.NamespacedName{Name: p.Config.TokenRef.Name, Namespace: gateway.Namespace}
-			err := r.Get(ctx, secretNamespacedName, secret)
-			if err != nil {
-				continue
-			}
-			apiKeyBytes, ok := secret.Data[p.Config.TokenRef.Key]
-			if !ok || len(apiKeyBytes) == 0 {
-				continue
-			}
-			configuredProviderNames = append(configuredProviderNames, p.Name)
+		if _, ok := allowedProviders[strings.ToLower(p.Name)]; !ok {
+			logger.V(1).Info("Skipping unsupported provider", "provider", p)
+			continue
 		}
+
+		secret := &corev1.Secret{}
+		secretNamespacedName := types.NamespacedName{Name: p.SecretRef.Name, Namespace: gateway.Namespace}
+		err := r.Get(ctx, secretNamespacedName, secret)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				logger.V(1).Info("Skipping provider with missing secret", "provider", p, "secret", secretNamespacedName)
+			} else {
+				logger.Error(err, "Failed to get secret for provider", "provider", p, "secret", secretNamespacedName)
+			}
+			continue
+		}
+		apiKeyBytes, ok := secret.Data[strings.ToUpper(p.SecretRef.Key)]
+		if !ok || len(apiKeyBytes) == 0 {
+			logger.V(1).Info("Skipping provider with missing or empty API key", "provider", p, "secret", secretNamespacedName)
+			continue
+		}
+		configuredProviderNames = append(configuredProviderNames, p.Name)
 	}
 	summary := strings.Join(configuredProviderNames, ",")
 	if gateway.Status.ProviderSummary != summary {
@@ -149,232 +161,170 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	logger.Info("Reconciled Gateway successfully",
 		"gateway", gateway.Name,
 		"deployment", deployment.Name,
-		"configMap", configMap.Name)
+		"configMap", cm.Name)
 
 	return ctrl.Result{}, nil
-}
-
-// generateConfig converts the Gateway spec to a YAML configuration
-func (r *GatewayReconciler) generateConfig(gateway *corev1alpha1.Gateway) (string, error) { // nolint:unparam
-	builder := strings.Builder{}
-
-	// Core configuration
-	r.addCoreConfig(&builder, gateway)
-
-	// Telemetry configuration
-	r.addTelemetryConfig(&builder, gateway)
-
-	// Authentication configuration
-	r.addAuthConfig(&builder, gateway)
-
-	// Server configuration
-	r.addServerConfig(&builder, gateway)
-
-	// Provider configuration
-	r.addProviderConfig(&builder, gateway)
-
-	// MCP configuration
-	r.addMCPConfig(&builder, gateway)
-
-	// A2A configuration
-	r.addA2AConfig(&builder, gateway)
-
-	return builder.String(), nil
-}
-
-// addCoreConfig adds basic gateway configuration
-func (r *GatewayReconciler) addCoreConfig(builder *strings.Builder, gateway *corev1alpha1.Gateway) {
-	fmt.Fprintf(builder, "environment: %s\n", gateway.Spec.Environment)
-}
-
-// addTelemetryConfig adds telemetry configuration
-func (r *GatewayReconciler) addTelemetryConfig(builder *strings.Builder, gateway *corev1alpha1.Gateway) {
-	if gateway.Spec.Telemetry != nil {
-		builder.WriteString("telemetry:\n")
-		fmt.Fprintf(builder, "  enabled: %t\n", gateway.Spec.Telemetry.Enabled)
-		if gateway.Spec.Telemetry.Metrics != nil {
-			builder.WriteString("  metrics:\n")
-			fmt.Fprintf(builder, "    enabled: %t\n", gateway.Spec.Telemetry.Metrics.Enabled)
-			fmt.Fprintf(builder, "    port: %d\n", gateway.Spec.Telemetry.Metrics.Port)
-		}
-		if gateway.Spec.Telemetry.Tracing != nil {
-			builder.WriteString("  tracing:\n")
-			fmt.Fprintf(builder, "    enabled: %t\n", gateway.Spec.Telemetry.Tracing.Enabled)
-			if gateway.Spec.Telemetry.Tracing.Endpoint != "" {
-				fmt.Fprintf(builder, "    endpoint: %s\n", gateway.Spec.Telemetry.Tracing.Endpoint)
-			}
-		}
-	}
-}
-
-// addAuthConfig adds authentication configuration
-func (r *GatewayReconciler) addAuthConfig(builder *strings.Builder, gateway *corev1alpha1.Gateway) {
-	if gateway.Spec.Auth != nil {
-		builder.WriteString("auth:\n")
-		fmt.Fprintf(builder, "  enabled: %t\n", gateway.Spec.Auth.Enabled)
-		fmt.Fprintf(builder, "  provider: %s\n", gateway.Spec.Auth.Provider)
-		if gateway.Spec.Auth.OIDC != nil {
-			builder.WriteString("  oidc:\n")
-			fmt.Fprintf(builder, "    issuerUrl: %s\n", gateway.Spec.Auth.OIDC.IssuerURL)
-			fmt.Fprintf(builder, "    clientId: %s\n", gateway.Spec.Auth.OIDC.ClientID)
-		}
-	}
-}
-
-// addServerConfig adds server configuration
-func (r *GatewayReconciler) addServerConfig(builder *strings.Builder, gateway *corev1alpha1.Gateway) {
-	if gateway.Spec.Server != nil {
-		builder.WriteString("server:\n")
-		fmt.Fprintf(builder, "  host: %s\n", gateway.Spec.Server.Host)
-		fmt.Fprintf(builder, "  port: %d\n", gateway.Spec.Server.Port)
-		if gateway.Spec.Server.Timeouts != nil {
-			builder.WriteString("  timeouts:\n")
-			if gateway.Spec.Server.Timeouts.Read != "" {
-				fmt.Fprintf(builder, "    read: %s\n", gateway.Spec.Server.Timeouts.Read)
-			}
-			if gateway.Spec.Server.Timeouts.Write != "" {
-				fmt.Fprintf(builder, "    write: %s\n", gateway.Spec.Server.Timeouts.Write)
-			}
-			if gateway.Spec.Server.Timeouts.Idle != "" {
-				fmt.Fprintf(builder, "    idle: %s\n", gateway.Spec.Server.Timeouts.Idle)
-			}
-		}
-		if gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
-			builder.WriteString("  tls:\n")
-			builder.WriteString("    enabled: true\n")
-		}
-	}
-}
-
-// addProviderConfig adds provider configuration
-func (r *GatewayReconciler) addProviderConfig(builder *strings.Builder, gateway *corev1alpha1.Gateway) {
-	if len(gateway.Spec.Providers) > 0 {
-		builder.WriteString("providers:\n")
-		for _, provider := range gateway.Spec.Providers {
-			fmt.Fprintf(builder, "  - name: %s\n", provider.Name)
-			fmt.Fprintf(builder, "    type: %s\n", provider.Type)
-			if provider.Config != nil {
-				builder.WriteString("    config:\n")
-				if provider.Config.BaseURL != "" {
-					fmt.Fprintf(builder, "      baseUrl: %s\n", provider.Config.BaseURL)
-				}
-				if provider.Config.AuthType != "" {
-					fmt.Fprintf(builder, "      authType: %s\n", provider.Config.AuthType)
-				}
-			}
-		}
-	}
-}
-
-// addMCPConfig adds MCP configuration
-func (r *GatewayReconciler) addMCPConfig(builder *strings.Builder, gateway *corev1alpha1.Gateway) {
-	if gateway.Spec.MCP != nil && gateway.Spec.MCP.Enabled {
-		builder.WriteString("mcp:\n")
-		fmt.Fprintf(builder, "  enabled: %t\n", gateway.Spec.MCP.Enabled)
-		fmt.Fprintf(builder, "  expose: %t\n", gateway.Spec.MCP.Expose)
-		r.addTimeouts(builder, "  ", gateway.Spec.MCP.Timeouts)
-		r.addServers(builder, "  ", gateway.Spec.MCP.Servers)
-	}
-}
-
-// addA2AConfig adds A2A configuration
-func (r *GatewayReconciler) addA2AConfig(builder *strings.Builder, gateway *corev1alpha1.Gateway) {
-	if gateway.Spec.A2A != nil && gateway.Spec.A2A.Enabled {
-		builder.WriteString("a2a:\n")
-		fmt.Fprintf(builder, "  enabled: %t\n", gateway.Spec.A2A.Enabled)
-		fmt.Fprintf(builder, "  expose: %t\n", gateway.Spec.A2A.Expose)
-		if gateway.Spec.A2A.Timeouts != nil {
-			builder.WriteString("  timeouts:\n")
-			if gateway.Spec.A2A.Timeouts.Client != "" {
-				fmt.Fprintf(builder, "    client: %s\n", gateway.Spec.A2A.Timeouts.Client)
-			}
-		}
-		r.addAgents(builder, "  ", gateway.Spec.A2A.Agents)
-	}
-}
-
-// addTimeouts adds MCP timeout configuration
-func (r *GatewayReconciler) addTimeouts(builder *strings.Builder, indent string, timeouts *corev1alpha1.MCPTimeouts) {
-	if timeouts != nil {
-		builder.WriteString(indent + "timeouts:\n")
-		if timeouts.Client != "" {
-			fmt.Fprintf(builder, "%s  client: %s\n", indent, timeouts.Client)
-		}
-	}
-}
-
-// addServers adds MCP server configuration
-func (r *GatewayReconciler) addServers(builder *strings.Builder, indent string, servers []corev1alpha1.MCPServer) {
-	if len(servers) > 0 {
-		builder.WriteString(indent + "servers:\n")
-		for _, server := range servers {
-			fmt.Fprintf(builder, "%s  - name: %s\n", indent, server.Name)
-			fmt.Fprintf(builder, "%s    url: %s\n", indent, server.URL)
-		}
-	}
-}
-
-// addAgents adds A2A agent configuration
-func (r *GatewayReconciler) addAgents(builder *strings.Builder, indent string, agents []corev1alpha1.A2AAgent) {
-	if len(agents) > 0 {
-		builder.WriteString(indent + "agents:\n")
-		for _, agent := range agents {
-			fmt.Fprintf(builder, "%s  - name: %s\n", indent, agent.Name)
-			fmt.Fprintf(builder, "%s    url: %s\n", indent, agent.URL)
-		}
-	}
 }
 
 // reconcileConfigMap ensures the ConfigMap exists and has the correct configuration
 func (r *GatewayReconciler) reconcileConfigMap(ctx context.Context, gateway *corev1alpha1.Gateway) (*corev1.ConfigMap, error) {
 	logger := log.FromContext(ctx)
-	configMapName := gateway.Name + "-config"
 
-	configYaml, err := r.generateConfig(gateway)
-	if err != nil {
-		return nil, err
+	configMap := make(map[string]string)
+
+	configMap["ENVIRONMENT"] = gateway.Spec.Environment
+	configMap["ENABLE_TELEMETRY"] = fmt.Sprintf("%t", gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled)
+	configMap["ENABLE_AUTH"] = fmt.Sprintf("%t", gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled)
+
+	if gateway.Spec.MCP != nil && gateway.Spec.MCP.Enabled {
+		configMap["MCP_ENABLE"] = fmt.Sprintf("%t", gateway.Spec.MCP.Enabled)
+		configMap["MCP_EXPOSE"] = fmt.Sprintf("%t", gateway.Spec.MCP.Expose)
+		var mcpServers []string
+		for _, s := range gateway.Spec.MCP.Servers {
+			mcpServers = append(mcpServers, s.URL)
+		}
+		configMap["MCP_SERVERS"] = strings.Join(mcpServers, ",")
+		if gateway.Spec.MCP.Timeouts != nil {
+			configMap["MCP_CLIENT_TIMEOUT"] = gateway.Spec.MCP.Timeouts.Client
+			configMap["MCP_DIAL_TIMEOUT"] = gateway.Spec.MCP.Timeouts.Dial
+			configMap["MCP_TLS_HANDSHAKE_TIMEOUT"] = gateway.Spec.MCP.Timeouts.TLSHandshake
+			configMap["MCP_RESPONSE_HEADER_TIMEOUT"] = gateway.Spec.MCP.Timeouts.ResponseHeader
+		} else {
+			configMap["MCP_CLIENT_TIMEOUT"] = "5s"
+			configMap["MCP_DIAL_TIMEOUT"] = "3s"
+			configMap["MCP_TLS_HANDSHAKE_TIMEOUT"] = "3s"
+			configMap["MCP_RESPONSE_HEADER_TIMEOUT"] = "3s"
+		}
+	} else {
+		configMap["MCP_ENABLE"] = "false"
+		configMap["MCP_EXPOSE"] = "false"
+		configMap["MCP_SERVERS"] = ""
+		configMap["MCP_CLIENT_TIMEOUT"] = "5s"
+		configMap["MCP_DIAL_TIMEOUT"] = "3s"
+		configMap["MCP_TLS_HANDSHAKE_TIMEOUT"] = "3s"
+		configMap["MCP_RESPONSE_HEADER_TIMEOUT"] = "3s"
 	}
 
-	configMap := &corev1.ConfigMap{
+	if gateway.Spec.A2A != nil && gateway.Spec.A2A.Enabled {
+		configMap["A2A_ENABLE"] = fmt.Sprintf("%t", gateway.Spec.A2A.Enabled)
+		configMap["A2A_EXPOSE"] = fmt.Sprintf("%t", gateway.Spec.A2A.Expose)
+		var a2aAgents []string
+		for _, a := range gateway.Spec.A2A.Agents {
+			a2aAgents = append(a2aAgents, a.URL)
+		}
+		configMap["A2A_AGENTS"] = strings.Join(a2aAgents, ",")
+		if gateway.Spec.A2A.Timeouts != nil {
+			configMap["A2A_CLIENT_TIMEOUT"] = gateway.Spec.A2A.Timeouts.Client
+		} else {
+			configMap["A2A_CLIENT_TIMEOUT"] = "30s"
+		}
+		configMap["A2A_POLLING_ENABLE"] = "true"
+		configMap["A2A_POLLING_INTERVAL"] = "1s"
+		configMap["A2A_POLLING_TIMEOUT"] = "30s"
+		configMap["A2A_MAX_POLL_ATTEMPTS"] = "30"
+	} else {
+		configMap["A2A_POLLING_ENABLE"] = "true"
+		configMap["A2A_POLLING_INTERVAL"] = "1s"
+		configMap["A2A_POLLING_TIMEOUT"] = "30s"
+		configMap["A2A_MAX_POLL_ATTEMPTS"] = "30"
+		configMap["A2A_ENABLE"] = "false"
+		configMap["A2A_EXPOSE"] = "false"
+		configMap["A2A_AGENTS"] = ""
+		configMap["A2A_CLIENT_TIMEOUT"] = "30s"
+	}
+
+	if gateway.Spec.Auth != nil && gateway.Spec.Auth.OIDC != nil {
+		configMap["OIDC_ISSUER_URL"] = gateway.Spec.Auth.OIDC.IssuerURL
+		configMap["OIDC_CLIENT_ID"] = gateway.Spec.Auth.OIDC.ClientID
+	} else {
+		configMap["OIDC_ISSUER_URL"] = ""
+		configMap["OIDC_CLIENT_ID"] = ""
+	}
+
+	if gateway.Spec.Server != nil {
+		configMap["SERVER_HOST"] = gateway.Spec.Server.Host
+		configMap["SERVER_PORT"] = fmt.Sprintf("%d", gateway.Spec.Server.Port)
+		if gateway.Spec.Server.Timeouts != nil {
+			configMap["SERVER_READ_TIMEOUT"] = gateway.Spec.Server.Timeouts.Read
+			configMap["SERVER_WRITE_TIMEOUT"] = gateway.Spec.Server.Timeouts.Write
+			configMap["SERVER_IDLE_TIMEOUT"] = gateway.Spec.Server.Timeouts.Idle
+		} else {
+			configMap["SERVER_READ_TIMEOUT"] = "30s"
+			configMap["SERVER_WRITE_TIMEOUT"] = "30s"
+			configMap["SERVER_IDLE_TIMEOUT"] = "120s"
+		}
+		configMap["SERVER_TLS_CERT_PATH"] = ""
+		configMap["SERVER_TLS_KEY_PATH"] = ""
+	} else {
+		configMap["SERVER_TLS_CERT_PATH"] = ""
+		configMap["SERVER_TLS_KEY_PATH"] = ""
+		configMap["SERVER_HOST"] = "0.0.0.0"
+		configMap["SERVER_PORT"] = "8080"
+		configMap["SERVER_READ_TIMEOUT"] = "30s"
+		configMap["SERVER_WRITE_TIMEOUT"] = "30s"
+		configMap["SERVER_IDLE_TIMEOUT"] = "120s"
+	}
+
+	configMap["CLIENT_TIMEOUT"] = "30s"
+	configMap["CLIENT_MAX_IDLE_CONNS"] = "20"
+	configMap["CLIENT_MAX_IDLE_CONNS_PER_HOST"] = "20"
+	configMap["CLIENT_IDLE_CONN_TIMEOUT"] = "30s"
+	configMap["CLIENT_TLS_MIN_VERSION"] = "TLS12"
+	configMap["CLIENT_DISABLE_COMPRESSION"] = "true"
+	configMap["CLIENT_RESPONSE_HEADER_TIMEOUT"] = "10s"
+	configMap["CLIENT_EXPECT_CONTINUE_TIMEOUT"] = "1s"
+
+	providerVars := map[string]string{
+		"ANTHROPIC":  "https://api.anthropic.com/v1",
+		"CLOUDFLARE": "https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai",
+		"COHERE":     "https://api.cohere.ai",
+		"GROQ":       "https://api.groq.com/openai/v1",
+		"OLLAMA":     "http://ollama:8080/v1",
+		"OPENAI":     "https://api.openai.com/v1",
+		"DEEPSEEK":   "https://api.deepseek.com",
+	}
+	for name, url := range providerVars {
+		configMap[fmt.Sprintf("%s_API_URL", name)] = url
+	}
+
+	cm := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      configMapName,
+			Name:      gateway.Name + "-config",
 			Namespace: gateway.Namespace,
 		},
-		Data: map[string]string{
-			"config.yaml": configYaml,
-		},
+		Data: configMap,
 	}
 
-	if err := controllerutil.SetControllerReference(gateway, configMap, r.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(gateway, &cm, r.Scheme); err != nil {
 		return nil, err
 	}
 
 	found := &corev1.ConfigMap{}
-	err = r.Get(ctx, types.NamespacedName{Name: configMap.Name, Namespace: configMap.Namespace}, found)
+	err := r.Get(ctx, types.NamespacedName{Name: cm.Name, Namespace: cm.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating ConfigMap", "ConfigMap.Name", configMap.Name)
-		if err = r.Create(ctx, configMap); err != nil {
+		logger.Info("Creating ConfigMap", "ConfigMap.Name", cm.Name)
+		if err = r.Create(ctx, &cm); err != nil {
 			return nil, err
 		}
 	} else if err != nil {
 		return nil, err
 	} else {
-		if !reflect.DeepEqual(found.Data, configMap.Data) {
-			found.Data = configMap.Data
-			logger.Info("Updating ConfigMap", "ConfigMap.Name", configMap.Name)
+		if !reflect.DeepEqual(found.Data, cm.Data) {
+			found.Data = cm.Data
+			logger.Info("Updating ConfigMap", "ConfigMap.Name", cm.Name)
 			if err = r.Update(ctx, found); err != nil {
 				return nil, err
 			}
 		}
-		configMap = found
+		cm = *found
 	}
 
-	return configMap, nil
+	return &cm, nil
 }
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
-func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway, configMap *corev1.ConfigMap) (*appsv1.Deployment, error) {
-	deployment := r.buildDeployment(gateway, configMap)
+func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway, cm *corev1.ConfigMap) (*appsv1.Deployment, error) {
+	deployment := r.buildDeployment(gateway, cm)
 
 	if err := controllerutil.SetControllerReference(gateway, deployment, r.Scheme); err != nil {
 		return nil, err
@@ -384,17 +334,11 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 }
 
 // buildDeployment creates a Deployment resource based on Gateway spec
-func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, configMap *corev1.ConfigMap) *appsv1.Deployment {
-	envVars := r.buildEnvVars(gateway)
+func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, cm *corev1.ConfigMap) *appsv1.Deployment {
 	containerPorts := r.buildContainerPorts(gateway)
 
-	volumes := r.buildVolumes(gateway, configMap)
-	volumeMounts := []corev1.VolumeMount{
-		{
-			Name:      gateway.Name + "-config-volume",
-			MountPath: "/app/config",
-		},
-	}
+	volumes := []corev1.Volume{}
+	volumeMounts := []corev1.VolumeMount{}
 
 	if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
 		volumes = append(volumes, corev1.Volume{
@@ -431,7 +375,7 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, confi
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						r.buildContainerWithMounts(gateway, envVars, containerPorts, volumeMounts),
+						r.buildContainer(gateway, *cm, containerPorts, volumeMounts),
 					},
 					Volumes: volumes,
 				},
@@ -443,8 +387,8 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, confi
 	return deployment
 }
 
-// buildContainerWithMounts creates the main container specification with custom volume mounts
-func (r *GatewayReconciler) buildContainerWithMounts(gateway *corev1alpha1.Gateway, envVars []corev1.EnvVar, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container {
+// buildContainer creates the main container specification with custom volume mounts
+func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, cm corev1.ConfigMap, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container {
 	port := int32(8080)
 	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
 		port = gateway.Spec.Server.Port
@@ -493,10 +437,25 @@ func (r *GatewayReconciler) buildContainerWithMounts(gateway *corev1alpha1.Gatew
 	}
 
 	return corev1.Container{
-		Name:         "inference-gateway",
-		Image:        image,
-		Ports:        containerPorts,
-		Env:          envVars,
+		Name:  "inference-gateway",
+		Image: image,
+		Ports: containerPorts,
+		EnvFrom: []corev1.EnvFromSource{
+			{
+				ConfigMapRef: &corev1.ConfigMapEnvSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: cm.Name,
+					},
+				},
+			},
+			{
+				SecretRef: &corev1.SecretEnvSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: gateway.Name + "-secrets",
+					},
+				},
+			},
+		},
 		VolumeMounts: volumeMounts,
 		Resources:    resources,
 		LivenessProbe: &corev1.Probe{
@@ -518,22 +477,6 @@ func (r *GatewayReconciler) buildContainerWithMounts(gateway *corev1alpha1.Gatew
 			},
 			InitialDelaySeconds: 5,
 			PeriodSeconds:       10,
-		},
-	}
-}
-
-// buildVolumes creates volumes for the deployment
-func (r *GatewayReconciler) buildVolumes(gateway *corev1alpha1.Gateway, configMap *corev1.ConfigMap) []corev1.Volume {
-	return []corev1.Volume{
-		{
-			Name: gateway.Name + "-config-volume",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: configMap.Name,
-					},
-				},
-			},
 		},
 	}
 }
@@ -607,16 +550,24 @@ func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gatewa
 			}
 		}
 
-		if !reflect.DeepEqual(latestDeployment.Spec.Template, desired.Spec.Template) {
-			existingAnnotations := latestDeployment.Spec.Template.Annotations
-			if existingAnnotations == nil {
-				existingAnnotations = map[string]string{}
+		// Create a copy of the desired template to compare, preserving existing annotations
+		desiredTemplate := desired.Spec.Template.DeepCopy()
+		if desiredTemplate.Annotations == nil {
+			desiredTemplate.Annotations = map[string]string{}
+		}
+
+		// Preserve certain existing annotations that shouldn't trigger updates
+		existingAnnotations := latestDeployment.Spec.Template.Annotations
+		// Preserve restart annotations and other operational annotations
+		for k, v := range existingAnnotations {
+			if k == "kubectl.kubernetes.io/restartedAt" ||
+				k == "deployment.kubernetes.io/revision" {
+				desiredTemplate.Annotations[k] = v
 			}
-			for k, v := range desired.Spec.Template.Annotations {
-				existingAnnotations[k] = v
-			}
-			latestDeployment.Spec.Template = desired.Spec.Template
-			latestDeployment.Spec.Template.Annotations = existingAnnotations
+		}
+
+		if !reflect.DeepEqual(latestDeployment.Spec.Template, *desiredTemplate) {
+			latestDeployment.Spec.Template = *desiredTemplate
 			needsUpdate = true
 			changes = append(changes, "pod template")
 		}
@@ -1239,53 +1190,6 @@ func (r *GatewayReconciler) buildMetricTarget(target corev1alpha1.HPAMetricTarge
 	}
 
 	return metricTarget
-}
-
-// buildEnvVars returns the environment variables for the gateway container
-func (r *GatewayReconciler) buildEnvVars(gateway *corev1alpha1.Gateway) []corev1.EnvVar {
-	if gateway == nil {
-		return nil
-	}
-
-	envVars := []corev1.EnvVar{
-		{
-			Name:  "ENVIRONMENT",
-			Value: gateway.Spec.Environment,
-		},
-	}
-
-	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled && gateway.Spec.Auth.OIDC != nil && gateway.Spec.Auth.OIDC.ClientSecretRef != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name: "OIDC_CLIENT_SECRET",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: gateway.Spec.Auth.OIDC.ClientSecretRef.Name,
-					},
-					Key: gateway.Spec.Auth.OIDC.ClientSecretRef.Key,
-				},
-			},
-		})
-	}
-
-	for _, provider := range gateway.Spec.Providers {
-		if provider.Config != nil && provider.Config.TokenRef != nil {
-			name := strings.ToUpper(provider.Name) + "_API_KEY"
-			envVars = append(envVars, corev1.EnvVar{
-				Name: name,
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: provider.Config.TokenRef.Name,
-						},
-						Key: provider.Config.TokenRef.Key,
-					},
-				},
-			})
-		}
-	}
-
-	return envVars
 }
 
 // buildContainerPorts returns the container ports for the gateway container
