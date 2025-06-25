@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.3](https://github.com/inference-gateway/operator/compare/v0.5.2...v0.5.3) (2025-06-25)
+
+### ♻️ Improvements
+
+* Improve the overall configurations experience of the Gateway ([#9](https://github.com/inference-gateway/operator/issues/9)) ([e06faf5](https://github.com/inference-gateway/operator/commit/e06faf5a5ae839fb4dfc803ae9d2b811271a60fa))
+
+### 📚 Documentation
+
+* **fix:** Update secret names and API URLs in gateway configuration files ([aa1b104](https://github.com/inference-gateway/operator/commit/aa1b104ea847d2b4e5ef486d0b5fe5a3040e3e5a))
+* Update AI provider configuration to use environment variables from ConfigMap and Secret ([46162e7](https://github.com/inference-gateway/operator/commit/46162e7cc52f5d23435e053a6fbb4f3b90d540aa))
+
 ## [0.5.2](https://github.com/inference-gateway/operator/compare/v0.5.1...v0.5.2) (2025-06-23)
 
 ### 🐛 Bug Fixes
