@@ -53,7 +53,7 @@ spec:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: inference-gateway-secrets
+  name: inference-gateway-providers-secret
   namespace: inference-gateway
 type: Opaque
 stringData:
@@ -64,6 +64,8 @@ stringData:
   CLOUDFLARE_API_KEY: ""
   DEEPSEEK_API_KEY: ""
   OLLAMA_API_KEY: ""
+  CUSTOM_API_KEY: ""
+
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -73,9 +75,9 @@ metadata:
 data:
   OPENAPI_API_URL: "https://api.openai.com/v1"
   ANTHROPIC_API_URL: "https://api.anthropic.com/v1"
-  GROQ_API_URL: "https://api.groq.com/v1"
-  COHERE_API_URL: "https://api.cohere.com/v1"
-  CLOUDFLARE_API_URL: "https://api.cloudflare.com/v1"
-  DEEPSEEK_API_URL: "https://api.deepseek.com/v1"
-  OLLAMA_API_URL: "http://localhost:11434"
-  CUSTOM_API_URL: "http://localhost:8080"
+  GROQ_API_URL: "https://api.groq.com/openai/v1"
+  COHERE_API_URL: "https://api.cohere.ai"
+  CLOUDFLARE_API_URL: "https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai"
+  DEEPSEEK_API_URL: "https://api.deepseek.com"
+  OLLAMA_API_URL: "http://ollama:11434/v1"
+  CUSTOM_API_URL: "http://your-domain.example.local:8080/v1"
