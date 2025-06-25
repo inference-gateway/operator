@@ -97,10 +97,37 @@ var _ = Describe("Gateway controller", func() {
 							Idle:  "300s",
 						},
 					},
-					Providers: []corev1alpha1.ProviderSpec{},
+					Providers: []corev1alpha1.ProviderSpec{
+						{
+							Name: "openai",
+							URL:  "https://api.openai.com/v1",
+							SecretKeyRef: &corev1.EnvVar{
+								Name: "OPENAI_API_KEY",
+								ValueFrom: &corev1.EnvVarSource{
+									SecretKeyRef: &corev1.SecretKeySelector{
+										LocalObjectReference: corev1.LocalObjectReference{
+											Name: "openai-secret",
+										},
+										Key: "OPENAI_API_KEY",
+									},
+								},
+							},
+						},
+					},
 				},
 			}
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "openai-secret",
+					Namespace: GatewayNamespace,
+				},
+				StringData: map[string]string{
+					"OPENAI_API_KEY": "super-secret-value",
+				},
+			}
+
 			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, secret)).Should(Succeed())
 
 			gatewayLookupKey := types.NamespacedName{Name: GatewayName, Namespace: GatewayNamespace}
 			createdGateway := &corev1alpha1.Gateway{}

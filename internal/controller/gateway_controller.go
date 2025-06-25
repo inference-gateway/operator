@@ -132,7 +132,18 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		secret := &corev1.Secret{}
-		secretNamespacedName := types.NamespacedName{Name: p.SecretRef.Name, Namespace: gateway.Namespace}
+		var secretNamespacedName types.NamespacedName
+
+		for _, envVar := range *p.Env {
+			if envVar.ValueFrom != nil && envVar.ValueFrom.SecretKeyRef != nil {
+				secretNamespacedName = types.NamespacedName{
+					Name:      envVar.ValueFrom.SecretKeyRef.Name,
+					Namespace: gateway.Namespace,
+				}
+				break
+			}
+		}
+
 		err := r.Get(ctx, secretNamespacedName, secret)
 		if err != nil {
 			if errors.IsNotFound(err) {
@@ -142,13 +153,21 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 			continue
 		}
-		if p.SecretRef != nil {
-			apiKeyBytes, ok := secret.Data[strings.ToUpper(p.SecretRef.Key)]
-			if !ok || len(apiKeyBytes) == 0 {
-				logger.V(1).Info("Skipping provider with missing or empty API key", "provider", p, "secret", secretNamespacedName)
-				continue
+		apiKeyFound := false
+		for _, envVar := range *p.Env {
+			if envVar.ValueFrom != nil && envVar.ValueFrom.SecretKeyRef != nil {
+				apiKeyBytes, ok := secret.Data[strings.ToUpper(envVar.ValueFrom.SecretKeyRef.Name)]
+				if ok && len(apiKeyBytes) > 0 {
+					apiKeyFound = true
+					break
+				}
 			}
 		}
+		if !apiKeyFound {
+			logger.V(1).Info("Skipping provider with missing or empty API key", "provider", p, "secret", secretNamespacedName)
+			continue
+		}
+
 		configuredProviderNames = append(configuredProviderNames, p.Name)
 	}
 	summary := strings.Join(configuredProviderNames, ",")
@@ -391,6 +410,7 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, cm *c
 
 // buildContainer creates the main container specification with custom volume mounts
 func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, cm corev1.ConfigMap, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container {
+	// TODO - pass to this function a context
 	port := int32(8080)
 	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
 		port = gateway.Spec.Server.Port
@@ -438,26 +458,20 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, cm cor
 		}
 	}
 
+	envVars := []corev1.EnvVar{}
+	for _, provider := range gateway.Spec.Providers {
+		if provider.Env != nil && len(*provider.Env) == 0 {
+			continue
+		}
+
+		envVars = append(envVars, *provider.Env...)
+	}
+
 	return corev1.Container{
-		Name:  "inference-gateway",
-		Image: image,
-		Ports: containerPorts,
-		EnvFrom: []corev1.EnvFromSource{
-			{
-				ConfigMapRef: &corev1.ConfigMapEnvSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: cm.Name,
-					},
-				},
-			},
-			{
-				SecretRef: &corev1.SecretEnvSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: gateway.Name + "-secrets",
-					},
-				},
-			},
-		},
+		Name:         "inference-gateway",
+		Image:        image,
+		Ports:        containerPorts,
+		Env:          envVars,
 		VolumeMounts: volumeMounts,
 		Resources:    resources,
 		LivenessProbe: &corev1.Probe{

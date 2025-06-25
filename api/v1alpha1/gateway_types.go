@@ -24,6 +24,8 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // GatewaySpec defines the desired state of Gateway.
@@ -237,14 +239,9 @@ type ProviderSpec struct {
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
-	// URL of the provider API
-	// This is the base URL for the provider's OpenAI-compatible API endpoints
-	// +kubebuilder:validation:Required
-	URL string `json:"url,omitempty"`
-
-	// Secret Reference for providers API keys
+	// Environment variables for the provider
 	// +optional
-	SecretRef *SecretKeySelector `json:"secretRef,omitempty"`
+	Env *[]corev1.EnvVar `json:"env,omitempty"`
 }
 
 // ProviderConfig contains provider-specific configuration
