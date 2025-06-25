@@ -1006,6 +1006,10 @@ spec:
                   description: ProviderSpec contains configuration for a specific
                     provider
                   properties:
+                    enabled:
+                      default: true
+                      description: Enable provider
+                      type: boolean
                     env:
                       description: Environment variables for the provider
                       items:

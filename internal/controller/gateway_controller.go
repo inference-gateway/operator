@@ -116,6 +116,24 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	err = r.updateProvidersSummary(ctx, gateway)
+	if err != nil {
+		logger.Error(err, "Failed to update ProvidersSummary")
+		return ctrl.Result{}, err
+	}
+
+	logger.Info("Reconciled Gateway successfully",
+		"gateway", gateway.Name,
+		"deployment", deployment.Name)
+
+	return ctrl.Result{}, nil
+}
+
+func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+	logger := log.FromContext(ctx)
+
+	logger.V(1).Info("Updating ProvidersSummary", "Gateway.Name", gateway.Name)
+
 	allowedProviders := map[string]string{
 		"custom": "", "anthropic": "", "cloudflare": "", "cohere": "", "groq": "", "ollama": "", "openai": "", "deepseek": "",
 	}
@@ -151,13 +169,18 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		apiKeyFound := false
 		for _, envVar := range *p.Env {
 			if envVar.ValueFrom != nil && envVar.ValueFrom.SecretKeyRef != nil {
-				apiKeyBytes, ok := secret.Data[strings.ToUpper(envVar.ValueFrom.SecretKeyRef.Name)]
+				apiKeyBytes, ok := secret.Data[envVar.ValueFrom.SecretKeyRef.Key]
 				if ok && len(apiKeyBytes) > 0 {
 					apiKeyFound = true
 					break
 				}
 			}
 		}
+		if !p.Enabled {
+			logger.V(1).Info("Skipping provider that is not enabled", "provider", p)
+			continue
+		}
+
 		if !apiKeyFound {
 			logger.V(1).Info("Skipping provider with missing or empty API key", "provider", p, "secret", secretNamespacedName)
 			continue
@@ -170,15 +193,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		gateway.Status.ProviderSummary = summary
 		if err := r.Status().Update(ctx, gateway); err != nil {
 			logger.Error(err, "Failed to update ProviderSummary in status")
-			return ctrl.Result{}, err
+			return err
 		}
 	}
 
-	logger.Info("Reconciled Gateway successfully",
-		"gateway", gateway.Name,
-		"deployment", deployment.Name)
+	logger.V(1).Info("Updated ProvidersSummary successfully", "Gateway.Name", gateway.Name, "summary", summary)
 
-	return ctrl.Result{}, nil
+	return nil
 }
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
@@ -417,6 +438,10 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, contai
 
 	providerEnvVars := []corev1.EnvVar{}
 	for _, provider := range gateway.Spec.Providers {
+		if !provider.Enabled {
+			continue
+		}
+
 		if provider.Env != nil {
 			providerEnvVars = append(providerEnvVars, *provider.Env...)
 		}

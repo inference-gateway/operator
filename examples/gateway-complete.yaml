@@ -16,16 +16,16 @@ spec:
   environment: development
   hpa:
     enabled: true
-    # config:
-    #   minReplicas: 3
-    #   maxReplicas: 10
-    #   metrics:
-    #     - type: Resource
-    #       resource:
-    #         name: cpu
-    #         target:
-    #           type: Utilization
-    #           averageUtilization: 90
+    config:
+      minReplicas: 3
+      maxReplicas: 10
+      metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 80
   image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
 
   # OpenTelemetry observability configuration
@@ -63,6 +63,7 @@ spec:
   # AI Provider configurations
   providers:
     - name: OpenAI
+      enabled: false
       env:
         - name: OPENAI_API_URL
           valueFrom:
@@ -75,6 +76,7 @@ spec:
               name: inference-gateway-providers-secret
               key: OPENAI_API_KEY
     - name: Anthropic
+      enabled: false
       env:
         - name: ANTHROPIC_API_URL
           valueFrom:
@@ -87,6 +89,7 @@ spec:
               name: inference-gateway-providers-secret
               key: ANTHROPIC_API_KEY
     - name: Groq
+      enabled: true
       env:
         - name: GROQ_API_URL
           valueFrom:
@@ -99,6 +102,7 @@ spec:
               name: inference-gateway-providers-secret
               key: GROQ_API_KEY
     - name: Cohere
+      enabled: true
       env:
         - name: COHERE_API_URL
           valueFrom:
@@ -111,6 +115,7 @@ spec:
               name: inference-gateway-providers-secret
               key: COHERE_API_KEY
     - name: Cloudflare
+      enabled: true
       env:
         - name: CLOUDFLARE_API_URL
           valueFrom:
@@ -123,6 +128,7 @@ spec:
               name: inference-gateway-providers-secret
               key: CLOUDFLARE_API_KEY
     - name: DeepSeek
+      enabled: true
       env:
         - name: DEEPSEEK_API_URL
           valueFrom:
@@ -135,6 +141,7 @@ spec:
               name: inference-gateway-providers-secret
               key: DEEPSEEK_API_KEY
     - name: Ollama
+      enabled: true
       env:
         - name: OLLAMA_API_URL
           valueFrom:
@@ -147,6 +154,7 @@ spec:
               name: inference-gateway-providers-secret
               key: OLLAMA_API_KEY
     - name: Custom
+      enabled: true
       env:
         - name: CUSTOM_API_URL
           valueFrom:
@@ -235,22 +243,22 @@ metadata:
 type: Opaque
 stringData:
   OIDC_CLIENT_SECRET: ""
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: inference-gateway-providers-secret
-  namespace: inference-gateway
-type: Opaque
-stringData:
-  OPENAI_API_KEY: ""
-  ANTHROPIC_API_KEY: ""
-  GROQ_API_KEY: ""
-  COHERE_API_KEY: ""
-  CLOUDFLARE_API_KEY: ""
-  DEEPSEEK_API_KEY: ""
-  OLLAMA_API_KEY: ""
-  CUSTOM_API_KEY: ""
+# ---
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: inference-gateway-providers-secret
+#   namespace: inference-gateway
+# type: Opaque
+# stringData:
+#   OPENAI_API_KEY: ""
+#   ANTHROPIC_API_KEY: ""
+#   GROQ_API_KEY: ""
+#   COHERE_API_KEY: ""
+#   CLOUDFLARE_API_KEY: ""
+#   DEEPSEEK_API_KEY: ""
+#   OLLAMA_API_KEY: ""
+#   CUSTOM_API_KEY: ""
 ---
 apiVersion: v1
 kind: ConfigMap

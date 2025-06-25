@@ -262,25 +262,14 @@ type ProviderSpec struct {
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
+	// Enable provider
+	// +optional
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
+
 	// Environment variables for the provider
 	// +optional
 	Env *[]corev1.EnvVar `json:"env,omitempty"`
-}
-
-// ProviderConfig contains provider-specific configuration
-type ProviderConfig struct {
-	// Base URL for the provider API
-	// +optional
-	BaseURL string `json:"baseUrl,omitempty"`
-
-	// Authentication type
-	// +optional
-	// +kubebuilder:validation:Enum=bearer;basic;none
-	AuthType string `json:"authType,omitempty"`
-
-	// Reference to secret containing authentication token
-	// +optional
-	TokenRef *corev1.SecretKeySelector `json:"tokenRef,omitempty"`
 }
 
 // MCPSpec contains Model Context Protocol configuration
