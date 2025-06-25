@@ -11,21 +11,21 @@ kind: Gateway
 metadata:
   name: inference-gateway
   namespace: inference-gateway
-  labels:
-    app.kubernetes.io/name: inference-gateway
-    app.kubernetes.io/instance: inference-gateway
-    app.kubernetes.io/component: api-gateway
-    app.kubernetes.io/part-of: inference-gateway
-    app.kubernetes.io/version: "0.12.0"
 spec:
   # Core gateway configuration
-  environment: production
-  # replicas: 3
+  environment: development
   hpa:
     enabled: true
-    minReplicas: 3
-    maxReplicas: 10
-    targetCPUUtilizationPercentage: 80
+    # config:
+    #   minReplicas: 3
+    #   maxReplicas: 10
+    #   metrics:
+    #     - type: Resource
+    #       resource:
+    #         name: cpu
+    #         target:
+    #           type: Utilization
+    #           averageUtilization: 90
   image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
 
   # OpenTelemetry observability configuration
@@ -33,10 +33,7 @@ spec:
     enabled: true
     metrics:
       enabled: true
-      port: 9464 # Prometheus metrics endpoint
-    tracing:
-      enabled: true
-      endpoint: "http://jaeger:14268/api/traces" # OTLP trace endpoint
+      port: 9464
 
   # Server configuration
   server:
@@ -54,7 +51,7 @@ spec:
 
   # Authentication configuration
   auth:
-    enabled: true
+    enabled: false
     provider: oidc
     oidc:
       issuerUrl: "https://keycloak.inference-gateway.local/realms/inference-gateway-realm"
@@ -65,32 +62,106 @@ spec:
 
   # AI Provider configurations
   providers:
-    - name: openai
-      type: openai
-      config:
-        baseUrl: "https://api.openai.com/v1"
-        authType: bearer
-        tokenRef:
-          name: inference-gateway-secrets
-          key: OPENAI_API_KEY
-    - name: anthropic
-      type: anthropic
-      config:
-        baseUrl: "https://api.anthropic.com/v1"
-        authType: bearer
-        tokenRef:
-          name: inference-gateway-secrets
-          key: ANTHROPIC_API_KEY
-    - name: deepseek
-      type: deepseek
-      config:
-        tokenRef:
-          name: inference-gateway-secrets
-          key: DEEPSEEK_API_KEY
+    - name: OpenAI
+      env:
+        - name: OPENAI_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: OPENAPI_API_URL
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: OPENAI_API_KEY
+    - name: Anthropic
+      env:
+        - name: ANTHROPIC_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: ANTHROPIC_API_URL
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: ANTHROPIC_API_KEY
+    - name: Groq
+      env:
+        - name: GROQ_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: GROQ_API_URL
+        - name: GROQ_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: GROQ_API_KEY
+    - name: Cohere
+      env:
+        - name: COHERE_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: COHERE_API_URL
+        - name: COHERE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: COHERE_API_KEY
+    - name: Cloudflare
+      env:
+        - name: CLOUDFLARE_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: CLOUDFLARE_API_URL
+        - name: CLOUDFLARE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: CLOUDFLARE_API_KEY
+    - name: DeepSeek
+      env:
+        - name: DEEPSEEK_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: DEEPSEEK_API_URL
+        - name: DEEPSEEK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: DEEPSEEK_API_KEY
+    - name: Ollama
+      env:
+        - name: OLLAMA_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: OLLAMA_API_URL
+        - name: OLLAMA_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: OLLAMA_API_KEY
+    - name: Custom
+      env:
+        - name: CUSTOM_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: CUSTOM_API_URL
+        - name: CUSTOM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: CUSTOM_API_KEY
 
   # Model Context Protocol configuration
   mcp:
-    enabled: true
+    enabled: false
     expose: false
     timeouts:
       client: "10s"
@@ -114,7 +185,7 @@ spec:
 
   # Agent-to-Agent configuration
   a2a:
-    enabled: true
+    enabled: false
     expose: false
     timeouts:
       client: "60s"
@@ -146,12 +217,6 @@ spec:
       cpu: "1000m"
       memory: "512Mi"
 
-  # Service configuration
-  # service:
-  #   type: ClusterIP
-  #   port: 8080
-  #   annotations: {}
-
   # Ingress configuration
   ingress:
     enabled: true
@@ -165,14 +230,8 @@ spec:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: inference-gateway-secrets
+  name: inference-gateway-providers-secret
   namespace: inference-gateway
-  labels:
-    app.kubernetes.io/name: inference-gateway
-    app.kubernetes.io/instance: inference-gateway
-    app.kubernetes.io/component: secrets
-    app.kubernetes.io/part-of: inference-gateway
-    app.kubernetes.io/version: "0.12.0"
 type: Opaque
 stringData:
   OIDC_CLIENT_SECRET: ""
@@ -184,3 +243,19 @@ stringData:
   CLOUDFLARE_API_KEY: ""
   DEEPSEEK_API_KEY: ""
   OLLAMA_API_KEY: ""
+  CUSTOM_API_KEY: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-gateway-config
+  namespace: inference-gateway
+data:
+  OPENAPI_API_URL: "https://api.openai.com/v1"
+  ANTHROPIC_API_URL: "https://api.anthropic.com/v1"
+  GROQ_API_URL: "https://api.groq.com/v1"
+  COHERE_API_URL: "https://api.cohere.com/v1"
+  CLOUDFLARE_API_URL: "https://api.cloudflare.com/v1"
+  DEEPSEEK_API_URL: "https://api.deepseek.com/v1"
+  OLLAMA_API_URL: "http://localhost:11434"
+  CUSTOM_API_URL: "http://localhost:8080"
