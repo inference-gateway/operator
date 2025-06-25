@@ -744,7 +744,7 @@ spec:
 					_, _ = utils.Run(cmd)
 				})
 
-				It("should configure OpenTelemetry metrics and tracing endpoints correctly", func() {
+				It("should configure OpenTelemetry metrics endpoints correctly", func() {
 					By("creating a Gateway CR with comprehensive OpenTelemetry configuration")
 					gatewayYAML := fmt.Sprintf(`
 apiVersion: core.inference-gateway.com/v1alpha1
@@ -763,9 +763,6 @@ spec:
     metrics:
       enabled: true
       port: 9464
-    tracing:
-      enabled: true
-      endpoint: "http://jaeger-collector:14268/api/traces"
   
   server:
     host: "0.0.0.0"
@@ -887,9 +884,6 @@ spec:
     metrics:
       enabled: true
       port: 9464
-    # Tracing explicitly disabled for this test
-    tracing:
-      enabled: false
   
   server:
     host: "0.0.0.0"
@@ -957,8 +951,6 @@ spec:
     metrics:
       enabled: true
       port: 99999  # Invalid port (too high)
-    tracing:
-      enabled: false
   
   providers:
     - name: "openai"
