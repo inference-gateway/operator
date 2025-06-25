@@ -689,14 +689,14 @@ spec:
                 description: Telemetry configuration for observability
                 properties:
                   enabled:
-                    default: true
+                    default: false
                     description: Enable telemetry collection
                     type: boolean
                   metrics:
                     description: Metrics configuration
                     properties:
                       enabled:
-                        default: true
+                        default: false
                         description: Enable metrics collection
                         type: boolean
                       port:
@@ -706,17 +706,6 @@ spec:
                         maximum: 65535
                         minimum: 1024
                         type: integer
-                    type: object
-                  tracing:
-                    description: Tracing configuration
-                    properties:
-                      enabled:
-                        default: false
-                        description: Enable tracing
-                        type: boolean
-                      endpoint:
-                        description: Tracing endpoint URL
-                        type: string
                     type: object
                 type: object
             type: object

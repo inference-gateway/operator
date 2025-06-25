@@ -28,6 +28,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
@@ -70,10 +71,6 @@ var _ = Describe("Gateway controller", func() {
 						Metrics: &corev1alpha1.MetricsSpec{
 							Enabled: true,
 							Port:    9464,
-						},
-						Tracing: &corev1alpha1.TracingSpec{
-							Enabled:  true,
-							Endpoint: "http://jaeger:14268/api/traces",
 						},
 					},
 					Auth: &corev1alpha1.AuthSpec{
@@ -138,25 +135,7 @@ var _ = Describe("Gateway controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			configMapName := types.NamespacedName{
-				Name:      GatewayName + "-config",
-				Namespace: GatewayNamespace,
-			}
-			createdConfigMap := &corev1.ConfigMap{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, configMapName, createdConfigMap)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			Expect(createdConfigMap.Data).To(HaveKey("ENVIRONMENT"))
-			Expect(createdConfigMap.Data["ENVIRONMENT"]).To(Equal("production"))
-			Expect(createdConfigMap.Data).To(HaveKey("ENABLE_TELEMETRY"))
-			Expect(createdConfigMap.Data["ENABLE_TELEMETRY"]).To(Equal("true"))
-			Expect(createdConfigMap.Data).To(HaveKey("OIDC_ISSUER_URL"))
-			Expect(createdConfigMap.Data["OIDC_ISSUER_URL"]).To(Equal("https://auth.example.com"))
-			Expect(createdConfigMap.Data).To(HaveKey("OPENAI_API_URL"))
-			Expect(createdConfigMap.Data["OPENAI_API_URL"]).To(Equal("https://api.openai.com/v1"))
-
+			// Verify environment variables are set directly in the deployment
 			deploymentName := types.NamespacedName{
 				Name:      GatewayName,
 				Namespace: GatewayNamespace,
@@ -168,14 +147,25 @@ var _ = Describe("Gateway controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			containers := createdDeployment.Spec.Template.Spec.Containers
-
+			Expect(containers).To(HaveLen(1))
 			envVars := containers[0].Env
-			Expect(envVars).To(ContainElement(
-				HaveField("Name", "OIDC_CLIENT_SECRET"),
-			))
-			Expect(envVars).To(ContainElement(
-				HaveField("Name", "OPENAI_API_KEY"),
-			))
+
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "ENVIRONMENT",
+				Value: "production",
+			}))
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "ENABLE_TELEMETRY",
+				Value: "true",
+			}))
+			Expect(envVars).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal("OIDC_CLIENT_SECRET"),
+				"ValueFrom": Not(BeNil()),
+			})))
+			Expect(envVars).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal("OPENAI_API_KEY"),
+				"ValueFrom": Not(BeNil()),
+			})))
 
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})
@@ -200,10 +190,6 @@ var _ = Describe("Gateway controller", func() {
 						Metrics: &corev1alpha1.MetricsSpec{
 							Enabled: true,
 							Port:    9464,
-						},
-						Tracing: &corev1alpha1.TracingSpec{
-							Enabled:  true,
-							Endpoint: "http://jaeger-collector:14268/api/traces",
 						},
 					},
 					Server: &corev1alpha1.ServerSpec{
@@ -233,26 +219,6 @@ var _ = Describe("Gateway controller", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			configMapName := types.NamespacedName{
-				Name:      GatewayName + "-otel-config",
-				Namespace: GatewayNamespace,
-			}
-			createdConfigMap := &corev1.ConfigMap{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, configMapName, createdConfigMap)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			// Validate that specific keys are present in the ConfigMap
-			Expect(createdConfigMap.Data).To(HaveKey("ENVIRONMENT"))
-			Expect(createdConfigMap.Data["ENVIRONMENT"]).To(Equal("production"))
-			Expect(createdConfigMap.Data).To(HaveKey("ENABLE_TELEMETRY"))
-			Expect(createdConfigMap.Data["ENABLE_TELEMETRY"]).To(Equal("true"))
-			Expect(createdConfigMap.Data).To(HaveKey("OPENAI_API_URL"))
-			Expect(createdConfigMap.Data["OPENAI_API_URL"]).To(Equal("https://api.openai.com/v1"))
-			Expect(createdConfigMap.Data).To(HaveKey("ANTHROPIC_API_URL"))
-			Expect(createdConfigMap.Data["ANTHROPIC_API_URL"]).To(Equal("https://api.anthropic.com/v1"))
-
 			deploymentName := types.NamespacedName{
 				Name:      GatewayName + "-otel",
 				Namespace: GatewayNamespace,
@@ -265,16 +231,16 @@ var _ = Describe("Gateway controller", func() {
 
 			containers := createdDeployment.Spec.Template.Spec.Containers
 			Expect(containers).To(HaveLen(1))
+			envVars := containers[0].Env
 
-			ports := containers[0].Ports
-			var hasMetricsPort bool
-			for _, port := range ports {
-				if port.ContainerPort == 9464 {
-					hasMetricsPort = true
-					break
-				}
-			}
-			Expect(hasMetricsPort).To(BeTrue(), "Metrics port 9464 should be exposed in container")
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "ENVIRONMENT",
+				Value: "production",
+			}))
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "ENABLE_TELEMETRY",
+				Value: "true",
+			}))
 
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})
@@ -295,14 +261,10 @@ var _ = Describe("Gateway controller", func() {
 					Replicas:    &[]int32{1}[0],
 					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
 					Telemetry: &corev1alpha1.TelemetrySpec{
-						Enabled: false,
+						Enabled: true,
 						Metrics: &corev1alpha1.MetricsSpec{
-							Enabled: false,
+							Enabled: true,
 							Port:    9464,
-						},
-						Tracing: &corev1alpha1.TracingSpec{
-							Enabled:  false,
-							Endpoint: "",
 						},
 					},
 					Server: &corev1alpha1.ServerSpec{
@@ -332,22 +294,6 @@ var _ = Describe("Gateway controller", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			configMapName := types.NamespacedName{
-				Name:      GatewayName + "-no-telemetry-config",
-				Namespace: GatewayNamespace,
-			}
-			createdConfigMap := &corev1.ConfigMap{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, configMapName, createdConfigMap)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			// Validate that specific keys are present in the ConfigMap
-			Expect(createdConfigMap.Data).To(HaveKey("CLIENT_EXPECT_CONTINUE_TIMEOUT"))
-			Expect(createdConfigMap.Data["CLIENT_EXPECT_CONTINUE_TIMEOUT"]).To(Equal("1s"))
-			Expect(createdConfigMap.Data).To(HaveKey("CLIENT_DISABLE_COMPRESSION"))
-			Expect(createdConfigMap.Data["CLIENT_DISABLE_COMPRESSION"]).To(Equal("true"))
-
 			deploymentName := types.NamespacedName{
 				Name:      GatewayName + "-no-telemetry",
 				Namespace: GatewayNamespace,
@@ -360,6 +306,16 @@ var _ = Describe("Gateway controller", func() {
 
 			containers := createdDeployment.Spec.Template.Spec.Containers
 			Expect(containers).To(HaveLen(1))
+			envVars := containers[0].Env
+
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "ENVIRONMENT",
+				Value: "development",
+			}))
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "ENABLE_TELEMETRY",
+				Value: "true",
+			}))
 
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})

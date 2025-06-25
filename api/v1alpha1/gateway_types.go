@@ -93,23 +93,19 @@ type GatewaySpec struct {
 type TelemetrySpec struct {
 	// Enable telemetry collection
 	// +optional
-	// +kubebuilder:default=true
+	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 
 	// Metrics configuration
 	// +optional
 	Metrics *MetricsSpec `json:"metrics,omitempty"`
-
-	// Tracing configuration
-	// +optional
-	Tracing *TracingSpec `json:"tracing,omitempty"`
 }
 
 // MetricsSpec contains metrics configuration
 type MetricsSpec struct {
 	// Enable metrics collection
 	// +optional
-	// +kubebuilder:default=true
+	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 
 	// Port for metrics endpoint
