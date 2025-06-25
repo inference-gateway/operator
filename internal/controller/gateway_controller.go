@@ -87,12 +87,6 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	cm, err := r.reconcileConfigMap(ctx, gateway)
-	if err != nil {
-		logger.Error(err, "Failed to reconcile ConfigMap")
-		return ctrl.Result{}, err
-	}
-
 	deployment, err := r.reconcileDeployment(ctx, gateway)
 	if err != nil {
 		if errors.IsConflict(err) {
@@ -181,166 +175,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	logger.Info("Reconciled Gateway successfully",
 		"gateway", gateway.Name,
-		"deployment", deployment.Name,
-		"configMap", cm.Name)
+		"deployment", deployment.Name)
 
 	return ctrl.Result{}, nil
-}
-
-// reconcileConfigMap ensures the ConfigMap exists and has the correct configuration
-func (r *GatewayReconciler) reconcileConfigMap(ctx context.Context, gateway *corev1alpha1.Gateway) (*corev1.ConfigMap, error) {
-	logger := log.FromContext(ctx)
-
-	configMap := make(map[string]string)
-
-	configMap["ENVIRONMENT"] = gateway.Spec.Environment
-	configMap["ENABLE_TELEMETRY"] = fmt.Sprintf("%t", gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled)
-	configMap["ENABLE_AUTH"] = fmt.Sprintf("%t", gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled)
-
-	if gateway.Spec.MCP != nil && gateway.Spec.MCP.Enabled {
-		configMap["MCP_ENABLE"] = fmt.Sprintf("%t", gateway.Spec.MCP.Enabled)
-		configMap["MCP_EXPOSE"] = fmt.Sprintf("%t", gateway.Spec.MCP.Expose)
-		var mcpServers []string
-		for _, s := range gateway.Spec.MCP.Servers {
-			mcpServers = append(mcpServers, s.URL)
-		}
-		configMap["MCP_SERVERS"] = strings.Join(mcpServers, ",")
-		if gateway.Spec.MCP.Timeouts != nil {
-			configMap["MCP_CLIENT_TIMEOUT"] = gateway.Spec.MCP.Timeouts.Client
-			configMap["MCP_DIAL_TIMEOUT"] = gateway.Spec.MCP.Timeouts.Dial
-			configMap["MCP_TLS_HANDSHAKE_TIMEOUT"] = gateway.Spec.MCP.Timeouts.TLSHandshake
-			configMap["MCP_RESPONSE_HEADER_TIMEOUT"] = gateway.Spec.MCP.Timeouts.ResponseHeader
-		} else {
-			configMap["MCP_CLIENT_TIMEOUT"] = "5s"
-			configMap["MCP_DIAL_TIMEOUT"] = "3s"
-			configMap["MCP_TLS_HANDSHAKE_TIMEOUT"] = "3s"
-			configMap["MCP_RESPONSE_HEADER_TIMEOUT"] = "3s"
-		}
-	} else {
-		configMap["MCP_ENABLE"] = "false"
-		configMap["MCP_EXPOSE"] = "false"
-		configMap["MCP_SERVERS"] = ""
-		configMap["MCP_CLIENT_TIMEOUT"] = "5s"
-		configMap["MCP_DIAL_TIMEOUT"] = "3s"
-		configMap["MCP_TLS_HANDSHAKE_TIMEOUT"] = "3s"
-		configMap["MCP_RESPONSE_HEADER_TIMEOUT"] = "3s"
-	}
-
-	if gateway.Spec.A2A != nil && gateway.Spec.A2A.Enabled {
-		configMap["A2A_ENABLE"] = fmt.Sprintf("%t", gateway.Spec.A2A.Enabled)
-		configMap["A2A_EXPOSE"] = fmt.Sprintf("%t", gateway.Spec.A2A.Expose)
-		var a2aAgents []string
-		for _, a := range gateway.Spec.A2A.Agents {
-			a2aAgents = append(a2aAgents, a.URL)
-		}
-		configMap["A2A_AGENTS"] = strings.Join(a2aAgents, ",")
-		if gateway.Spec.A2A.Timeouts != nil {
-			configMap["A2A_CLIENT_TIMEOUT"] = gateway.Spec.A2A.Timeouts.Client
-		} else {
-			configMap["A2A_CLIENT_TIMEOUT"] = "30s"
-		}
-		configMap["A2A_POLLING_ENABLE"] = "true"
-		configMap["A2A_POLLING_INTERVAL"] = "1s"
-		configMap["A2A_POLLING_TIMEOUT"] = "30s"
-		configMap["A2A_MAX_POLL_ATTEMPTS"] = "30"
-	} else {
-		configMap["A2A_POLLING_ENABLE"] = "true"
-		configMap["A2A_POLLING_INTERVAL"] = "1s"
-		configMap["A2A_POLLING_TIMEOUT"] = "30s"
-		configMap["A2A_MAX_POLL_ATTEMPTS"] = "30"
-		configMap["A2A_ENABLE"] = "false"
-		configMap["A2A_EXPOSE"] = "false"
-		configMap["A2A_AGENTS"] = ""
-		configMap["A2A_CLIENT_TIMEOUT"] = "30s"
-	}
-
-	if gateway.Spec.Auth != nil && gateway.Spec.Auth.OIDC != nil {
-		configMap["OIDC_ISSUER_URL"] = gateway.Spec.Auth.OIDC.IssuerURL
-		configMap["OIDC_CLIENT_ID"] = gateway.Spec.Auth.OIDC.ClientID
-	} else {
-		configMap["OIDC_ISSUER_URL"] = ""
-		configMap["OIDC_CLIENT_ID"] = ""
-	}
-
-	if gateway.Spec.Server != nil {
-		configMap["SERVER_HOST"] = gateway.Spec.Server.Host
-		configMap["SERVER_PORT"] = fmt.Sprintf("%d", gateway.Spec.Server.Port)
-		if gateway.Spec.Server.Timeouts != nil {
-			configMap["SERVER_READ_TIMEOUT"] = gateway.Spec.Server.Timeouts.Read
-			configMap["SERVER_WRITE_TIMEOUT"] = gateway.Spec.Server.Timeouts.Write
-			configMap["SERVER_IDLE_TIMEOUT"] = gateway.Spec.Server.Timeouts.Idle
-		} else {
-			configMap["SERVER_READ_TIMEOUT"] = "30s"
-			configMap["SERVER_WRITE_TIMEOUT"] = "30s"
-			configMap["SERVER_IDLE_TIMEOUT"] = "120s"
-		}
-		configMap["SERVER_TLS_CERT_PATH"] = ""
-		configMap["SERVER_TLS_KEY_PATH"] = ""
-	} else {
-		configMap["SERVER_TLS_CERT_PATH"] = ""
-		configMap["SERVER_TLS_KEY_PATH"] = ""
-		configMap["SERVER_HOST"] = "0.0.0.0"
-		configMap["SERVER_PORT"] = "8080"
-		configMap["SERVER_READ_TIMEOUT"] = "30s"
-		configMap["SERVER_WRITE_TIMEOUT"] = "30s"
-		configMap["SERVER_IDLE_TIMEOUT"] = "120s"
-	}
-
-	configMap["CLIENT_TIMEOUT"] = "30s"
-	configMap["CLIENT_MAX_IDLE_CONNS"] = "20"
-	configMap["CLIENT_MAX_IDLE_CONNS_PER_HOST"] = "20"
-	configMap["CLIENT_IDLE_CONN_TIMEOUT"] = "30s"
-	configMap["CLIENT_TLS_MIN_VERSION"] = "TLS12"
-	configMap["CLIENT_DISABLE_COMPRESSION"] = "true"
-	configMap["CLIENT_RESPONSE_HEADER_TIMEOUT"] = "10s"
-	configMap["CLIENT_EXPECT_CONTINUE_TIMEOUT"] = "1s"
-
-	providerVars := map[string]string{
-		"ANTHROPIC":  "https://api.anthropic.com/v1",
-		"CLOUDFLARE": "https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai",
-		"COHERE":     "https://api.cohere.ai",
-		"GROQ":       "https://api.groq.com/openai/v1",
-		"OLLAMA":     "http://ollama:8080/v1",
-		"OPENAI":     "https://api.openai.com/v1",
-		"DEEPSEEK":   "https://api.deepseek.com",
-	}
-	for name, url := range providerVars {
-		configMap[fmt.Sprintf("%s_API_URL", name)] = url
-	}
-
-	cm := corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      gateway.Name + "-config",
-			Namespace: gateway.Namespace,
-		},
-		Data: configMap,
-	}
-
-	if err := controllerutil.SetControllerReference(gateway, &cm, r.Scheme); err != nil {
-		return nil, err
-	}
-
-	found := &corev1.ConfigMap{}
-	err := r.Get(ctx, types.NamespacedName{Name: cm.Name, Namespace: cm.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating ConfigMap", "ConfigMap.Name", cm.Name)
-		if err = r.Create(ctx, &cm); err != nil {
-			return nil, err
-		}
-	} else if err != nil {
-		return nil, err
-	} else {
-		if !reflect.DeepEqual(found.Data, cm.Data) {
-			found.Data = cm.Data
-			logger.Info("Updating ConfigMap", "ConfigMap.Name", cm.Name)
-			if err = r.Update(ctx, found); err != nil {
-				return nil, err
-			}
-		}
-		cm = *found
-	}
-
-	return &cm, nil
 }
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
@@ -457,16 +294,22 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, contai
 		}
 	}
 
-	envVars := []corev1.EnvVar{}
-	for _, provider := range gateway.Spec.Providers {
-		if provider.Env != nil && len(*provider.Env) == 0 {
-			continue
-		}
-
-		envVars = append(envVars, *provider.Env...)
+	envVars := []corev1.EnvVar{
+		{
+			Name:  "ENVIRONMENT",
+			Value: gateway.Spec.Environment,
+		},
+		{
+			Name:  "ENABLE_TELEMETRY",
+			Value: fmt.Sprintf("%t", gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled),
+		},
+		{
+			Name:  "ENABLE_AUTH",
+			Value: fmt.Sprintf("%t", gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled),
+		},
 	}
 
-	if gateway.Spec.Auth != nil && gateway.Spec.Auth.OIDC != nil && gateway.Spec.Auth.OIDC.ClientSecretRef != nil {
+	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled && gateway.Spec.Auth.OIDC != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name: "OIDC_CLIENT_SECRET",
 			ValueFrom: &corev1.EnvVarSource{
@@ -480,11 +323,110 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, contai
 		})
 	}
 
+	if gateway.Spec.MCP != nil && gateway.Spec.MCP.Enabled {
+		envVars = append(envVars,
+			corev1.EnvVar{
+				Name:  "MCP_ENABLE",
+				Value: fmt.Sprintf("%t", gateway.Spec.MCP.Enabled),
+			},
+			corev1.EnvVar{
+				Name:  "MCP_EXPOSE",
+				Value: fmt.Sprintf("%t", gateway.Spec.MCP.Expose),
+			},
+			corev1.EnvVar{
+				Name: "MCP_SERVERS",
+				Value: strings.Join(func() []string {
+					var servers []string
+					for _, s := range gateway.Spec.MCP.Servers {
+						servers = append(servers, s.URL)
+					}
+					return servers
+				}(), ","),
+			},
+			corev1.EnvVar{
+				Name: "MCP_CLIENT_TIMEOUT",
+				Value: func() string {
+					if gateway.Spec.MCP.Timeouts != nil {
+						return gateway.Spec.MCP.Timeouts.Client
+					}
+					return "5s"
+				}(),
+			},
+			corev1.EnvVar{
+				Name: "MCP_DIAL_TIMEOUT",
+				Value: func() string {
+					if gateway.Spec.MCP.Timeouts != nil {
+						return gateway.Spec.MCP.Timeouts.Dial
+					}
+					return "3s"
+				}(),
+			},
+			corev1.EnvVar{
+				Name: "MCP_TLS_HANDSHAKE_TIMEOUT",
+				Value: func() string {
+					if gateway.Spec.MCP.Timeouts != nil {
+						return gateway.Spec.MCP.Timeouts.TLSHandshake
+					}
+					return "3s"
+				}(),
+			},
+			corev1.EnvVar{
+				Name: "MCP_RESPONSE_HEADER_TIMEOUT",
+				Value: func() string {
+					if gateway.Spec.MCP.Timeouts != nil {
+						return gateway.Spec.MCP.Timeouts.ResponseHeader
+					}
+					return "3s"
+				}(),
+			},
+		)
+	}
+
+	if gateway.Spec.A2A != nil && gateway.Spec.A2A.Enabled {
+		envVars = append(envVars,
+			corev1.EnvVar{
+				Name:  "A2A_ENABLE",
+				Value: fmt.Sprintf("%t", gateway.Spec.A2A.Enabled),
+			},
+			corev1.EnvVar{
+				Name:  "A2A_EXPOSE",
+				Value: fmt.Sprintf("%t", gateway.Spec.A2A.Expose),
+			},
+			corev1.EnvVar{
+				Name: "A2A_AGENTS",
+				Value: strings.Join(func() []string {
+					var agents []string
+					for _, a := range gateway.Spec.A2A.Agents {
+						agents = append(agents, a.URL)
+					}
+					return agents
+				}(), ","),
+			},
+			corev1.EnvVar{
+				Name: "A2A_CLIENT_TIMEOUT",
+				Value: func() string {
+					if gateway.Spec.A2A.Timeouts != nil {
+						return gateway.Spec.A2A.Timeouts.Client
+					}
+					return "5s"
+				}(),
+			},
+		)
+	}
+
+	// Add provider environment variables
+	providerEnvVars := []corev1.EnvVar{}
+	for _, provider := range gateway.Spec.Providers {
+		if provider.Env != nil {
+			providerEnvVars = append(providerEnvVars, *provider.Env...)
+		}
+	}
+
 	return corev1.Container{
 		Name:         "inference-gateway",
 		Image:        image,
 		Ports:        containerPorts,
-		Env:          envVars,
+		Env:          append(envVars, providerEnvVars...),
 		VolumeMounts: volumeMounts,
 		Resources:    resources,
 		LivenessProbe: &corev1.Probe{
@@ -579,15 +521,12 @@ func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gatewa
 			}
 		}
 
-		// Create a copy of the desired template to compare, preserving existing annotations
 		desiredTemplate := desired.Spec.Template.DeepCopy()
 		if desiredTemplate.Annotations == nil {
 			desiredTemplate.Annotations = map[string]string{}
 		}
 
-		// Preserve certain existing annotations that shouldn't trigger updates
 		existingAnnotations := latestDeployment.Spec.Template.Annotations
-		// Preserve restart annotations and other operational annotations
 		for k, v := range existingAnnotations {
 			if k == "kubectl.kubernetes.io/restartedAt" ||
 				k == "deployment.kubernetes.io/revision" {
@@ -1266,7 +1205,6 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.Gateway{}).
 		Owns(&appsv1.Deployment{}).
-		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
