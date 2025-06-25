@@ -237,7 +237,7 @@ var _ = Describe("Gateway controller", func() {
 					},
 					HPA: &corev1alpha1.HPASpec{
 						Enabled: true,
-						Config: autoscalingv2.HorizontalPodAutoscalerSpec{
+						Config: &corev1alpha1.CustomHorizontalPodAutoscalerSpec{
 							MinReplicas: &[]int32{2}[0],
 							MaxReplicas: 5,
 							Metrics: []autoscalingv2.MetricSpec{
@@ -272,7 +272,6 @@ var _ = Describe("Gateway controller", func() {
 							},
 						},
 					},
-					// ...existing code...
 					Providers: []corev1alpha1.ProviderSpec{},
 				},
 			}
@@ -353,7 +352,7 @@ var _ = Describe("Gateway controller", func() {
 					Environment: "production",
 					HPA: &corev1alpha1.HPASpec{
 						Enabled: true,
-						Config: autoscalingv2.HorizontalPodAutoscalerSpec{
+						Config: &corev1alpha1.CustomHorizontalPodAutoscalerSpec{
 							MinReplicas: &[]int32{1}[0],
 							MaxReplicas: 3,
 							Metrics: []autoscalingv2.MetricSpec{

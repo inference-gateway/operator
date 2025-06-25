@@ -1011,18 +1011,39 @@ func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alp
 
 // buildHPA creates an HPA resource based on Gateway spec
 func (r *GatewayReconciler) buildHPA(gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) *autoscalingv2.HorizontalPodAutoscaler {
-	hpaSpec := gateway.Spec.HPA.Config
-
-	hpaSpec.ScaleTargetRef = autoscalingv2.CrossVersionObjectReference{
-		APIVersion: "apps/v1",
-		Kind:       "Deployment",
-		Name:       deployment.Name,
+	if gateway.Spec.HPA == nil || !gateway.Spec.HPA.Enabled {
+		return nil
 	}
 
-	if hpaSpec.Behavior != nil &&
-		hpaSpec.Behavior.ScaleUp == nil &&
-		hpaSpec.Behavior.ScaleDown == nil {
-		hpaSpec.Behavior = nil
+	var minReplicas *int32
+	var maxReplicas int32
+	var metrics []autoscalingv2.MetricSpec
+	var behavior *autoscalingv2.HorizontalPodAutoscalerBehavior
+
+	if gateway.Spec.HPA.Config == nil {
+		defaultMin := int32(1)
+		defaultMax := int32(10)
+		defaultAvgUtil := int32(80)
+		minReplicas = &defaultMin
+		maxReplicas = defaultMax
+		metrics = []autoscalingv2.MetricSpec{
+			{
+				Type: autoscalingv2.ResourceMetricSourceType,
+				Resource: &autoscalingv2.ResourceMetricSource{
+					Name: corev1.ResourceCPU,
+					Target: autoscalingv2.MetricTarget{
+						Type:               autoscalingv2.UtilizationMetricType,
+						AverageUtilization: &defaultAvgUtil,
+					},
+				},
+			},
+		}
+		behavior = nil
+	} else {
+		minReplicas = gateway.Spec.HPA.Config.MinReplicas
+		maxReplicas = gateway.Spec.HPA.Config.MaxReplicas
+		metrics = gateway.Spec.HPA.Config.Metrics
+		behavior = gateway.Spec.HPA.Config.Behavior
 	}
 
 	hpa := &autoscalingv2.HorizontalPodAutoscaler{
@@ -1033,7 +1054,17 @@ func (r *GatewayReconciler) buildHPA(gateway *corev1alpha1.Gateway, deployment *
 				"app": gateway.Name,
 			},
 		},
-		Spec: hpaSpec,
+		Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+			ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       deployment.Name,
+			},
+			MinReplicas: minReplicas,
+			MaxReplicas: maxReplicas,
+			Metrics:     metrics,
+			Behavior:    behavior,
+		},
 	}
 
 	return hpa

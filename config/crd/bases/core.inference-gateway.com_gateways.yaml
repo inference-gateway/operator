@@ -194,7 +194,8 @@ spec:
                 description: HPA (Horizontal Pod Autoscaler) configuration
                 properties:
                   config:
-                    description: Inline the full HPA object
+                    description: Configures the Horizontal Pod Autoscaler for the
+                      gateway deployment
                     properties:
                       behavior:
                         description: |-
@@ -823,7 +824,6 @@ spec:
                         type: object
                     required:
                     - maxReplicas
-                    - scaleTargetRef
                     type: object
                   enabled:
                     default: false
