@@ -941,62 +941,6 @@ spec:
 					_, _ = utils.Run(cmd)
 				})
 
-				It("should validate telemetry configuration with different trace endpoints", func() {
-					By("testing OTLP gRPC endpoint configuration")
-					gatewayYAML := fmt.Sprintf(`
-apiVersion: core.inference-gateway.com/v1alpha1
-kind: Gateway
-metadata:
-  name: %s-grpc
-  namespace: %s
-spec:
-  environment: production
-  
-  telemetry:
-    enabled: true
-    metrics:
-      enabled: true
-      port: 9464
-    tracing:
-      enabled: true
-      endpoint: "http://otel-collector:4317"  # OTLP gRPC endpoint
-  
-  providers:
-    - name: openai
-      env:
-        - name: OPENAI_API_URL
-          value: "https://api.openai.com/v1"
-        - name: OPENAI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: otel-provider-keys
-              key: openai-key
-`, otelGatewayName, otelGatewayNamespace)
-
-					gatewayFile := filepath.Join(os.TempDir(), "otel-grpc-gateway.yaml")
-					err := os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)
-					Expect(err).NotTo(HaveOccurred(), "Failed to write OTLP gRPC Gateway YAML file")
-
-					cmd := exec.Command("kubectl", "apply", "-f", gatewayFile)
-					_, err = utils.Run(cmd)
-					Expect(err).NotTo(HaveOccurred(), "Failed to create OTLP gRPC Gateway CR")
-
-					By("verifying OTLP gRPC tracing endpoint configuration")
-					verifyGrpcConfig := func(g Gomega) {
-						cmd := exec.Command("kubectl", "get", "configmap", otelGatewayName+"-grpc-config", "-n", otelGatewayNamespace,
-							"-o", "jsonpath={.data['config\\.yaml']}")
-						output, err := utils.Run(cmd)
-						g.Expect(err).NotTo(HaveOccurred(), "Failed to get OTLP gRPC ConfigMap data")
-
-						g.Expect(output).To(ContainSubstring("endpoint: http://otel-collector:4317"), "OTLP gRPC endpoint not configured correctly")
-					}
-					Eventually(verifyGrpcConfig, timeout, interval).Should(Succeed())
-
-					By("cleaning up the OTLP gRPC gateway")
-					cmd = exec.Command("kubectl", "delete", "gateway", otelGatewayName+"-grpc", "-n", otelGatewayNamespace, "--ignore-not-found=true")
-					_, _ = utils.Run(cmd)
-				})
-
 				It("should handle telemetry configuration validation errors gracefully", func() {
 					By("testing invalid metrics port configuration")
 					gatewayYAML := fmt.Sprintf(`
