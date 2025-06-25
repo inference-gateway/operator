@@ -11,12 +11,6 @@ kind: Gateway
 metadata:
   name: inference-gateway
   namespace: inference-gateway
-  labels:
-    app.kubernetes.io/name: inference-gateway
-    app.kubernetes.io/instance: inference-gateway
-    app.kubernetes.io/component: api-gateway
-    app.kubernetes.io/part-of: inference-gateway
-    app.kubernetes.io/version: "0.12.0"
 spec:
   # Core gateway configuration
   environment: development
@@ -24,14 +18,18 @@ spec:
 
   # AI Provider configurations
   providers:
-    - name: openai
-      type: openai
-      config:
-        baseUrl: "https://api.openai.com/v1"
-        authType: bearer
-        tokenRef:
-          name: inference-gateway-secrets
-          key: OPENAI_API_KEY
+    - name: OpenAI
+      env:
+        - name: OPENAI_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: OPENAPI_API_URL
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: OPENAI_API_KEY
 
   # Simple ingress configuration - minimal setup
   ingress:
@@ -57,16 +55,8 @@ kind: Secret
 metadata:
   name: inference-gateway-secrets
   namespace: inference-gateway
-  labels:
-    app.kubernetes.io/name: inference-gateway
-    app.kubernetes.io/instance: inference-gateway
-    app.kubernetes.io/component: secrets
-    app.kubernetes.io/part-of: inference-gateway
-    app.kubernetes.io/version: "0.12.0"
 type: Opaque
 stringData:
-  OIDC_CLIENT_SECRET: ""
-
   OPENAI_API_KEY: ""
   ANTHROPIC_API_KEY: ""
   GROQ_API_KEY: ""
@@ -74,3 +64,18 @@ stringData:
   CLOUDFLARE_API_KEY: ""
   DEEPSEEK_API_KEY: ""
   OLLAMA_API_KEY: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-gateway-config
+  namespace: inference-gateway
+data:
+  OPENAPI_API_URL: "https://api.openai.com/v1"
+  ANTHROPIC_API_URL: "https://api.anthropic.com/v1"
+  GROQ_API_URL: "https://api.groq.com/v1"
+  COHERE_API_URL: "https://api.cohere.com/v1"
+  CLOUDFLARE_API_URL: "https://api.cloudflare.com/v1"
+  DEEPSEEK_API_URL: "https://api.deepseek.com/v1"
+  OLLAMA_API_URL: "http://localhost:11434"
+  CUSTOM_API_URL: "http://localhost:8080"
