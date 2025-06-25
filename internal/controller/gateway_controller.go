@@ -1011,102 +1011,18 @@ func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alp
 
 // buildHPA creates an HPA resource based on Gateway spec
 func (r *GatewayReconciler) buildHPA(gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) *autoscalingv2.HorizontalPodAutoscaler {
-	hpaSpec := gateway.Spec.HPA
+	hpaSpec := gateway.Spec.HPA.Config
 
-	minReplicas := int32(1)
-	if hpaSpec.MinReplicas != nil {
-		minReplicas = *hpaSpec.MinReplicas
+	hpaSpec.ScaleTargetRef = autoscalingv2.CrossVersionObjectReference{
+		APIVersion: "apps/v1",
+		Kind:       "Deployment",
+		Name:       deployment.Name,
 	}
 
-	maxReplicas := int32(10)
-	if hpaSpec.MaxReplicas > 0 {
-		maxReplicas = hpaSpec.MaxReplicas
-	}
-
-	targetCPUPercent := int32(80)
-	if hpaSpec.TargetCPUUtilizationPercentage != nil {
-		targetCPUPercent = *hpaSpec.TargetCPUUtilizationPercentage
-	}
-
-	metrics := []autoscalingv2.MetricSpec{}
-
-	if hpaSpec.TargetCPUUtilizationPercentage != nil {
-		metrics = append(metrics, autoscalingv2.MetricSpec{
-			Type: autoscalingv2.ResourceMetricSourceType,
-			Resource: &autoscalingv2.ResourceMetricSource{
-				Name: corev1.ResourceCPU,
-				Target: autoscalingv2.MetricTarget{
-					Type:               autoscalingv2.UtilizationMetricType,
-					AverageUtilization: hpaSpec.TargetCPUUtilizationPercentage,
-				},
-			},
-		})
-	}
-
-	if hpaSpec.TargetMemoryUtilizationPercentage != nil {
-		metrics = append(metrics, autoscalingv2.MetricSpec{
-			Type: autoscalingv2.ResourceMetricSourceType,
-			Resource: &autoscalingv2.ResourceMetricSource{
-				Name: corev1.ResourceMemory,
-				Target: autoscalingv2.MetricTarget{
-					Type:               autoscalingv2.UtilizationMetricType,
-					AverageUtilization: hpaSpec.TargetMemoryUtilizationPercentage,
-				},
-			},
-		})
-	}
-
-	for _, customMetric := range hpaSpec.CustomMetrics {
-		metricSpec := autoscalingv2.MetricSpec{}
-
-		switch customMetric.Type {
-		case "Pods":
-			metricSpec.Type = autoscalingv2.PodsMetricSourceType
-			metricSpec.Pods = &autoscalingv2.PodsMetricSource{
-				Metric: autoscalingv2.MetricIdentifier{Name: customMetric.Name},
-				Target: r.buildMetricTarget(customMetric.Target),
-			}
-		case "Object":
-			metricSpec.Type = autoscalingv2.ObjectMetricSourceType
-			// Note: Object metrics need more configuration, this is a basic structure
-		case "External":
-			metricSpec.Type = autoscalingv2.ExternalMetricSourceType
-			metricSpec.External = &autoscalingv2.ExternalMetricSource{
-				Metric: autoscalingv2.MetricIdentifier{Name: customMetric.Name},
-				Target: r.buildMetricTarget(customMetric.Target),
-			}
-		}
-
-		if metricSpec.Type != "" {
-			metrics = append(metrics, metricSpec)
-		}
-	}
-
-	if len(metrics) == 0 {
-		metrics = append(metrics, autoscalingv2.MetricSpec{
-			Type: autoscalingv2.ResourceMetricSourceType,
-			Resource: &autoscalingv2.ResourceMetricSource{
-				Name: corev1.ResourceCPU,
-				Target: autoscalingv2.MetricTarget{
-					Type:               autoscalingv2.UtilizationMetricType,
-					AverageUtilization: &targetCPUPercent,
-				},
-			},
-		})
-	}
-
-	behavior := &autoscalingv2.HorizontalPodAutoscalerBehavior{}
-
-	if hpaSpec.ScaleDownStabilizationWindowSeconds != nil {
-		behavior.ScaleDown = &autoscalingv2.HPAScalingRules{
-			StabilizationWindowSeconds: hpaSpec.ScaleDownStabilizationWindowSeconds,
-		}
-	}
-
-	if hpaSpec.ScaleUpStabilizationWindowSeconds != nil {
-		behavior.ScaleUp = &autoscalingv2.HPAScalingRules{
-			StabilizationWindowSeconds: hpaSpec.ScaleUpStabilizationWindowSeconds,
-		}
+	if hpaSpec.Behavior != nil &&
+		hpaSpec.Behavior.ScaleUp == nil &&
+		hpaSpec.Behavior.ScaleDown == nil {
+		hpaSpec.Behavior = nil
 	}
 
 	hpa := &autoscalingv2.HorizontalPodAutoscaler{
@@ -1117,47 +1033,10 @@ func (r *GatewayReconciler) buildHPA(gateway *corev1alpha1.Gateway, deployment *
 				"app": gateway.Name,
 			},
 		},
-		Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
-			ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
-				APIVersion: "apps/v1",
-				Kind:       "Deployment",
-				Name:       deployment.Name,
-			},
-			MinReplicas: &minReplicas,
-			MaxReplicas: maxReplicas,
-			Metrics:     metrics,
-			Behavior:    behavior,
-		},
+		Spec: hpaSpec,
 	}
 
 	return hpa
-}
-
-// buildMetricTarget converts HPAMetricTarget to autoscalingv2.MetricTarget
-func (r *GatewayReconciler) buildMetricTarget(target corev1alpha1.HPAMetricTarget) autoscalingv2.MetricTarget {
-	metricTarget := autoscalingv2.MetricTarget{}
-
-	switch target.Type {
-	case "Utilization":
-		metricTarget.Type = autoscalingv2.UtilizationMetricType
-		metricTarget.AverageUtilization = target.AverageUtilization
-	case "Value":
-		metricTarget.Type = autoscalingv2.ValueMetricType
-		if target.Value != "" {
-			if value, err := resource.ParseQuantity(target.Value); err == nil {
-				metricTarget.Value = &value
-			}
-		}
-	case "AverageValue":
-		metricTarget.Type = autoscalingv2.AverageValueMetricType
-		if target.Value != "" {
-			if value, err := resource.ParseQuantity(target.Value); err == nil {
-				metricTarget.AverageValue = &value
-			}
-		}
-	}
-
-	return metricTarget
 }
 
 // buildContainerPorts returns the container ports for the gateway container

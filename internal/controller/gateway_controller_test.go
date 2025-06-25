@@ -41,7 +41,6 @@ import (
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
-// Helper for DRY test logic
 func checkGatewayDeploymentEnvVars(ctx context.Context, k8sClient client.Client, gateway *corev1alpha1.Gateway, expectedEnvVars []corev1.EnvVar, timeout time.Duration, interval time.Duration) {
 	gatewayLookupKey := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
 	createdGateway := &corev1alpha1.Gateway{}
@@ -121,9 +120,11 @@ var _ = Describe("Gateway controller", func() {
 						OIDC: &corev1alpha1.OIDCSpec{
 							IssuerURL: "https://auth.example.com",
 							ClientID:  "test-client",
-							ClientSecretRef: &corev1alpha1.SecretKeySelector{
-								Name: "oidc-secret",
-								Key:  "client-secret",
+							ClientSecretRef: &corev1.SecretKeySelector{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: "oidc-secret",
+								},
+								Key: "client-secret",
 							},
 						},
 					},
@@ -235,14 +236,43 @@ var _ = Describe("Gateway controller", func() {
 						},
 					},
 					HPA: &corev1alpha1.HPASpec{
-						Enabled:                             true,
-						MinReplicas:                         &[]int32{2}[0],
-						MaxReplicas:                         5,
-						TargetCPUUtilizationPercentage:      &[]int32{70}[0],
-						TargetMemoryUtilizationPercentage:   &[]int32{80}[0],
-						ScaleDownStabilizationWindowSeconds: &[]int32{300}[0],
-						ScaleUpStabilizationWindowSeconds:   &[]int32{60}[0],
+						Enabled: true,
+						Config: autoscalingv2.HorizontalPodAutoscalerSpec{
+							MinReplicas: &[]int32{2}[0],
+							MaxReplicas: 5,
+							Metrics: []autoscalingv2.MetricSpec{
+								{
+									Type: autoscalingv2.ResourceMetricSourceType,
+									Resource: &autoscalingv2.ResourceMetricSource{
+										Name: corev1.ResourceCPU,
+										Target: autoscalingv2.MetricTarget{
+											Type:               autoscalingv2.UtilizationMetricType,
+											AverageUtilization: &[]int32{70}[0],
+										},
+									},
+								},
+								{
+									Type: autoscalingv2.ResourceMetricSourceType,
+									Resource: &autoscalingv2.ResourceMetricSource{
+										Name: corev1.ResourceMemory,
+										Target: autoscalingv2.MetricTarget{
+											Type:               autoscalingv2.UtilizationMetricType,
+											AverageUtilization: &[]int32{80}[0],
+										},
+									},
+								},
+							},
+							Behavior: &autoscalingv2.HorizontalPodAutoscalerBehavior{
+								ScaleDown: &autoscalingv2.HPAScalingRules{
+									StabilizationWindowSeconds: &[]int32{300}[0],
+								},
+								ScaleUp: &autoscalingv2.HPAScalingRules{
+									StabilizationWindowSeconds: &[]int32{60}[0],
+								},
+							},
+						},
 					},
+					// ...existing code...
 					Providers: []corev1alpha1.ProviderSpec{},
 				},
 			}
@@ -322,10 +352,23 @@ var _ = Describe("Gateway controller", func() {
 				Spec: corev1alpha1.GatewaySpec{
 					Environment: "production",
 					HPA: &corev1alpha1.HPASpec{
-						Enabled:                        true,
-						MinReplicas:                    &[]int32{1}[0],
-						MaxReplicas:                    3,
-						TargetCPUUtilizationPercentage: &[]int32{80}[0],
+						Enabled: true,
+						Config: autoscalingv2.HorizontalPodAutoscalerSpec{
+							MinReplicas: &[]int32{1}[0],
+							MaxReplicas: 3,
+							Metrics: []autoscalingv2.MetricSpec{
+								{
+									Type: autoscalingv2.ResourceMetricSourceType,
+									Resource: &autoscalingv2.ResourceMetricSource{
+										Name: corev1.ResourceCPU,
+										Target: autoscalingv2.MetricTarget{
+											Type:               autoscalingv2.UtilizationMetricType,
+											AverageUtilization: &[]int32{80}[0],
+										},
+									},
+								},
+							},
+						},
 					},
 					Providers: []corev1alpha1.ProviderSpec{},
 				},
