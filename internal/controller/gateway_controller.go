@@ -295,12 +295,6 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, contai
 		}
 	}
 
-	// Determine telemetry setting
-	telemetryEnabled := "false"
-	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled {
-		telemetryEnabled = "true"
-	}
-
 	envVars := []corev1.EnvVar{
 		{
 			Name:  "ENVIRONMENT",
@@ -308,7 +302,7 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, contai
 		},
 		{
 			Name:  "ENABLE_TELEMETRY",
-			Value: telemetryEnabled,
+			Value: strconv.FormatBool(gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled),
 		},
 		{
 			Name:  "ENABLE_AUTH",
@@ -596,13 +590,6 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 			Name:       "http",
 		},
 	}
-
-	// Debug telemetry settings
-	logger.V(1).Info("Debug telemetry settings",
-		"telemetryIsNil", gateway.Spec.Telemetry == nil,
-		"telemetryEnabled", gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled,
-		"metricsIsNil", gateway.Spec.Telemetry == nil || gateway.Spec.Telemetry.Metrics == nil,
-		"metricsEnabled", gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Enabled)
 
 	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled && gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Enabled {
 		logger.V(1).Info("Adding metrics port to Service", "port", gateway.Spec.Telemetry.Metrics.Port)
