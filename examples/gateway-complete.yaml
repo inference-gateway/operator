@@ -26,6 +26,7 @@ spec:
             target:
               type: Utilization
               averageUtilization: 80
+      # TODO - I need to let the operator create this reference, so the user doesn't need to think about it
       scaleTargetRef:
         apiVersion: apps/v1
         kind: Deployment
