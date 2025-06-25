@@ -246,7 +246,7 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway) *apps
 }
 
 // buildContainer creates the main container specification with custom volume mounts
-func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container {
+func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container { //nolint gocyclo
 	port := int32(8080)
 	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
 		port = gateway.Spec.Server.Port
@@ -414,7 +414,6 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, contai
 		)
 	}
 
-	// Add provider environment variables
 	providerEnvVars := []corev1.EnvVar{}
 	for _, provider := range gateway.Spec.Providers {
 		if provider.Env != nil {
