@@ -100,15 +100,16 @@ var _ = Describe("Gateway controller", func() {
 					Providers: []corev1alpha1.ProviderSpec{
 						{
 							Name: "openai",
-							URL:  "https://api.openai.com/v1",
-							SecretKeyRef: &corev1.EnvVar{
-								Name: "OPENAI_API_KEY",
-								ValueFrom: &corev1.EnvVarSource{
-									SecretKeyRef: &corev1.SecretKeySelector{
-										LocalObjectReference: corev1.LocalObjectReference{
-											Name: "openai-secret",
+							Env: &[]corev1.EnvVar{
+								{
+									Name: "OPENAI_API_KEY",
+									ValueFrom: &corev1.EnvVarSource{
+										SecretKeyRef: &corev1.SecretKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: "openai-secret",
+											},
+											Key: "OPENAI_API_KEY",
 										},
-										Key: "OPENAI_API_KEY",
 									},
 								},
 							},

@@ -93,7 +93,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	deployment, err := r.reconcileDeployment(ctx, gateway, cm)
+	deployment, err := r.reconcileDeployment(ctx, gateway)
 	if err != nil {
 		if errors.IsConflict(err) {
 			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
@@ -121,10 +121,10 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	var allowedProviders map[string]string = map[string]string{
+	allowedProviders := map[string]string{
 		"custom": "", "anthropic": "", "cloudflare": "", "cohere": "", "groq": "", "ollama": "", "openai": "", "deepseek": "",
 	}
-	var configuredProviderNames []string = []string{}
+	configuredProviderNames := []string{}
 	for _, p := range gateway.Spec.Providers {
 		if _, ok := allowedProviders[strings.ToLower(p.Name)]; !ok {
 			logger.V(1).Info("Skipping unsupported provider", "provider", p)
@@ -344,8 +344,8 @@ func (r *GatewayReconciler) reconcileConfigMap(ctx context.Context, gateway *cor
 }
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
-func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway, cm *corev1.ConfigMap) (*appsv1.Deployment, error) {
-	deployment := r.buildDeployment(gateway, cm)
+func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway) (*appsv1.Deployment, error) {
+	deployment := r.buildDeployment(gateway)
 
 	if err := controllerutil.SetControllerReference(gateway, deployment, r.Scheme); err != nil {
 		return nil, err
@@ -355,7 +355,7 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 }
 
 // buildDeployment creates a Deployment resource based on Gateway spec
-func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, cm *corev1.ConfigMap) *appsv1.Deployment {
+func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway) *appsv1.Deployment {
 	containerPorts := r.buildContainerPorts(gateway)
 
 	volumes := []corev1.Volume{}
@@ -396,7 +396,7 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, cm *c
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						r.buildContainer(gateway, *cm, containerPorts, volumeMounts),
+						r.buildContainer(gateway, containerPorts, volumeMounts),
 					},
 					Volumes: volumes,
 				},
@@ -409,8 +409,7 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway, cm *c
 }
 
 // buildContainer creates the main container specification with custom volume mounts
-func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, cm corev1.ConfigMap, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container {
-	// TODO - pass to this function a context
+func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container {
 	port := int32(8080)
 	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
 		port = gateway.Spec.Server.Port
@@ -465,6 +464,20 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, cm cor
 		}
 
 		envVars = append(envVars, *provider.Env...)
+	}
+
+	if gateway.Spec.Auth != nil && gateway.Spec.Auth.OIDC != nil && gateway.Spec.Auth.OIDC.ClientSecretRef != nil {
+		envVars = append(envVars, corev1.EnvVar{
+			Name: "OIDC_CLIENT_SECRET",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: gateway.Spec.Auth.OIDC.ClientSecretRef.Name,
+					},
+					Key: gateway.Spec.Auth.OIDC.ClientSecretRef.Key,
+				},
+			},
+		})
 	}
 
 	return corev1.Container{
