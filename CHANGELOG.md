@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0](https://github.com/inference-gateway/operator/compare/v0.5.3...v0.6.0) (2025-06-25)
+
+### ✨ Features
+
+* Add 'enabled' field to ProviderSpec and update related configurations ([3cca5a1](https://github.com/inference-gateway/operator/commit/3cca5a152694cf9a463c8efb73ef1029c3223e25))
+
 ## [0.5.3](https://github.com/inference-gateway/operator/compare/v0.5.2...v0.5.3) (2025-06-25)
 
 ### ♻️ Improvements
