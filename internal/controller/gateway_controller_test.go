@@ -35,10 +35,52 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
+
+// Helper for DRY test logic
+func checkGatewayDeploymentEnvVars(ctx context.Context, k8sClient client.Client, gateway *corev1alpha1.Gateway, expectedEnvVars []corev1.EnvVar, timeout time.Duration, interval time.Duration) {
+	gatewayLookupKey := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
+	createdGateway := &corev1alpha1.Gateway{}
+
+	Eventually(func() bool {
+		err := k8sClient.Get(ctx, gatewayLookupKey, createdGateway)
+		return err == nil
+	}, timeout, interval).Should(BeTrue())
+
+	gatewayReconciler := &GatewayReconciler{
+		Client: k8sClient,
+		Scheme: k8sClient.Scheme(),
+	}
+
+	_, err := gatewayReconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: gatewayLookupKey,
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	deploymentName := types.NamespacedName{
+		Name:      gateway.Name,
+		Namespace: gateway.Namespace,
+	}
+	createdDeployment := &appsv1.Deployment{}
+	Eventually(func() bool {
+		err := k8sClient.Get(ctx, deploymentName, createdDeployment)
+		return err == nil
+	}, timeout, interval).Should(BeTrue())
+
+	containers := createdDeployment.Spec.Template.Spec.Containers
+	Expect(containers).To(HaveLen(1))
+	envVars := containers[0].Env
+
+	for _, expected := range expectedEnvVars {
+		Expect(envVars).To(ContainElement(expected))
+	}
+
+	Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
+}
 
 var _ = Describe("Gateway controller", func() {
 	Context("When reconciling a Gateway resource", func() {
@@ -135,7 +177,6 @@ var _ = Describe("Gateway controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			// Verify environment variables are set directly in the deployment
 			deploymentName := types.NamespacedName{
 				Name:      GatewayName,
 				Namespace: GatewayNamespace,
@@ -166,156 +207,6 @@ var _ = Describe("Gateway controller", func() {
 				"Name":      Equal("OPENAI_API_KEY"),
 				"ValueFrom": Not(BeNil()),
 			})))
-
-			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
-		})
-
-		It("Should create a deployment and configmap with OpenTelemetry telemetry configuration", func() {
-			By("Creating a Gateway with comprehensive OpenTelemetry configuration")
-			gateway := &corev1alpha1.Gateway{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "core.inference-gateway.com/v1alpha1",
-					Kind:       "Gateway",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      GatewayName + "-otel",
-					Namespace: GatewayNamespace,
-				},
-				Spec: corev1alpha1.GatewaySpec{
-					Environment: "production",
-					Replicas:    &[]int32{2}[0],
-					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-					Telemetry: &corev1alpha1.TelemetrySpec{
-						Enabled: true,
-						Metrics: &corev1alpha1.MetricsSpec{
-							Enabled: true,
-							Port:    9464,
-						},
-					},
-					Server: &corev1alpha1.ServerSpec{
-						Host: "0.0.0.0",
-						Port: 8080,
-					},
-					Providers: []corev1alpha1.ProviderSpec{},
-				},
-			}
-			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
-
-			gatewayLookupKey := types.NamespacedName{Name: GatewayName + "-otel", Namespace: GatewayNamespace}
-			createdGateway := &corev1alpha1.Gateway{}
-
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayLookupKey, createdGateway)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			gatewayReconciler := &GatewayReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			_, err := gatewayReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: gatewayLookupKey,
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			deploymentName := types.NamespacedName{
-				Name:      GatewayName + "-otel",
-				Namespace: GatewayNamespace,
-			}
-			createdDeployment := &appsv1.Deployment{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, deploymentName, createdDeployment)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			containers := createdDeployment.Spec.Template.Spec.Containers
-			Expect(containers).To(HaveLen(1))
-			envVars := containers[0].Env
-
-			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "ENVIRONMENT",
-				Value: "production",
-			}))
-			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "ENABLE_TELEMETRY",
-				Value: "true",
-			}))
-
-			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
-		})
-
-		It("Should handle telemetry disabled configuration correctly", func() {
-			By("Creating a Gateway with telemetry disabled")
-			gateway := &corev1alpha1.Gateway{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "core.inference-gateway.com/v1alpha1",
-					Kind:       "Gateway",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      GatewayName + "-no-telemetry",
-					Namespace: GatewayNamespace,
-				},
-				Spec: corev1alpha1.GatewaySpec{
-					Environment: "development",
-					Replicas:    &[]int32{1}[0],
-					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-					Telemetry: &corev1alpha1.TelemetrySpec{
-						Enabled: true,
-						Metrics: &corev1alpha1.MetricsSpec{
-							Enabled: true,
-							Port:    9464,
-						},
-					},
-					Server: &corev1alpha1.ServerSpec{
-						Host: "0.0.0.0",
-						Port: 8080,
-					},
-					Providers: []corev1alpha1.ProviderSpec{},
-				},
-			}
-			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
-
-			gatewayLookupKey := types.NamespacedName{Name: GatewayName + "-no-telemetry", Namespace: GatewayNamespace}
-			createdGateway := &corev1alpha1.Gateway{}
-
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayLookupKey, createdGateway)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			gatewayReconciler := &GatewayReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			_, err := gatewayReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: gatewayLookupKey,
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			deploymentName := types.NamespacedName{
-				Name:      GatewayName + "-no-telemetry",
-				Namespace: GatewayNamespace,
-			}
-			createdDeployment := &appsv1.Deployment{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, deploymentName, createdDeployment)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			containers := createdDeployment.Spec.Template.Spec.Containers
-			Expect(containers).To(HaveLen(1))
-			envVars := containers[0].Env
-
-			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "ENVIRONMENT",
-				Value: "development",
-			}))
-			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "ENABLE_TELEMETRY",
-				Value: "true",
-			}))
 
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})
@@ -522,6 +413,48 @@ var _ = Describe("Gateway controller", func() {
 			},
 			Entry("should create ingress without TLS", "ingress-no-tls", "test-no-tls.local", false),
 			Entry("should create ingress with TLS", "ingress-with-tls", "test-with-tls.local", true),
+		)
+
+		DescribeTable("Should create a deployment and configmap with correct telemetry configuration",
+			func(gatewayName, environment string, telemetryEnabled bool, expectedEnvVars []corev1.EnvVar) {
+				gateway := &corev1alpha1.Gateway{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "core.inference-gateway.com/v1alpha1",
+						Kind:       "Gateway",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      gatewayName,
+						Namespace: GatewayNamespace,
+					},
+					Spec: corev1alpha1.GatewaySpec{
+						Environment: environment,
+						Replicas:    &[]int32{1}[0],
+						Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
+						Telemetry: &corev1alpha1.TelemetrySpec{
+							Enabled: telemetryEnabled,
+							Metrics: &corev1alpha1.MetricsSpec{
+								Enabled: true,
+								Port:    9464,
+							},
+						},
+						Server: &corev1alpha1.ServerSpec{
+							Host: "0.0.0.0",
+							Port: 8080,
+						},
+						Providers: []corev1alpha1.ProviderSpec{},
+					},
+				}
+				Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+				checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, timeout, interval)
+			},
+			Entry("OpenTelemetry enabled", GatewayName+"-otel", "production", true, []corev1.EnvVar{
+				{Name: "ENVIRONMENT", Value: "production"},
+				{Name: "ENABLE_TELEMETRY", Value: "true"},
+			}),
+			Entry("Telemetry enabled in development", GatewayName+"-no-telemetry", "development", true, []corev1.EnvVar{
+				{Name: "ENVIRONMENT", Value: "development"},
+				{Name: "ENABLE_TELEMETRY", Value: "true"},
+			}),
 		)
 	})
 })
