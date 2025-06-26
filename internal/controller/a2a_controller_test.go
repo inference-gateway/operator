@@ -100,9 +100,9 @@ var _ = Describe("A2A Controller", func() {
 							},
 							LLM: corev1alpha1.LLMSpec{
 								Model:       "deepseek/deepseek-chat",
-								MaxTokens:   1000,
-								Temperature: "0.7",
-								CustomHeaders: []corev1alpha1.HeaderSpec{
+								MaxTokens:   &[]int32{1000}[0],
+								Temperature: &[]string{"0.7"}[0],
+								CustomHeaders: &[]corev1alpha1.HeaderSpec{
 									{
 										Name:  "User-Agent",
 										Value: "test-a2a",

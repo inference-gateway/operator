@@ -74,11 +74,11 @@ type APIKeySpec struct {
 }
 
 type LLMSpec struct {
-	Model         string       `json:"model"`
-	MaxTokens     int32        `json:"maxTokens"`
-	Temperature   string       `json:"temperature"`
-	CustomHeaders []HeaderSpec `json:"customHeaders"`
-	SystemPrompt  string       `json:"systemPrompt"`
+	Model         string        `json:"model"`
+	MaxTokens     *int32        `json:"maxTokens,omitempty"`
+	Temperature   *string       `json:"temperature,omitempty"`
+	CustomHeaders *[]HeaderSpec `json:"customHeaders,omitempty"`
+	SystemPrompt  string        `json:"systemPrompt"`
 }
 
 type HeaderSpec struct {

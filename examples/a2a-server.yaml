@@ -24,7 +24,9 @@ spec:
     format: "json"
   telemetry:
     enabled: true
-    port: 9090
+    metrics:
+      enabled: true
+      port: 9090
   queue:
     enabled: true
     maxSize: 1000
@@ -45,7 +47,7 @@ spec:
     llm:
       model: "openai/gpt-3.5-turbo"
       maxTokens: 4096
-      temperature: 0.7
+      temperature: "0.7"
       customHeaders:
         - name: "User-Agent"
           value: "Google Calendar Agent"
@@ -53,7 +55,6 @@ spec:
   card:
     name: "Google Calendar Agent"
     description: "A2A-compatible agent for Google Calendar integration with full CRUD operations and event management capabilities"
-    version: "0.1.0"
     url: "http://google-calendar-agent.agents.svc.cluster.local:8080"
     defaultInputModes:
       - "text"

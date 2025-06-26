@@ -73,11 +73,8 @@ spec:
                       temperature:
                         type: string
                     required:
-                    - customHeaders
-                    - maxTokens
                     - model
                     - systemPrompt
-                    - temperature
                     type: object
                   maxChatCompletionIterations:
                     format: int32
