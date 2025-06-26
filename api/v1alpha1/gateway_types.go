@@ -24,6 +24,9 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // GatewaySpec defines the desired state of Gateway.
@@ -87,27 +90,72 @@ type GatewaySpec struct {
 	HPA *HPASpec `json:"hpa,omitempty"`
 }
 
+type HPASpec struct {
+	// Enable HPA for the gateway deployment
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Configures the Horizontal Pod Autoscaler for the gateway deployment
+	// +optional
+	Config *CustomHorizontalPodAutoscalerSpec `json:"config,omitempty"`
+}
+
+type CustomHorizontalPodAutoscalerSpec struct {
+	// scaleTargetRef points to the target resource to scale, and is used to the pods for which metrics
+	// should be collected, as well as to actually change the replica count.
+	// +optional
+	ScaleTargetRef *autoscalingv2.CrossVersionObjectReference `json:"scaleTargetRef" protobuf:"bytes,1,opt,name=scaleTargetRef"`
+
+	// minReplicas is the lower limit for the number of replicas to which the autoscaler
+	// can scale down.  It defaults to 1 pod.  minReplicas is allowed to be 0 if the
+	// alpha feature gate HPAScaleToZero is enabled and at least one Object or External
+	// metric is configured.  Scaling is active as long as at least one metric value is
+	// available.
+	// +optional
+	MinReplicas *int32 `json:"minReplicas,omitempty" protobuf:"varint,2,opt,name=minReplicas"`
+
+	// maxReplicas is the upper limit for the number of replicas to which the autoscaler can scale up.
+	// It cannot be less that minReplicas.
+	MaxReplicas int32 `json:"maxReplicas" protobuf:"varint,3,opt,name=maxReplicas"`
+
+	// metrics contains the specifications for which to use to calculate the
+	// desired replica count (the maximum replica count across all metrics will
+	// be used).  The desired replica count is calculated multiplying the
+	// ratio between the target value and the current value by the current
+	// number of pods.  Ergo, metrics used must decrease as the pod count is
+	// increased, and vice-versa.  See the individual metric source types for
+	// more information about how each type of metric must respond.
+	// If not set, the default metric will be set to 80% average CPU utilization.
+	// +listType=atomic
+	// +optional
+	Metrics []autoscalingv2.MetricSpec `json:"metrics,omitempty" protobuf:"bytes,4,rep,name=metrics"`
+
+	// behavior configures the scaling behavior of the target
+	// in both Up and Down directions (scaleUp and scaleDown fields respectively).
+	// If not set, the default HPAScalingRules for scale up and scale down are used.
+	// +optional
+	Behavior *autoscalingv2.HorizontalPodAutoscalerBehavior `json:"behavior,omitempty" protobuf:"bytes,5,opt,name=behavior"`
+}
+
 // TelemetrySpec contains telemetry and observability configuration
 type TelemetrySpec struct {
 	// Enable telemetry collection
 	// +optional
-	// +kubebuilder:default=true
+	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 
 	// Metrics configuration
 	// +optional
+	// +kubebuilder:default={enabled: false, port: 9464}
 	Metrics *MetricsSpec `json:"metrics,omitempty"`
-
-	// Tracing configuration
-	// +optional
-	Tracing *TracingSpec `json:"tracing,omitempty"`
 }
 
 // MetricsSpec contains metrics configuration
 type MetricsSpec struct {
 	// Enable metrics collection
 	// +optional
-	// +kubebuilder:default=true
+	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 
 	// Port for metrics endpoint
@@ -116,18 +164,6 @@ type MetricsSpec struct {
 	// +kubebuilder:validation:Minimum=1024
 	// +kubebuilder:validation:Maximum=65535
 	Port int32 `json:"port,omitempty"`
-}
-
-// TracingSpec contains tracing configuration
-type TracingSpec struct {
-	// Enable tracing
-	// +optional
-	// +kubebuilder:default=false
-	Enabled bool `json:"enabled,omitempty"`
-
-	// Tracing endpoint URL
-	// +optional
-	Endpoint string `json:"endpoint,omitempty"`
 }
 
 // AuthSpec contains authentication configuration
@@ -160,7 +196,7 @@ type OIDCSpec struct {
 
 	// Reference to a secret containing the client secret
 	// +optional
-	ClientSecretRef *SecretKeySelector `json:"clientSecretRef,omitempty"`
+	ClientSecretRef *corev1.SecretKeySelector `json:"clientSecretRef,omitempty"`
 }
 
 // ServerSpec contains server configuration settings
@@ -213,59 +249,27 @@ type TLSConfig struct {
 
 	// Reference to a secret containing the TLS certificate
 	// +optional
-	CertificateRef *SecretKeySelector `json:"certificateRef,omitempty"`
+	CertificateRef *corev1.SecretKeySelector `json:"certificateRef,omitempty"`
 
 	// Reference to a secret containing the TLS private key
 	// +optional
-	KeyRef *SecretKeySelector `json:"keyRef,omitempty"`
-}
-
-// SecretKeySelector selects a key from a Secret
-type SecretKeySelector struct {
-	// Name of the secret
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-
-	// Key within the secret
-	// +optional
-	// +kubebuilder:default="value"
-	Key string `json:"key,omitempty"`
-
-	// Namespace of the secret (defaults to Gateway namespace)
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
+	KeyRef *corev1.SecretKeySelector `json:"keyRef,omitempty"`
 }
 
 // ProviderSpec contains configuration for a specific provider
 type ProviderSpec struct {
-	// Provider name (unique identifier)
+	// Name of the secret
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
-	// Provider type
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=openai;anthropic;ollama;groq;cohere;cloudflare;deepseek
-	Type string `json:"type"`
-
-	// Provider configuration
+	// Enable provider
 	// +optional
-	Config *ProviderConfig `json:"config,omitempty"`
-}
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
 
-// ProviderConfig contains provider-specific configuration
-type ProviderConfig struct {
-	// Base URL for the provider API
+	// Environment variables for the provider
 	// +optional
-	BaseURL string `json:"baseUrl,omitempty"`
-
-	// Authentication type
-	// +optional
-	// +kubebuilder:validation:Enum=bearer;basic;none
-	AuthType string `json:"authType,omitempty"`
-
-	// Reference to secret containing authentication token
-	// +optional
-	TokenRef *SecretKeySelector `json:"tokenRef,omitempty"`
+	Env *[]corev1.EnvVar `json:"env,omitempty"`
 }
 
 // MCPSpec contains Model Context Protocol configuration
@@ -551,89 +555,6 @@ type IngressTLS struct {
 	Hosts []string `json:"hosts,omitempty"`
 }
 
-// HPASpec contains Horizontal Pod Autoscaler configuration
-type HPASpec struct {
-	// Enable HPA
-	// +optional
-	// +kubebuilder:default=false
-	Enabled bool `json:"enabled,omitempty"`
-
-	// Minimum number of replicas
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=100
-	MinReplicas *int32 `json:"minReplicas,omitempty"`
-
-	// Maximum number of replicas
-	// +optional
-	// +kubebuilder:default=10
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=1000
-	MaxReplicas int32 `json:"maxReplicas,omitempty"`
-
-	// Target CPU utilization percentage
-	// +optional
-	// +kubebuilder:default=80
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=100
-	TargetCPUUtilizationPercentage *int32 `json:"targetCPUUtilizationPercentage,omitempty"`
-
-	// Target memory utilization percentage
-	// +optional
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=100
-	TargetMemoryUtilizationPercentage *int32 `json:"targetMemoryUtilizationPercentage,omitempty"`
-
-	// Custom metrics for scaling
-	// +optional
-	CustomMetrics []HPACustomMetric `json:"customMetrics,omitempty"`
-
-	// Scale down stabilization window (in seconds)
-	// +optional
-	// +kubebuilder:default=300
-	ScaleDownStabilizationWindowSeconds *int32 `json:"scaleDownStabilizationWindowSeconds,omitempty"`
-
-	// Scale up stabilization window (in seconds)
-	// +optional
-	// +kubebuilder:default=0
-	ScaleUpStabilizationWindowSeconds *int32 `json:"scaleUpStabilizationWindowSeconds,omitempty"`
-}
-
-// HPACustomMetric contains custom metric configuration for HPA
-type HPACustomMetric struct {
-	// Metric name
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-
-	// Metric type (Resource, Pods, Object, External)
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=Resource;Pods;Object;External
-	Type string `json:"type"`
-
-	// Target value for the metric
-	// +kubebuilder:validation:Required
-	Target HPAMetricTarget `json:"target"`
-}
-
-// HPAMetricTarget contains target configuration for HPA custom metrics
-type HPAMetricTarget struct {
-	// Target type (Utilization, Value, AverageValue)
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=Utilization;Value;AverageValue
-	Type string `json:"type"`
-
-	// Target value (for Value and AverageValue types)
-	// +optional
-	Value string `json:"value,omitempty"`
-
-	// Target average utilization percentage (for Utilization type)
-	// +optional
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=100
-	AverageUtilization *int32 `json:"averageUtilization,omitempty"`
-}
-
 // GatewayStatus defines the observed state of Gateway.
 type GatewayStatus struct {
 	// Current number of ready replicas
@@ -664,6 +585,12 @@ type GatewayStatus struct {
 	// ProviderSummary is a comma-separated list of provider names
 	// +optional
 	ProviderSummary string `json:"providerSummary,omitempty"`
+
+	// URL presents the address the gateway can be accessed at
+	// If ingress is enabled, it will use the host from the ingress configuration
+	// otherwise it will use the service URL
+	// +optional
+	URL string `json:"url,omitempty"`
 }
 
 // GatewayCondition represents a condition of a Gateway deployment
@@ -691,7 +618,7 @@ type GatewayCondition struct {
 	Message string `json:"message,omitempty"`
 }
 
-// +kubebuilder:printcolumn:name="IP",type=string,JSONPath=".spec.server.host",description="Gateway IP address"
+// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=".status.url",description="Kubernetes service DNS address"
 // +kubebuilder:printcolumn:name="Port",type=integer,JSONPath=".spec.server.port",description="Gateway port"
 // +kubebuilder:printcolumn:name="Providers",type=string,JSONPath=".status.providerSummary",description="Configured providers"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"

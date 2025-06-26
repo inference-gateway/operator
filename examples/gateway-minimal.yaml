@@ -31,28 +31,32 @@ spec:
 
   # Single OpenAI provider
   providers:
-    - name: openai
-      type: openai
-      config:
-        baseUrl: "https://api.openai.com/v1"
-        authType: bearer
-        tokenRef:
-          name: openai-secret
-          key: api_key
+    - name: OpenAI
+      env:
+        - name: OPENAI_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: api_url
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: api_key
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: openai-secret
   namespace: inference-gateway
-  labels:
-    app.kubernetes.io/name: inference-gateway
-    app.kubernetes.io/instance: inference-gateway
-    app.kubernetes.io/component: secrets
-    app.kubernetes.io/part-of: inference-gateway
-    app.kubernetes.io/version: "0.12.0"
 type: Opaque
 stringData:
-  OIDC_CLIENT_SECRET: ""
-
   api_key: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-gateway-config
+  namespace: inference-gateway
+data:
+  api_url: "https://api.openai.com/v1"

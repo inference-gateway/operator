@@ -102,5 +102,6 @@
   "remoteEnv": {
     "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}"
   },
-  "appPort": ["443:443", "80:80"]
+  "appPort": ["443:443", "80:80"],
+  "runArgs": ["--add-host=api.inference-gateway.local:127.0.0.1"]
 }

@@ -28,16 +28,58 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
+
+func checkGatewayDeploymentEnvVars(ctx context.Context, k8sClient client.Client, gateway *corev1alpha1.Gateway, expectedEnvVars []corev1.EnvVar, timeout time.Duration, interval time.Duration) {
+	gatewayLookupKey := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
+	createdGateway := &corev1alpha1.Gateway{}
+
+	Eventually(func() bool {
+		err := k8sClient.Get(ctx, gatewayLookupKey, createdGateway)
+		return err == nil
+	}, timeout, interval).Should(BeTrue())
+
+	gatewayReconciler := &GatewayReconciler{
+		Client: k8sClient,
+		Scheme: k8sClient.Scheme(),
+	}
+
+	_, err := gatewayReconciler.Reconcile(ctx, reconcile.Request{
+		NamespacedName: gatewayLookupKey,
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	deploymentName := types.NamespacedName{
+		Name:      gateway.Name,
+		Namespace: gateway.Namespace,
+	}
+	createdDeployment := &appsv1.Deployment{}
+	Eventually(func() bool {
+		err := k8sClient.Get(ctx, deploymentName, createdDeployment)
+		return err == nil
+	}, timeout, interval).Should(BeTrue())
+
+	containers := createdDeployment.Spec.Template.Spec.Containers
+	Expect(containers).To(HaveLen(1))
+	envVars := containers[0].Env
+
+	for _, expected := range expectedEnvVars {
+		Expect(envVars).To(ContainElement(expected))
+	}
+
+	Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
+}
 
 var _ = Describe("Gateway controller", func() {
 	Context("When reconciling a Gateway resource", func() {
@@ -71,10 +113,6 @@ var _ = Describe("Gateway controller", func() {
 							Enabled: true,
 							Port:    9464,
 						},
-						Tracing: &corev1alpha1.TracingSpec{
-							Enabled:  true,
-							Endpoint: "http://jaeger:14268/api/traces",
-						},
 					},
 					Auth: &corev1alpha1.AuthSpec{
 						Enabled:  true,
@@ -82,9 +120,11 @@ var _ = Describe("Gateway controller", func() {
 						OIDC: &corev1alpha1.OIDCSpec{
 							IssuerURL: "https://auth.example.com",
 							ClientID:  "test-client",
-							ClientSecretRef: &corev1alpha1.SecretKeySelector{
-								Name: "oidc-secret",
-								Key:  "client-secret",
+							ClientSecretRef: &corev1.SecretKeySelector{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: "oidc-secret",
+								},
+								Key: "client-secret",
 							},
 						},
 					},
@@ -100,20 +140,35 @@ var _ = Describe("Gateway controller", func() {
 					Providers: []corev1alpha1.ProviderSpec{
 						{
 							Name: "openai",
-							Type: "openai",
-							Config: &corev1alpha1.ProviderConfig{
-								BaseURL:  "https://api.openai.com/v1",
-								AuthType: "bearer",
-								TokenRef: &corev1alpha1.SecretKeySelector{
-									Name: "openai-secret",
-									Key:  "api-key",
+							Env: &[]corev1.EnvVar{
+								{
+									Name: "OPENAI_API_KEY",
+									ValueFrom: &corev1.EnvVarSource{
+										SecretKeyRef: &corev1.SecretKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: "openai-secret",
+											},
+											Key: "OPENAI_API_KEY",
+										},
+									},
 								},
 							},
 						},
 					},
 				},
 			}
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "openai-secret",
+					Namespace: GatewayNamespace,
+				},
+				StringData: map[string]string{
+					"OPENAI_API_KEY": "super-secret-value",
+				},
+			}
+
 			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, secret)).Should(Succeed())
 
 			gatewayLookupKey := types.NamespacedName{Name: GatewayName, Namespace: GatewayNamespace}
 			createdGateway := &corev1alpha1.Gateway{}
@@ -122,29 +177,6 @@ var _ = Describe("Gateway controller", func() {
 				err := k8sClient.Get(ctx, gatewayLookupKey, createdGateway)
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
-
-			configMapName := types.NamespacedName{
-				Name:      GatewayName + "-config",
-				Namespace: GatewayNamespace,
-			}
-			createdConfigMap := &corev1.ConfigMap{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, configMapName, createdConfigMap)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			Expect(createdConfigMap.Data).To(HaveKey("config.yaml"))
-			configContent := createdConfigMap.Data["config.yaml"]
-
-			Expect(configContent).To(ContainSubstring("environment: production"))
-			Expect(configContent).To(ContainSubstring("telemetry:"))
-			Expect(configContent).To(ContainSubstring("enabled: true"))
-			Expect(configContent).To(ContainSubstring("auth:"))
-			Expect(configContent).To(ContainSubstring("provider: oidc"))
-			Expect(configContent).To(ContainSubstring("issuerUrl: https://auth.example.com"))
-			Expect(configContent).To(ContainSubstring("baseUrl: https://api.openai.com/v1"))
-			Expect(configContent).To(ContainSubstring("name: openai"))
-			Expect(configContent).To(ContainSubstring("type: openai"))
 
 			deploymentName := types.NamespacedName{
 				Name:      GatewayName,
@@ -156,266 +188,26 @@ var _ = Describe("Gateway controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			Expect(createdDeployment.Spec.Template.Spec.Volumes).To(ContainElement(
-				HaveField("Name", GatewayName+"-config-volume"),
-			))
-
 			containers := createdDeployment.Spec.Template.Spec.Containers
 			Expect(containers).To(HaveLen(1))
-			Expect(containers[0].VolumeMounts).To(ContainElement(
-				HaveField("Name", GatewayName+"-config-volume"),
-			))
-
 			envVars := containers[0].Env
-			Expect(envVars).To(ContainElement(
-				HaveField("Name", "OIDC_CLIENT_SECRET"),
-			))
-			Expect(envVars).To(ContainElement(
-				HaveField("Name", "OPENAI_API_KEY"),
-			))
 
-			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
-		})
-
-		It("Should create a deployment and configmap with OpenTelemetry telemetry configuration", func() {
-			By("Creating a Gateway with comprehensive OpenTelemetry configuration")
-			gateway := &corev1alpha1.Gateway{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "core.inference-gateway.com/v1alpha1",
-					Kind:       "Gateway",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      GatewayName + "-otel",
-					Namespace: GatewayNamespace,
-				},
-				Spec: corev1alpha1.GatewaySpec{
-					Environment: "production",
-					Replicas:    &[]int32{2}[0],
-					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-					Telemetry: &corev1alpha1.TelemetrySpec{
-						Enabled: true,
-						Metrics: &corev1alpha1.MetricsSpec{
-							Enabled: true,
-							Port:    9464,
-						},
-						Tracing: &corev1alpha1.TracingSpec{
-							Enabled:  true,
-							Endpoint: "http://jaeger-collector:14268/api/traces",
-						},
-					},
-					Server: &corev1alpha1.ServerSpec{
-						Host: "0.0.0.0",
-						Port: 8080,
-					},
-					Providers: []corev1alpha1.ProviderSpec{
-						{
-							Name: "openai",
-							Type: "openai",
-							Config: &corev1alpha1.ProviderConfig{
-								BaseURL:  "https://api.openai.com/v1",
-								AuthType: "bearer",
-								TokenRef: &corev1alpha1.SecretKeySelector{
-									Name: "openai-secret",
-									Key:  "api-key",
-								},
-							},
-						},
-						{
-							Name: "anthropic",
-							Type: "anthropic",
-							Config: &corev1alpha1.ProviderConfig{
-								BaseURL:  "https://api.anthropic.com/v1",
-								AuthType: "bearer",
-								TokenRef: &corev1alpha1.SecretKeySelector{
-									Name: "anthropic-secret",
-									Key:  "api-key",
-								},
-							},
-						},
-					},
-				},
-			}
-			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
-
-			gatewayLookupKey := types.NamespacedName{Name: GatewayName + "-otel", Namespace: GatewayNamespace}
-			createdGateway := &corev1alpha1.Gateway{}
-
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayLookupKey, createdGateway)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			gatewayReconciler := &GatewayReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			_, err := gatewayReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: gatewayLookupKey,
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			configMapName := types.NamespacedName{
-				Name:      GatewayName + "-otel-config",
-				Namespace: GatewayNamespace,
-			}
-			createdConfigMap := &corev1.ConfigMap{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, configMapName, createdConfigMap)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			Expect(createdConfigMap.Data).To(HaveKey("config.yaml"))
-			configContent := createdConfigMap.Data["config.yaml"]
-
-			Expect(configContent).To(ContainSubstring("environment: production"))
-
-			Expect(configContent).To(ContainSubstring("telemetry:"))
-			Expect(configContent).To(ContainSubstring("enabled: true"))
-			Expect(configContent).To(ContainSubstring("metrics:"))
-			Expect(configContent).To(ContainSubstring("port: 9464"))
-			Expect(configContent).To(ContainSubstring("tracing:"))
-			Expect(configContent).To(ContainSubstring("endpoint: http://jaeger-collector:14268/api/traces"))
-
-			Expect(configContent).To(ContainSubstring("name: openai"))
-			Expect(configContent).To(ContainSubstring("type: openai"))
-			Expect(configContent).To(ContainSubstring("baseUrl: https://api.openai.com/v1"))
-			Expect(configContent).To(ContainSubstring("name: anthropic"))
-			Expect(configContent).To(ContainSubstring("type: anthropic"))
-			Expect(configContent).To(ContainSubstring("baseUrl: https://api.anthropic.com/v1"))
-
-			deploymentName := types.NamespacedName{
-				Name:      GatewayName + "-otel",
-				Namespace: GatewayNamespace,
-			}
-			createdDeployment := &appsv1.Deployment{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, deploymentName, createdDeployment)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			containers := createdDeployment.Spec.Template.Spec.Containers
-			Expect(containers).To(HaveLen(1))
-
-			ports := containers[0].Ports
-			var hasMetricsPort bool
-			for _, port := range ports {
-				if port.ContainerPort == 9464 {
-					hasMetricsPort = true
-					break
-				}
-			}
-			Expect(hasMetricsPort).To(BeTrue(), "Metrics port 9464 should be exposed in container")
-
-			envVars := containers[0].Env
-			Expect(envVars).To(ContainElement(
-				HaveField("Name", "OPENAI_API_KEY"),
-			))
-			Expect(envVars).To(ContainElement(
-				HaveField("Name", "ANTHROPIC_API_KEY"),
-			))
-
-			Expect(containers[0].VolumeMounts).To(ContainElement(
-				HaveField("Name", GatewayName+"-otel-config-volume"),
-			))
-
-			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
-		})
-
-		It("Should handle telemetry disabled configuration correctly", func() {
-			By("Creating a Gateway with telemetry disabled")
-			gateway := &corev1alpha1.Gateway{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: "core.inference-gateway.com/v1alpha1",
-					Kind:       "Gateway",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      GatewayName + "-no-telemetry",
-					Namespace: GatewayNamespace,
-				},
-				Spec: corev1alpha1.GatewaySpec{
-					Environment: "development",
-					Replicas:    &[]int32{1}[0],
-					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-					Telemetry: &corev1alpha1.TelemetrySpec{
-						Enabled: false,
-						Metrics: &corev1alpha1.MetricsSpec{
-							Enabled: false,
-							Port:    9464,
-						},
-						Tracing: &corev1alpha1.TracingSpec{
-							Enabled:  false,
-							Endpoint: "",
-						},
-					},
-					Server: &corev1alpha1.ServerSpec{
-						Host: "0.0.0.0",
-						Port: 8080,
-					},
-					Providers: []corev1alpha1.ProviderSpec{
-						{
-							Name: "openai",
-							Type: "openai",
-							Config: &corev1alpha1.ProviderConfig{
-								BaseURL:  "https://api.openai.com/v1",
-								AuthType: "bearer",
-								TokenRef: &corev1alpha1.SecretKeySelector{
-									Name: "openai-secret",
-									Key:  "api-key",
-								},
-							},
-						},
-					},
-				},
-			}
-			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
-
-			gatewayLookupKey := types.NamespacedName{Name: GatewayName + "-no-telemetry", Namespace: GatewayNamespace}
-			createdGateway := &corev1alpha1.Gateway{}
-
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, gatewayLookupKey, createdGateway)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			gatewayReconciler := &GatewayReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			_, err := gatewayReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: gatewayLookupKey,
-			})
-			Expect(err).NotTo(HaveOccurred())
-
-			configMapName := types.NamespacedName{
-				Name:      GatewayName + "-no-telemetry-config",
-				Namespace: GatewayNamespace,
-			}
-			createdConfigMap := &corev1.ConfigMap{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, configMapName, createdConfigMap)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			Expect(createdConfigMap.Data).To(HaveKey("config.yaml"))
-			configContent := createdConfigMap.Data["config.yaml"]
-
-			Expect(configContent).To(ContainSubstring("telemetry:"))
-			Expect(configContent).To(ContainSubstring("enabled: false"))
-
-			deploymentName := types.NamespacedName{
-				Name:      GatewayName + "-no-telemetry",
-				Namespace: GatewayNamespace,
-			}
-			createdDeployment := &appsv1.Deployment{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, deploymentName, createdDeployment)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-
-			containers := createdDeployment.Spec.Template.Spec.Containers
-			Expect(containers).To(HaveLen(1))
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "ENVIRONMENT",
+				Value: "production",
+			}))
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "ENABLE_TELEMETRY",
+				Value: "true",
+			}))
+			Expect(envVars).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal("OIDC_CLIENT_SECRET"),
+				"ValueFrom": Not(BeNil()),
+			})))
+			Expect(envVars).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal("OPENAI_API_KEY"),
+				"ValueFrom": Not(BeNil()),
+			})))
 
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})
@@ -444,20 +236,43 @@ var _ = Describe("Gateway controller", func() {
 						},
 					},
 					HPA: &corev1alpha1.HPASpec{
-						Enabled:                             true,
-						MinReplicas:                         &[]int32{2}[0],
-						MaxReplicas:                         5,
-						TargetCPUUtilizationPercentage:      &[]int32{70}[0],
-						TargetMemoryUtilizationPercentage:   &[]int32{80}[0],
-						ScaleDownStabilizationWindowSeconds: &[]int32{300}[0],
-						ScaleUpStabilizationWindowSeconds:   &[]int32{60}[0],
-					},
-					Providers: []corev1alpha1.ProviderSpec{
-						{
-							Name: "openai",
-							Type: "openai",
+						Enabled: true,
+						Config: &corev1alpha1.CustomHorizontalPodAutoscalerSpec{
+							MinReplicas: &[]int32{2}[0],
+							MaxReplicas: 5,
+							Metrics: []autoscalingv2.MetricSpec{
+								{
+									Type: autoscalingv2.ResourceMetricSourceType,
+									Resource: &autoscalingv2.ResourceMetricSource{
+										Name: corev1.ResourceCPU,
+										Target: autoscalingv2.MetricTarget{
+											Type:               autoscalingv2.UtilizationMetricType,
+											AverageUtilization: &[]int32{70}[0],
+										},
+									},
+								},
+								{
+									Type: autoscalingv2.ResourceMetricSourceType,
+									Resource: &autoscalingv2.ResourceMetricSource{
+										Name: corev1.ResourceMemory,
+										Target: autoscalingv2.MetricTarget{
+											Type:               autoscalingv2.UtilizationMetricType,
+											AverageUtilization: &[]int32{80}[0],
+										},
+									},
+								},
+							},
+							Behavior: &autoscalingv2.HorizontalPodAutoscalerBehavior{
+								ScaleDown: &autoscalingv2.HPAScalingRules{
+									StabilizationWindowSeconds: &[]int32{300}[0],
+								},
+								ScaleUp: &autoscalingv2.HPAScalingRules{
+									StabilizationWindowSeconds: &[]int32{60}[0],
+								},
+							},
 						},
 					},
+					Providers: []corev1alpha1.ProviderSpec{},
 				},
 			}
 
@@ -536,17 +351,25 @@ var _ = Describe("Gateway controller", func() {
 				Spec: corev1alpha1.GatewaySpec{
 					Environment: "production",
 					HPA: &corev1alpha1.HPASpec{
-						Enabled:                        true,
-						MinReplicas:                    &[]int32{1}[0],
-						MaxReplicas:                    3,
-						TargetCPUUtilizationPercentage: &[]int32{80}[0],
-					},
-					Providers: []corev1alpha1.ProviderSpec{
-						{
-							Name: "openai",
-							Type: "openai",
+						Enabled: true,
+						Config: &corev1alpha1.CustomHorizontalPodAutoscalerSpec{
+							MinReplicas: &[]int32{1}[0],
+							MaxReplicas: 3,
+							Metrics: []autoscalingv2.MetricSpec{
+								{
+									Type: autoscalingv2.ResourceMetricSourceType,
+									Resource: &autoscalingv2.ResourceMetricSource{
+										Name: corev1.ResourceCPU,
+										Target: autoscalingv2.MetricTarget{
+											Type:               autoscalingv2.UtilizationMetricType,
+											AverageUtilization: &[]int32{80}[0],
+										},
+									},
+								},
+							},
 						},
 					},
+					Providers: []corev1alpha1.ProviderSpec{},
 				},
 			}
 
@@ -632,6 +455,48 @@ var _ = Describe("Gateway controller", func() {
 			},
 			Entry("should create ingress without TLS", "ingress-no-tls", "test-no-tls.local", false),
 			Entry("should create ingress with TLS", "ingress-with-tls", "test-with-tls.local", true),
+		)
+
+		DescribeTable("Should create a deployment and configmap with correct telemetry configuration",
+			func(gatewayName, environment string, telemetryEnabled bool, expectedEnvVars []corev1.EnvVar) {
+				gateway := &corev1alpha1.Gateway{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "core.inference-gateway.com/v1alpha1",
+						Kind:       "Gateway",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      gatewayName,
+						Namespace: GatewayNamespace,
+					},
+					Spec: corev1alpha1.GatewaySpec{
+						Environment: environment,
+						Replicas:    &[]int32{1}[0],
+						Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
+						Telemetry: &corev1alpha1.TelemetrySpec{
+							Enabled: telemetryEnabled,
+							Metrics: &corev1alpha1.MetricsSpec{
+								Enabled: true,
+								Port:    9464,
+							},
+						},
+						Server: &corev1alpha1.ServerSpec{
+							Host: "0.0.0.0",
+							Port: 8080,
+						},
+						Providers: []corev1alpha1.ProviderSpec{},
+					},
+				}
+				Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+				checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, timeout, interval)
+			},
+			Entry("OpenTelemetry enabled", GatewayName+"-otel", "production", true, []corev1.EnvVar{
+				{Name: "ENVIRONMENT", Value: "production"},
+				{Name: "ENABLE_TELEMETRY", Value: "true"},
+			}),
+			Entry("Telemetry enabled in development", GatewayName+"-no-telemetry", "development", true, []corev1.EnvVar{
+				{Name: "ENVIRONMENT", Value: "development"},
+				{Name: "ENABLE_TELEMETRY", Value: "true"},
+			}),
 		)
 	})
 })
