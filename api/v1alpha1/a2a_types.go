@@ -23,6 +23,7 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -41,6 +42,10 @@ type A2ASpec struct {
 	TLS          TLSSpec       `json:"tls"`
 	Agent        AgentSpec     `json:"agent"`
 	Card         CardSpec      `json:"card"`
+
+	// Environment variables for the provider
+	// +optional
+	Env *[]corev1.EnvVar `json:"env,omitempty"`
 }
 
 type LoggingSpec struct {
@@ -106,13 +111,25 @@ type CapabilitiesSpec struct {
 // A2AStatus defines the observed state of A2A.
 type A2AStatus struct {
 	// ObservedGeneration is the most recent generation observed for this resource.
+	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	// Conditions represent the latest available observations of the resource's state.
+	// +optional
+	// +kubebuilder:validation:Enum=Pending;Running;Failed;Unknown
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
 	// Ready indicates if the resource is ready.
+	// +optional
 	Ready bool `json:"ready,omitempty"`
+
+	// Version indicates the version of the A2A resource.
+	// +optional
+	Version string `json:"version,omitempty"`
 }
 
+// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=".status.version",description="Version of the A2A resource"
+// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 

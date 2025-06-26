@@ -2,15 +2,15 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: inference-gateway
+  name: agents
   labels:
     inference-gateway.com/managed: "true"
 ---
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: A2A
 metadata:
-  name: inference-gateway
-  namespace: inference-gateway
+  name: a2a-google-calendar-agent
+  namespace: agents
 spec:
   image: "ghcr.io/inference-gateway/google-calendar-agent:latest"
   timezone: "UTC"
@@ -55,7 +55,7 @@ spec:
   card:
     name: "Google Calendar Agent"
     description: "A2A-compatible agent for Google Calendar integration with full CRUD operations and event management capabilities"
-    url: "http://google-calendar-agent.agents.svc.cluster.local:8080"
+    url: "http://a2a-google-calendar-agent.agents.svc.cluster.local:8080"
     defaultInputModes:
       - "text"
       - "voice"
@@ -68,3 +68,17 @@ spec:
       pushNotifications: false
       stateTransitionHistory: true
     skills: []
+  env:
+    - name: "APP_DEMO_MODE"
+      valueFrom:
+        configMapKeyRef:
+          name: "a2a-google-calendar-agent-config"
+          key: "APP_DEMO_MODE"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: a2a-google-calendar-agent-config
+  namespace: agents
+data:
+  APP_DEMO_MODE: "true"

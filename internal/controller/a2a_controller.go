@@ -24,10 +24,21 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"os"
+	"time"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	runtime "k8s.io/apimachinery/pkg/runtime"
+	types "k8s.io/apimachinery/pkg/types"
+	intstr "k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
@@ -45,25 +56,199 @@ type A2AReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the A2A object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
 func (r *A2AReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	logger := logf.FromContext(ctx)
 
-	// TODO(user): your logic here
+	if !r.shouldWatchNamespace(ctx, req.Namespace) {
+		logger.V(1).Info("Skipping Gateway in namespace not matching watch criteria", "namespace", req.Namespace)
+		return ctrl.Result{}, nil
+	}
 
+	var a2a corev1alpha1.A2A
+	if err := r.Get(ctx, req.NamespacedName, &a2a); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if !a2a.ObjectMeta.DeletionTimestamp.IsZero() {
+		return ctrl.Result{}, nil
+	}
+
+	deploy := &appsv1.Deployment{}
+	deployName := a2a.Name
+	err := r.Get(ctx, client.ObjectKey{Namespace: a2a.Namespace, Name: deployName}, deploy)
+	if err != nil {
+		deploy = buildA2ADeployment(&a2a)
+		if err := r.Create(ctx, deploy); err != nil {
+			logger.Error(err, "failed to create deployment")
+			return ctrl.Result{}, err
+		}
+		logger.Info("created deployment", "name", deployName)
+	} else {
+		wantImage := a2a.Spec.Image
+		gotImage := deploy.Spec.Template.Spec.Containers[0].Image
+		if gotImage != wantImage {
+			deploy.Spec.Template.Spec.Containers[0].Image = wantImage
+			if err := r.Update(ctx, deploy); err != nil {
+				logger.Error(err, "failed to update deployment image")
+				return ctrl.Result{}, err
+			}
+			logger.Info("updated deployment image", "name", deployName, "image", wantImage)
+		}
+	}
+
+	svc := &corev1.Service{}
+	svcName := a2a.Name
+	err = r.Get(ctx, client.ObjectKey{Namespace: a2a.Namespace, Name: svcName}, svc)
+	if err != nil {
+		svc = buildA2AService(&a2a)
+		if err := r.Create(ctx, svc); err != nil {
+			logger.Error(err, "failed to create service")
+			return ctrl.Result{}, err
+		}
+		logger.Info("created service", "name", svcName)
+	}
+
+	agentURL := ""
+	if a2a.Spec.Card.URL != "" {
+		agentURL = a2a.Spec.Card.URL
+	} else {
+		logger.Info("card.url not set, skipping version update")
+		return ctrl.Result{}, nil
+	}
+
+	version, err := fetchAgentVersion(agentURL)
+	if err != nil {
+		logger.Info("failed to fetch agent version", "error", err.Error())
+		return ctrl.Result{}, nil
+	}
+
+	if a2a.Status.Version == version {
+		return ctrl.Result{}, nil
+	}
+
+	patch := client.MergeFrom(a2a.DeepCopy())
+	a2a.Status.Version = version
+	if err := r.Status().Patch(ctx, &a2a, patch); err != nil {
+		logger.Error(err, "unable to update a2a status.version")
+		return ctrl.Result{}, err
+	}
+	logger.Info("updated a2a status.version", "version", version)
 	return ctrl.Result{}, nil
+}
+
+type agentMeta struct {
+	Version string `json:"version"`
+}
+
+// buildA2AService returns a Service for the given A2A resource.
+func buildA2AService(a2a *corev1alpha1.A2A) *corev1.Service {
+	labels := map[string]string{
+		"app": a2a.Name,
+	}
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      a2a.Name,
+			Namespace: a2a.Namespace,
+			Labels:    labels,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: labels,
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       8080,
+				TargetPort: intstrFromInt(8080),
+			}},
+		},
+	}
+}
+
+// fetchAgentVersion retrieves the agent version from the given base URL.
+func fetchAgentVersion(baseURL string) (string, error) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(baseURL + "/.well-known/agent.json")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", errors.New("unexpected status: " + resp.Status)
+	}
+	var meta agentMeta
+	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
+		return "", err
+	}
+	if meta.Version == "" {
+		return "", errors.New("version not found in agent.json")
+	}
+	return meta.Version, nil
+}
+
+// buildA2ADeployment returns a Deployment for the given A2A resource.
+func buildA2ADeployment(a2a *corev1alpha1.A2A) *appsv1.Deployment {
+	labels := map[string]string{
+		"app": a2a.Name,
+	}
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      a2a.Name,
+			Namespace: a2a.Namespace,
+			Labels:    labels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(1),
+			Selector: &metav1.LabelSelector{MatchLabels: labels},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: labels},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Env:   *a2a.Spec.Env,
+						Name:  "agent",
+						Image: a2a.Spec.Image,
+						Ports: []corev1.ContainerPort{{
+							ContainerPort: 8080,
+						}},
+					}},
+				},
+			},
+		},
+	}
+}
+
+func int32Ptr(i int32) *int32 { return &i }
+
+// intstrFromInt returns an IntOrString for a port.
+func intstrFromInt(i int) intstr.IntOrString {
+	return intstr.IntOrString{Type: intstr.Int, IntVal: int32(i)}
+}
+
+// shouldWatchNamespace checks if the operator should watch resources in the given namespace
+// based on WATCH_NAMESPACE_SELECTOR environment variable
+func (r *A2AReconciler) shouldWatchNamespace(ctx context.Context, namespace string) bool {
+	watchNamespaceSelector := os.Getenv("WATCH_NAMESPACE_SELECTOR")
+
+	if watchNamespaceSelector == "" {
+		return true
+	}
+
+	labelSelector, err := labels.Parse(watchNamespaceSelector)
+	if err != nil {
+		return true
+	}
+
+	ns := &corev1.Namespace{}
+	if err := r.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
+		return false
+	}
+
+	return labelSelector.Matches(labels.Set(ns.Labels))
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *A2AReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.A2A{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
 		Named("a2a").
 		Complete(r)
 }
