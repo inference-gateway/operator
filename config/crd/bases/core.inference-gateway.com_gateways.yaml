@@ -15,9 +15,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Gateway IP address
-      jsonPath: .spec.server.host
-      name: IP
+    - description: Kubernetes service DNS address
+      jsonPath: .status.url
+      name: URL
       type: string
     - description: Gateway port
       jsonPath: .spec.server.port
@@ -1367,6 +1367,12 @@ spec:
                 description: Current number of ready replicas
                 format: int32
                 type: integer
+              url:
+                description: |-
+                  URL presents the address the gateway can be accessed at
+                  If ingress is enabled, it will use the host from the ingress configuration
+                  otherwise it will use the service URL
+                type: string
             type: object
         type: object
     served: true

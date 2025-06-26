@@ -585,6 +585,12 @@ type GatewayStatus struct {
 	// ProviderSummary is a comma-separated list of provider names
 	// +optional
 	ProviderSummary string `json:"providerSummary,omitempty"`
+
+	// URL presents the address the gateway can be accessed at
+	// If ingress is enabled, it will use the host from the ingress configuration
+	// otherwise it will use the service URL
+	// +optional
+	URL string `json:"url,omitempty"`
 }
 
 // GatewayCondition represents a condition of a Gateway deployment
@@ -612,7 +618,7 @@ type GatewayCondition struct {
 	Message string `json:"message,omitempty"`
 }
 
-// +kubebuilder:printcolumn:name="IP",type=string,JSONPath=".spec.server.host",description="Gateway IP address"
+// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=".status.url",description="Kubernetes service DNS address"
 // +kubebuilder:printcolumn:name="Port",type=integer,JSONPath=".spec.server.port",description="Gateway port"
 // +kubebuilder:printcolumn:name="Providers",type=string,JSONPath=".status.providerSummary",description="Configured providers"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"

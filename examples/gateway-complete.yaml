@@ -37,7 +37,6 @@ spec:
 
   # Server configuration
   server:
-    host: "0.0.0.0"
     # port: 8080
     timeouts:
       read: "60s"

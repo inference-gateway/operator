@@ -110,6 +110,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	err = r.reconcileGatewayStatus(ctx, gateway)
+	if err != nil {
+		logger.Error(err, "Failed to reconcile Gateway status")
+		return ctrl.Result{}, err
+	}
+
 	err = r.reconcileHPA(ctx, gateway, deployment)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile HPA")
@@ -127,6 +133,52 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		"deployment", deployment.Name)
 
 	return ctrl.Result{}, nil
+}
+
+func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+	logger := log.FromContext(ctx)
+
+	ingressSpec := gateway.Spec.Ingress
+	var (
+		host   string
+		scheme string
+	)
+
+	if ingressSpec != nil && ingressSpec.Enabled {
+		ingress := &networkingv1.Ingress{}
+		err := r.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}, ingress)
+		if err != nil || len(ingress.Spec.Rules) == 0 {
+			logger.V(1).Info("ingress not found or has no rules, falling back to service FQDN", "gateway", gateway.Name)
+			host = fmt.Sprintf("%s.%s.svc.cluster.local", gateway.Name, gateway.Namespace)
+		} else {
+			host = ingress.Spec.Rules[0].Host
+		}
+		if ingressSpec.TLS != nil && ingressSpec.TLS.Enabled {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	} else {
+		host = fmt.Sprintf("%s.%s.svc.cluster.local", gateway.Name, gateway.Namespace)
+		if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+
+	newURL := fmt.Sprintf("%s://%s", scheme, host)
+	if gateway.Status.URL == newURL || newURL == "" {
+		return nil
+	}
+
+	gateway.Status.URL = newURL
+	if err := r.Status().Update(ctx, gateway); err != nil {
+		logger.Error(err, "failed to update gateway url in status")
+		return err
+	}
+	logger.V(1).Info("updated gateway url in status", "gateway", gateway.Name, "url", newURL)
+	return nil
 }
 
 func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway *corev1alpha1.Gateway) error {
