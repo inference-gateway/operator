@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0](https://github.com/inference-gateway/operator/compare/v0.6.0...v0.7.0) (2025-06-26)
+
+### ✨ Features
+
+* Add URL field to GatewayStatus and update related configurations ([188e30a](https://github.com/inference-gateway/operator/commit/188e30a638a42cf4d5310cb1198db26a66ac6fd4))
+
+### 🐛 Bug Fixes
+
+* Simplify reconcileGatewayStatus and improve URL update logic ([4315965](https://github.com/inference-gateway/operator/commit/4315965df6319e8106a39ae67777878f6da0b505))
+
 ## [0.6.0](https://github.com/inference-gateway/operator/compare/v0.5.3...v0.6.0) (2025-06-25)
 
 ### ✨ Features
