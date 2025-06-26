@@ -223,11 +223,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)
 	}
-	if err = (&controller.A2AServerReconciler{
+	if err = (&controller.A2AReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "A2AServer")
+		setupLog.Error(err, "unable to create controller", "controller", "A2A")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

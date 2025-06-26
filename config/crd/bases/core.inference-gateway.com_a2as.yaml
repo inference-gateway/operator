@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
-  name: a2aservers.core.inference-gateway.com
+  name: a2as.core.inference-gateway.com
 spec:
   group: core.inference-gateway.com
   names:
-    kind: A2AServer
-    listKind: A2AServerList
-    plural: a2aservers
-    singular: a2aserver
+    kind: A2A
+    listKind: A2AList
+    plural: a2as
+    singular: a2a
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A2AServer is the Schema for the a2aservers API.
+        description: A2A is the Schema for the a2as API.
         properties:
           apiVersion:
             description: |-
@@ -37,7 +37,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: A2AServerSpec defines the desired state of A2AServer.
+            description: A2ASpec defines the desired state of A2A.
             properties:
               agent:
                 properties:
@@ -192,14 +192,17 @@ spec:
                 description: TelemetrySpec contains telemetry and observability configuration
                 properties:
                   enabled:
-                    default: true
+                    default: false
                     description: Enable telemetry collection
                     type: boolean
                   metrics:
+                    default:
+                      enabled: false
+                      port: 9464
                     description: Metrics configuration
                     properties:
                       enabled:
-                        default: true
+                        default: false
                         description: Enable metrics collection
                         type: boolean
                       port:
@@ -209,17 +212,6 @@ spec:
                         maximum: 65535
                         minimum: 1024
                         type: integer
-                    type: object
-                  tracing:
-                    description: Tracing configuration
-                    properties:
-                      enabled:
-                        default: false
-                        description: Enable tracing
-                        type: boolean
-                      endpoint:
-                        description: Tracing endpoint URL
-                        type: string
                     type: object
                 type: object
               timezone:
@@ -252,7 +244,7 @@ spec:
             - writeTimeout
             type: object
           status:
-            description: A2AServerStatus defines the observed state of A2AServer.
+            description: A2AStatus defines the observed state of A2A.
             properties:
               conditions:
                 description: Conditions represent the latest available observations

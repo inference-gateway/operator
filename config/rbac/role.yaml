@@ -53,7 +53,7 @@ rules:
   - apiGroups:
       - core.inference-gateway.com
     resources:
-      - a2aservers
+      - a2as
       - gateways
     verbs:
       - create
@@ -66,14 +66,14 @@ rules:
   - apiGroups:
       - core.inference-gateway.com
     resources:
-      - a2aservers/finalizers
+      - a2as/finalizers
       - gateways/finalizers
     verbs:
       - update
   - apiGroups:
       - core.inference-gateway.com
     resources:
-      - a2aservers/status
+      - a2as/status
       - gateways/status
     verbs:
       - get

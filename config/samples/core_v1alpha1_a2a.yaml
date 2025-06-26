@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/name: operator
     app.kubernetes.io/managed-by: kustomize
-  name: a2aserver-sample
+  name: a2a-sample
 spec:
   image: "ghcr.io/inference-gateway/google-calendar-agent:latest"
   timezone: "UTC"

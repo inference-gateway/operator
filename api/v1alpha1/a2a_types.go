@@ -26,8 +26,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// A2AServerSpec defines the desired state of A2AServer.
-type A2AServerSpec struct {
+// A2ASpec defines the desired state of A2A.
+type A2ASpec struct {
 	Image        string        `json:"image"`
 	Timezone     string        `json:"timezone"`
 	Port         int32         `json:"port"`
@@ -103,8 +103,8 @@ type CapabilitiesSpec struct {
 	StateTransitionHistory bool `json:"stateTransitionHistory"`
 }
 
-// A2AServerStatus defines the observed state of A2AServer.
-type A2AServerStatus struct {
+// A2AStatus defines the observed state of A2A.
+type A2AStatus struct {
 	// ObservedGeneration is the most recent generation observed for this resource.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Conditions represent the latest available observations of the resource's state.
@@ -116,24 +116,24 @@ type A2AServerStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// A2AServer is the Schema for the a2aservers API.
-type A2AServer struct {
+// A2A is the Schema for the a2as API.
+type A2A struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   A2AServerSpec   `json:"spec,omitempty"`
-	Status A2AServerStatus `json:"status,omitempty"`
+	Spec   A2ASpec   `json:"spec,omitempty"`
+	Status A2AStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// A2AServerList contains a list of A2AServer.
-type A2AServerList struct {
+// A2AList contains a list of A2A.
+type A2AList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []A2AServer `json:"items"`
+	Items           []A2A `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&A2AServer{}, &A2AServerList{})
+	SchemeBuilder.Register(&A2A{}, &A2AList{})
 }

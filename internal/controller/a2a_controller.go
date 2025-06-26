@@ -33,26 +33,26 @@ import (
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
-// A2AServerReconciler reconciles a A2AServer object
-type A2AServerReconciler struct {
+// A2AReconciler reconciles a A2A object
+type A2AReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2aservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2aservers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2aservers/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2as,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2as/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2as/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the A2AServer object against the actual cluster state, and then
+// the A2A object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
-func (r *A2AServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *A2AReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = logf.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -61,9 +61,9 @@ func (r *A2AServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *A2AServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *A2AReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&corev1alpha1.A2AServer{}).
-		Named("a2aserver").
+		For(&corev1alpha1.A2A{}).
+		Named("a2a").
 		Complete(r)
 }

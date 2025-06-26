@@ -37,7 +37,7 @@ import (
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
-var _ = Describe("A2AServer Controller", func() {
+var _ = Describe("A2A Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -47,7 +47,7 @@ var _ = Describe("A2AServer Controller", func() {
 			Name:      resourceName,
 			Namespace: "agents",
 		}
-		a2aserver := &corev1alpha1.A2AServer{}
+		a2a := &corev1alpha1.A2A{}
 
 		BeforeEach(func() {
 			ns := &corev1.Namespace{
@@ -57,15 +57,15 @@ var _ = Describe("A2AServer Controller", func() {
 			}
 			_ = k8sClient.Create(ctx, ns)
 
-			By("creating the custom resource for the Kind A2AServer")
-			err := k8sClient.Get(ctx, typeNamespacedName, a2aserver)
+			By("creating the custom resource for the Kind A2A")
+			err := k8sClient.Get(ctx, typeNamespacedName, a2a)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &corev1alpha1.A2AServer{
+				resource := &corev1alpha1.A2A{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "agents",
 					},
-					Spec: corev1alpha1.A2AServerSpec{
+					Spec: corev1alpha1.A2ASpec{
 						Image:        "test-image",
 						Timezone:     "UTC",
 						Port:         8080,
@@ -132,16 +132,16 @@ var _ = Describe("A2AServer Controller", func() {
 		})
 
 		AfterEach(func() {
-			resource := &corev1alpha1.A2AServer{}
+			resource := &corev1alpha1.A2A{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance A2AServer")
+			By("Cleanup the specific resource instance A2A")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &A2AServerReconciler{
+			controllerReconciler := &A2AReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
