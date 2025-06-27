@@ -12,7 +12,7 @@ metadata:
   name: mcp-playwright
   namespace: mcp
 spec:
-  image: "ghcr.io/inference-gateway/playwright-mcp:latest"
+  image: "mcp/playwright:latest"
   server:
     port: 8080
     timeout: "30s"
