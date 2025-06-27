@@ -12,7 +12,10 @@ metadata:
   name: mcp-playwright
   namespace: mcp
 spec:
-  image: "mcp/playwright:latest"
+  # image: "mcp/playwright:latest"
+  package: "@upstash/context7-mcp@latest"
+  hpa:
+    enabled: true
   server:
     port: 8080
     timeout: "30s"

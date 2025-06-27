@@ -24,13 +24,24 @@ package controller
 
 import (
 	"context"
+	"os"
+	"reflect"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	errors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	log "sigs.k8s.io/controller-runtime/pkg/log"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
 // MCPReconciler reconciles a MCP object
@@ -45,25 +56,196 @@ type MCPReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the MCP object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
 func (r *MCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	logger := logf.FromContext(ctx)
 
-	// TODO(user): your logic here
+	if !r.shouldWatchNamespace(ctx, req.Namespace) {
+		logger.V(1).Info("Skipping Gateway in namespace not matching watch criteria", "namespace", req.Namespace)
+		return ctrl.Result{}, nil
+	}
+
+	var mcp v1alpha1.MCP
+	if err := r.Get(ctx, req.NamespacedName, &mcp); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if !mcp.DeletionTimestamp.IsZero() {
+		return ctrl.Result{}, nil
+	}
+
+	_, err := r.reconcileDeployment(ctx, &mcp)
+	if err != nil {
+		logger.Error(err, "Failed to reconcile MCP deployment", "name", mcp.Name, "namespace", mcp.Namespace)
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *MCPReconciler) reconcileDeployment(ctx context.Context, mcp *v1alpha1.MCP) (*appsv1.Deployment, error) {
+	deployment := r.buildDeployment(mcp)
+
+	if err := controllerutil.SetControllerReference(mcp, deployment, r.Scheme); err != nil {
+		return nil, err
+	}
+
+	return r.createOrUpdateDeployment(ctx, mcp, deployment)
+}
+
+func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
+
+	deployment := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      mcp.Name,
+			Namespace: mcp.Namespace,
+			Labels: map[string]string{
+				"app": mcp.Name,
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": mcp.Name,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": mcp.Name,
+					},
+				},
+				Spec: corev1.PodSpec{},
+			},
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RollingUpdateDeploymentStrategyType,
+			},
+		},
+	}
+
+	if mcp.Spec.HPA == nil {
+		deployment.Spec.Replicas = &mcp.Spec.Replicas
+	} else {
+		deployment.Spec.Replicas = nil
+	}
+
+	containers := []corev1.Container{
+		{
+			Name:  "mcp",
+			Image: mcp.Spec.Image,
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          "http",
+					ContainerPort: mcp.Spec.Server.Port,
+				},
+			},
+			Env: []corev1.EnvVar{
+				{
+					Name:  "MCP_NAME",
+					Value: mcp.Name,
+				},
+				{
+					Name:  "MCP_NAMESPACE",
+					Value: mcp.Namespace,
+				},
+			},
+			Command: []string{"npx"},
+			Args: []string{
+				"-y",
+				mcp.Spec.Package,
+				"--port",
+				string(mcp.Spec.Server.Port),
+			},
+		},
+	}
+
+	if mcp.Spec.Bridge != nil {
+		// TODO - need to implement the bridge container, should probably receive the stdio command and create a streamable MCP server
+		containers = append(containers, corev1.Container{
+			Name:  "bridge",
+			Image: "ghcr.io/inference-gateway/bridge:latest",
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          "http",
+					ContainerPort: mcp.Spec.Bridge.Port,
+				},
+			},
+			Env: []corev1.EnvVar{},
+		})
+	}
+
+	deployment.Spec.Template.Spec.Containers = containers
+
+	return &deployment
+}
+
+func (r *MCPReconciler) createOrUpdateDeployment(ctx context.Context, mcp *v1alpha1.MCP, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+	logger := log.FromContext(ctx)
+
+	found := &appsv1.Deployment{}
+	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
+	if err != nil && errors.IsNotFound(err) {
+		logger.Info("creating deployment", "Deployment.Name", deployment.Name)
+		if err = r.Create(ctx, deployment); err != nil {
+			return nil, err
+		}
+		return deployment, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return r.updateDeploymentIfNeeded(ctx, mcp, deployment, found)
+}
+
+func (r *MCPReconciler) updateDeploymentIfNeeded(ctx context.Context, mcp *v1alpha1.MCP, deployment *appsv1.Deployment, found *appsv1.Deployment) (*appsv1.Deployment, error) {
+	logger := log.FromContext(ctx)
+
+	if reflect.DeepEqual(&deployment.Spec, &found.Spec) {
+		logger.V(1).Info("deployment up-to-date, no update needed", "Deployment.Name", found.Name)
+		return found, nil
+	}
+
+	found.Spec = deployment.Spec
+
+	if err := r.Update(ctx, found); err != nil {
+		logger.Error(err, "failed to update deployment", "Deployment.Name", found.Name)
+		return nil, err
+	}
+
+	logger.Info("updated deployment", "Deployment.Name", found.Name)
+	return found, nil
+
+}
+
+// shouldWatchNamespace checks if the operator should watch resources in the given namespace
+// based on WATCH_NAMESPACE_SELECTOR environment variable
+func (r *MCPReconciler) shouldWatchNamespace(ctx context.Context, namespace string) bool {
+	watchNamespaceSelector := os.Getenv("WATCH_NAMESPACE_SELECTOR")
+
+	if watchNamespaceSelector == "" {
+		return true
+	}
+
+	labelSelector, err := labels.Parse(watchNamespaceSelector)
+	if err != nil {
+		return true
+	}
+
+	ns := &corev1.Namespace{}
+	if err := r.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
+		return false
+	}
+
+	//
+
+	return labelSelector.Matches(labels.Set(ns.Labels))
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *MCPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.MCP{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
 		Named("mcp").
 		Complete(r)
 }

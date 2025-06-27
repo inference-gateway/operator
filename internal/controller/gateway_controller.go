@@ -568,7 +568,7 @@ func (r *GatewayReconciler) createOrUpdateDeployment(ctx context.Context, gatewa
 	found := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating Deployment", "Deployment.Name", deployment.Name)
+		logger.Info("creating deployment", "Deployment.Name", deployment.Name)
 		if err = r.Create(ctx, deployment); err != nil {
 			return nil, err
 		}

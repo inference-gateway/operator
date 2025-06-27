@@ -28,9 +28,19 @@ import (
 
 // MCPSpec defines the desired state of MCP.
 type MCPSpec struct {
+	// Replicas is the number of replicas for the MCP server.
+	// +kubebuilder:default=1
+	// +optional
+	Replicas int32 `json:"replicas,omitempty"`
+
 	// Image is the container image to use for the MCP server.
-	// +kubebuilder:Required
+	// +optional
+	// +kubebuilder:default="node:lts"
 	Image string `json:"image,omitempty"`
+
+	// Package is the package to use for the MCP server.
+	// +optional
+	Package string `json:"package,omitempty"`
 
 	// Server defines the configuration for the MCP server.
 	// +optional
@@ -43,9 +53,9 @@ type MCPSpec struct {
 	// +optional
 	TLS *TLSConfig `json:"tls,omitempty"`
 
-	// Ingress defines the ingress configuration for the MCP server.
+	// HPA defines the Horizontal Pod Autoscaler configuration for the MCP server.
 	// +optional
-	Ingress *IngressSpec `json:"ingress,omitempty"`
+	HPA *HPASpec `json:"hpa,omitempty"`
 }
 
 type MCPBridgeSpec struct {
