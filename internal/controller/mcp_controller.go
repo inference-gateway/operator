@@ -234,8 +234,6 @@ func (r *MCPReconciler) shouldWatchNamespace(ctx context.Context, namespace stri
 		return false
 	}
 
-	//
-
 	return labelSelector.Matches(labels.Set(ns.Labels))
 }
 
