@@ -9,10 +9,9 @@ metadata:
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: MCP
 metadata:
-  name: mcp-playwright
+  name: mcp-context7
   namespace: mcp
 spec:
-  # image: "mcp/playwright:latest"
   package: "@upstash/context7-mcp@latest"
   hpa:
     enabled: true
