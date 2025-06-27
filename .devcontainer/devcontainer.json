@@ -25,6 +25,9 @@
         "ms-vscode.go"
       ],
       "settings": {
+        "editor.renderWhitespace": "all",
+        "cSpell.enabled": true,
+        "cSpell.files": ["**/*.md"],
         "go.lintTool": "golangci-lint",
         "go.lintFlags": ["--fast"],
         "terminal.integrated.defaultProfile.linux": "zsh",
@@ -37,20 +40,34 @@
         "[go]": {
           "editor.defaultFormatter": "golang.go"
         },
-        "editor.renderWhitespace": "all",
-        "cSpell.enabled": true,
-        "cSpell.files": ["**/*.md"],
         "git.enableCommitSigning": true,
         "dev.containers.copyGitConfig": true,
         "githubPullRequests.experimental.chat": true,
         "githubPullRequests.experimental.notificationsView": true,
+        "files.insertFinalNewline": true,
+        "github.copilot.enable": {
+          "*": true
+        },
+        "github.copilot.advanced": {
+          "authProvider": "github"
+        },
+        "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+        "github.copilot.chat.codeGeneration.instructions": [
+          {
+            "file": ".github/copilot-instructions.md"
+          },
+          {
+            "file": "../README.md"
+          }
+        ],
+        "github.copilot.chat.commitMessageGeneration.instructions": [
+          {
+            "text": "Always use conventional commit message format."
+          }
+        ],
         "mcp": {
           "servers": {
-            "fetch": {
-              "command": "docker",
-              "args": ["run", "-i", "--rm", "mcp/fetch"]
-            },
-            "Context7": {
+            "context7": {
               "command": "docker",
               "args": [
                 "run",
@@ -60,6 +77,17 @@
                 "npx",
                 "-y",
                 "@upstash/context7-mcp@latest"
+              ]
+            },
+            "github": {
+              "command": "docker",
+              "args": [
+                "run",
+                "-i",
+                "--rm",
+                "-e",
+                "GITHUB_TOKEN=${localEnv:GITHUB_TOKEN}",
+                "mcp/github"
               ]
             }
           }
