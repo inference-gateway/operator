@@ -111,7 +111,7 @@ func (r *A2AReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	card, err := fetchAgentCard(svc)
 	if err != nil {
 		logger.Info("failed to fetch agent card", "error", err.Error())
-		return ctrl.Result{}, nil
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 	card.SkillsNames = card.Skills.SkillsNames()
 
@@ -172,6 +172,12 @@ func buildA2ADeployment(a2a *v1alpha1.A2A) *appsv1.Deployment {
 	labels := map[string]string{
 		"app": a2a.Name,
 	}
+
+	var env []corev1.EnvVar
+	if a2a.Spec.Env != nil {
+		env = *a2a.Spec.Env
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      a2a.Name,
@@ -185,6 +191,7 @@ func buildA2ADeployment(a2a *v1alpha1.A2A) *appsv1.Deployment {
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
+						Env:   env,
 						Name:  "agent",
 						Image: a2a.Spec.Image,
 						Ports: []corev1.ContainerPort{{
