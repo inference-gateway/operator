@@ -19,10 +19,21 @@ spec:
       jsonPath: .status.card.version
       name: VERSION
       type: string
-    - description: Skills of the A2A resource
-      jsonPath: .status.card.skillsNames
-      name: SKILLS
-      priority: 1
+    - description: URL of the A2A resource
+      jsonPath: .status.card.url
+      name: URL
+      type: string
+    - description: Streaming Capability of the A2A resource
+      jsonPath: .status.card.capabilities.streaming
+      name: STREAMING
+      type: string
+    - description: Push Notifications Capability of the A2A resource
+      jsonPath: .status.card.capabilities.pushNotifications
+      name: PUSH NOTIFICATIONS
+      type: string
+    - description: State Transition History Capability of the A2A resource
+      jsonPath: .status.card.capabilities.stateTransitionHistory
+      name: STATE TRANSITION HISTORY
       type: string
     - description: Age of the resource
       jsonPath: .metadata.creationTimestamp

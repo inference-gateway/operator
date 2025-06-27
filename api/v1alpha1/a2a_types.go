@@ -190,7 +190,10 @@ type A2AStatus struct {
 }
 
 // +kubebuilder:printcolumn:name="VERSION",type=string,JSONPath=".status.card.version",description="Version of the A2A resource"
-// +kubebuilder:printcolumn:name="SKILLS",type=string,JSONPath=".status.card.skillsNames",description="Skills of the A2A resource",priority=1
+// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=".status.card.url",description="URL of the A2A resource"
+// +kubebuilder:printcolumn:name="STREAMING",type=string,JSONPath=".status.card.capabilities.streaming",description="Streaming Capability of the A2A resource"
+// +kubebuilder:printcolumn:name="PUSH NOTIFICATIONS",type=string,JSONPath=".status.card.capabilities.pushNotifications",description="Push Notifications Capability of the A2A resource"
+// +kubebuilder:printcolumn:name="STATE TRANSITION HISTORY",type=string,JSONPath=".status.card.capabilities.stateTransitionHistory",description="State Transition History Capability of the A2A resource"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
