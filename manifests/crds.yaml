@@ -16,11 +16,11 @@ spec:
   - additionalPrinterColumns:
     - description: Version of the A2A resource
       jsonPath: .status.card.version
-      name: Version
+      name: VERSION
       type: string
     - description: Skills of the A2A resource
       jsonPath: .status.card.skillsNames
-      name: Skills
+      name: SKILLS
       priority: 1
       type: string
     - description: Age of the resource

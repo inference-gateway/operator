@@ -41,7 +41,6 @@ import (
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
@@ -65,12 +64,12 @@ func (r *A2AReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, nil
 	}
 
-	var a2a corev1alpha1.A2A
+	var a2a v1alpha1.A2A
 	if err := r.Get(ctx, req.NamespacedName, &a2a); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !a2a.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !a2a.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, nil
 	}
 
@@ -126,12 +125,8 @@ func (r *A2AReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	return ctrl.Result{}, nil
 }
 
-type agentMeta struct {
-	Version string `json:"version"`
-}
-
 // buildA2AService returns a Service for the given A2A resource.
-func buildA2AService(a2a *corev1alpha1.A2A) *corev1.Service {
+func buildA2AService(a2a *v1alpha1.A2A) *corev1.Service {
 	labels := map[string]string{
 		"app": a2a.Name,
 	}
@@ -173,7 +168,7 @@ func fetchAgentCard(svc *corev1.Service) (*v1alpha1.Card, error) {
 }
 
 // buildA2ADeployment returns a Deployment for the given A2A resource.
-func buildA2ADeployment(a2a *corev1alpha1.A2A) *appsv1.Deployment {
+func buildA2ADeployment(a2a *v1alpha1.A2A) *appsv1.Deployment {
 	labels := map[string]string{
 		"app": a2a.Name,
 	}
@@ -235,7 +230,7 @@ func (r *A2AReconciler) shouldWatchNamespace(ctx context.Context, namespace stri
 // SetupWithManager sets up the controller with the Manager.
 func (r *A2AReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&corev1alpha1.A2A{}).
+		For(&v1alpha1.A2A{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Named("a2a").
