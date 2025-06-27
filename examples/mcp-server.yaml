@@ -22,6 +22,10 @@ spec:
     port: 8081
   tls:
     enabled: false
+    secretName: mcp-tls-secret
   ingress:
     enabled: false
     host: "mcp.example.com"
+    tls:
+      enabled: false
+      secretName: mcp-tls-secret
