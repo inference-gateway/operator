@@ -15,8 +15,13 @@ spec:
   versions:
   - additionalPrinterColumns:
     - description: Version of the A2A resource
-      jsonPath: .status.version
+      jsonPath: .status.card.version
       name: Version
+      type: string
+    - description: Skills of the A2A resource
+      jsonPath: .status.card.skillsNames
+      name: Skills
+      priority: 1
       type: string
     - description: Age of the resource
       jsonPath: .metadata.creationTimestamp
@@ -112,51 +117,6 @@ spec:
                 - maxConversationHistory
                 - maxRetries
                 - tls
-                type: object
-              card:
-                properties:
-                  capabilities:
-                    properties:
-                      pushNotifications:
-                        type: boolean
-                      stateTransitionHistory:
-                        type: boolean
-                      streaming:
-                        type: boolean
-                    required:
-                    - pushNotifications
-                    - stateTransitionHistory
-                    - streaming
-                    type: object
-                  defaultInputModes:
-                    items:
-                      type: string
-                    type: array
-                  defaultOutputModes:
-                    items:
-                      type: string
-                    type: array
-                  description:
-                    type: string
-                  documentationUrl:
-                    type: string
-                  name:
-                    type: string
-                  skills:
-                    items:
-                      type: string
-                    type: array
-                  url:
-                    type: string
-                required:
-                - capabilities
-                - defaultInputModes
-                - defaultOutputModes
-                - description
-                - documentationUrl
-                - name
-                - skills
-                - url
                 type: object
               env:
                 description: Environment variables for the provider
@@ -353,7 +313,6 @@ spec:
                 type: string
             required:
             - agent
-            - card
             - host
             - idleTimeout
             - image
@@ -369,6 +328,90 @@ spec:
           status:
             description: A2AStatus defines the observed state of A2A.
             properties:
+              card:
+                description: Card indicates the version of the A2A resource.
+                properties:
+                  capabilities:
+                    properties:
+                      pushNotifications:
+                        type: boolean
+                      stateTransitionHistory:
+                        type: boolean
+                      streaming:
+                        type: boolean
+                    required:
+                    - pushNotifications
+                    - stateTransitionHistory
+                    - streaming
+                    type: object
+                  defaultInputModes:
+                    items:
+                      type: string
+                    type: array
+                  defaultOutputModes:
+                    items:
+                      type: string
+                    type: array
+                  description:
+                    type: string
+                  documentationUrl:
+                    description: DocumentationURL is an optional field that provides
+                      a URL to the documentation for the A2A.
+                    type: string
+                  name:
+                    type: string
+                  skills:
+                    items:
+                      properties:
+                        description:
+                          type: string
+                        examples:
+                          items:
+                            type: string
+                          type: array
+                        id:
+                          type: string
+                        inputModes:
+                          items:
+                            type: string
+                          type: array
+                        name:
+                          type: string
+                        outputModes:
+                          items:
+                            type: string
+                          type: array
+                        tags:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - description
+                      - examples
+                      - id
+                      - inputModes
+                      - name
+                      - outputModes
+                      - tags
+                      type: object
+                    type: array
+                  skillsNames:
+                    description: Comma separated string of skill names.
+                    type: string
+                  url:
+                    type: string
+                  version:
+                    type: string
+                required:
+                - capabilities
+                - defaultInputModes
+                - defaultOutputModes
+                - description
+                - name
+                - skills
+                - url
+                - version
+                type: object
               conditions:
                 description: Conditions represent the latest available observations
                   of the resource's state.
@@ -440,9 +483,6 @@ spec:
               ready:
                 description: Ready indicates if the resource is ready.
                 type: boolean
-              version:
-                description: Version indicates the version of the A2A resource.
-                type: string
             type: object
         type: object
     served: true

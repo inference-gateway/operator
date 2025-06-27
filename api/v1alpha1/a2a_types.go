@@ -23,6 +23,9 @@ SOFTWARE.
 package v1alpha1
 
 import (
+	"encoding/json"
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -41,7 +44,6 @@ type A2ASpec struct {
 	Queue        QueueSpec     `json:"queue"`
 	TLS          TLSSpec       `json:"tls"`
 	Agent        AgentSpec     `json:"agent"`
-	Card         CardSpec      `json:"card"`
 
 	// Environment variables for the provider
 	// +optional
@@ -91,15 +93,74 @@ type HeaderSpec struct {
 	Value string `json:"value"`
 }
 
-type CardSpec struct {
-	Name               string           `json:"name"`
-	Description        string           `json:"description"`
-	URL                string           `json:"url"`
-	DefaultInputModes  []string         `json:"defaultInputModes"`
-	DefaultOutputModes []string         `json:"defaultOutputModes"`
-	DocumentationURL   string           `json:"documentationUrl"`
-	Capabilities       CapabilitiesSpec `json:"capabilities"`
-	Skills             []string         `json:"skills"`
+type Skill struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Examples    []string `json:"examples"`
+	InputModes  []string `json:"inputModes"`
+	OutputModes []string `json:"outputModes"`
+	Tags        []string `json:"tags"`
+}
+
+type SkillsList []Skill
+
+func (s *SkillsList) UnmarshalJSON(data []byte) error {
+	var arr []Skill
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*s = arr
+		return nil
+	}
+
+	var single Skill
+	if err := json.Unmarshal(data, &single); err == nil {
+		*s = []Skill{single}
+		return nil
+	}
+	return fmt.Errorf("skills must be a Skill object or array of Skill objects")
+}
+
+// SkillsNames returns a comma-separated string of skill names.
+func (s SkillsList) SkillsNames() string {
+	if len(s) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(s))
+	for _, skill := range s {
+		names = append(names, skill.Name)
+	}
+	return joinComma(names)
+}
+
+// joinComma joins a slice of strings with a comma and a space.
+func joinComma(items []string) string {
+	result := ""
+	for i, item := range items {
+		if i > 0 {
+			result += ", "
+		}
+		result += item
+	}
+	return result
+}
+
+type Card struct {
+	Name               string   `json:"name"`
+	Version            string   `json:"version"`
+	Description        string   `json:"description"`
+	URL                string   `json:"url"`
+	DefaultInputModes  []string `json:"defaultInputModes"`
+	DefaultOutputModes []string `json:"defaultOutputModes"`
+
+	// DocumentationURL is an optional field that provides a URL to the documentation for the A2A.
+	// +optional
+	DocumentationURL string `json:"documentationUrl,omitempty"`
+
+	Capabilities CapabilitiesSpec `json:"capabilities"`
+	Skills       SkillsList       `json:"skills"`
+
+	// Comma separated string of skill names.
+	SkillsNames string `json:"skillsNames,omitempty"`
 }
 
 type CapabilitiesSpec struct {
@@ -123,12 +184,13 @@ type A2AStatus struct {
 	// +optional
 	Ready bool `json:"ready,omitempty"`
 
-	// Version indicates the version of the A2A resource.
+	// Card indicates the version of the A2A resource.
 	// +optional
-	Version string `json:"version,omitempty"`
+	Card Card `json:"card,omitempty"`
 }
 
-// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=".status.version",description="Version of the A2A resource"
+// +kubebuilder:printcolumn:name="VERSION",type=string,JSONPath=".status.card.version",description="Version of the A2A resource"
+// +kubebuilder:printcolumn:name="SKILLS",type=string,JSONPath=".status.card.skillsNames",description="Skills of the A2A resource",priority=1
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

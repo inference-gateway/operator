@@ -42,6 +42,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
 // A2AReconciler reconciles a A2A object
@@ -108,31 +109,20 @@ func (r *A2AReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		logger.Info("created service", "name", svcName)
 	}
 
-	agentURL := ""
-	if a2a.Spec.Card.URL != "" {
-		agentURL = a2a.Spec.Card.URL
-	} else {
-		logger.Info("card.url not set, skipping version update")
-		return ctrl.Result{}, nil
-	}
-
-	version, err := fetchAgentVersion(agentURL)
+	card, err := fetchAgentCard(svc)
 	if err != nil {
-		logger.Info("failed to fetch agent version", "error", err.Error())
+		logger.Info("failed to fetch agent card", "error", err.Error())
 		return ctrl.Result{}, nil
 	}
-
-	if a2a.Status.Version == version {
-		return ctrl.Result{}, nil
-	}
+	card.SkillsNames = card.Skills.SkillsNames()
 
 	patch := client.MergeFrom(a2a.DeepCopy())
-	a2a.Status.Version = version
+	a2a.Status.Card = *card
 	if err := r.Status().Patch(ctx, &a2a, patch); err != nil {
-		logger.Error(err, "unable to update a2a status.version")
+		logger.Error(err, "unable to update a2a status.card")
 		return ctrl.Result{}, err
 	}
-	logger.Info("updated a2a status.version", "version", version)
+	logger.Info("updated a2a status.card", "version", card.Version)
 	return ctrl.Result{}, nil
 }
 
@@ -162,25 +152,24 @@ func buildA2AService(a2a *corev1alpha1.A2A) *corev1.Service {
 	}
 }
 
-// fetchAgentVersion retrieves the agent version from the given base URL.
-func fetchAgentVersion(baseURL string) (string, error) {
+// fetchAgentCard retrieves the agent card from the given base URL and unmarshals it into an A2ACard.
+func fetchAgentCard(svc *corev1.Service) (*v1alpha1.Card, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(baseURL + "/.well-known/agent.json")
+	resp, err := client.Get("http://" + svc.Name + "." + svc.Namespace + ".svc.cluster.local:8080" + "/.well-known/agent.json")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
-		return "", errors.New("unexpected status: " + resp.Status)
+		return nil, errors.New("unexpected status: " + resp.Status)
 	}
-	var meta agentMeta
-	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
-		return "", err
+	var card v1alpha1.Card
+	if err := json.NewDecoder(resp.Body).Decode(&card); err != nil {
+		return nil, err
 	}
-	if meta.Version == "" {
-		return "", errors.New("version not found in agent.json")
-	}
-	return meta.Version, nil
+	return &card, nil
 }
 
 // buildA2ADeployment returns a Deployment for the given A2A resource.

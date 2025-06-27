@@ -111,20 +111,6 @@ var _ = Describe("A2A Controller", func() {
 								SystemPrompt: "You are a helpful assistant.",
 							},
 						},
-						Card: corev1alpha1.CardSpec{
-							Name:               "Test Card",
-							Description:        "Card description",
-							URL:                "http://example.com",
-							DocumentationURL:   "http://example.com/docs",
-							DefaultInputModes:  []string{"text", "image"},
-							DefaultOutputModes: []string{"text", "image"},
-							Skills:             []string{"summarize", "translate"},
-							Capabilities: corev1alpha1.CapabilitiesSpec{
-								Streaming:              true,
-								StateTransitionHistory: false,
-								PushNotifications:      true,
-							},
-						},
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
