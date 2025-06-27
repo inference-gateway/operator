@@ -1,0 +1,9 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: MCP
+metadata:
+  labels:
+    app.kubernetes.io/name: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: mcp-sample
+spec:
+  # TODO(user): Add fields here

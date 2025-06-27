@@ -55,6 +55,7 @@ rules:
     resources:
       - a2as
       - gateways
+      - mcps
     verbs:
       - create
       - delete
@@ -68,6 +69,7 @@ rules:
     resources:
       - a2as/finalizers
       - gateways/finalizers
+      - mcps/finalizers
     verbs:
       - update
   - apiGroups:
@@ -75,6 +77,7 @@ rules:
     resources:
       - a2as/status
       - gateways/status
+      - mcps/status
     verbs:
       - get
       - patch

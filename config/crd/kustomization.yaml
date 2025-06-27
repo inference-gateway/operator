@@ -4,8 +4,8 @@
 resources:
   - bases/core.inference-gateway.com_gateways.yaml
   - bases/core.inference-gateway.com_a2as.yaml
-# +kubebuilder:scaffold:crdkustomizeresource
-
+  - bases/core.inference-gateway.com_mcps.yaml
+  # +kubebuilder:scaffold:crdkustomizeresource
 # patches:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD

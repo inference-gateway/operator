@@ -927,70 +927,10 @@ spec:
               mcp:
                 description: MCP (Model Context Protocol) configuration
                 properties:
-                  enabled:
-                    default: false
-                    description: Enable MCP integration
-                    type: boolean
-                  expose:
-                    default: false
-                    description: Expose MCP endpoints externally
-                    type: boolean
-                  servers:
-                    description: MCP servers configuration
-                    items:
-                      description: MCPServer contains MCP server configuration
-                      properties:
-                        healthCheck:
-                          description: Health check configuration
-                          properties:
-                            enabled:
-                              default: true
-                              description: Enable health checks
-                              type: boolean
-                            interval:
-                              default: 30s
-                              description: Health check interval
-                              type: string
-                            path:
-                              default: /health
-                              description: Health check path
-                              type: string
-                          type: object
-                        name:
-                          description: Server name
-                          type: string
-                        url:
-                          description: Server URL
-                          type: string
-                      required:
-                      - name
-                      - url
-                      type: object
-                    type: array
-                  timeouts:
-                    description: MCP client timeouts
-                    properties:
-                      client:
-                        default: 10s
-                        description: Client timeout
-                        type: string
-                      dial:
-                        default: 5s
-                        description: Dial timeout
-                        type: string
-                      request:
-                        default: 10s
-                        description: Request timeout
-                        type: string
-                      responseHeader:
-                        default: 5s
-                        description: Response header timeout
-                        type: string
-                      tlsHandshake:
-                        default: 5s
-                        description: TLS handshake timeout
-                        type: string
-                    type: object
+                  foo:
+                    description: Foo is an example field of MCP. Edit mcp_types.go
+                      to remove/update
+                    type: string
                 type: object
               providers:
                 description: Provider configurations for AI/ML backends

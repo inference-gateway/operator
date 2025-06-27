@@ -2,4 +2,5 @@
 resources:
   - core_v1alpha1_gateway.yaml
   - core_v1alpha1_a2a.yaml
+  - core_v1alpha1_mcp.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples
