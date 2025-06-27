@@ -70,7 +70,7 @@ The operator follows cloud-native best practices and provides a unified control 
 - [🔄 Upgrade](#-upgrade)
 - [🗑️ Uninstallation](#️-uninstallation)
 - [🏗️ Supported Architectures](#️-supported-architectures)
-- [�📋 API Overview](#-api-overview)
+- [📋 API Overview](#-api-overview)
 - [⚙️ Configuration Examples](#️-configuration-examples)
 - [❓ Frequently Asked Questions](#-frequently-asked-questions)
 - [🏗️ Development](#️-development)
