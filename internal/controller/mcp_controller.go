@@ -24,6 +24,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 
@@ -81,7 +82,16 @@ func (r *MCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 }
 
 func (r *MCPReconciler) reconcileDeployment(ctx context.Context, mcp *v1alpha1.MCP) (*appsv1.Deployment, error) {
+	logger := logf.FromContext(ctx)
+	if mcp == nil {
+		logger.Error(nil, "MCP is nil, cannot reconcile deployment")
+		return nil, fmt.Errorf("MCP is nil")
+	}
+
 	deployment := r.buildDeployment(mcp)
+	if deployment == nil {
+		return nil, fmt.Errorf("failed to build deployment for MCP %s/%s", mcp.Namespace, mcp.Name)
+	}
 
 	if err := controllerutil.SetControllerReference(mcp, deployment, r.Scheme); err != nil {
 		return nil, err
@@ -91,6 +101,29 @@ func (r *MCPReconciler) reconcileDeployment(ctx context.Context, mcp *v1alpha1.M
 }
 
 func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
+	if mcp == nil {
+		return nil
+	}
+
+	const defaultImage = "node:lts"
+	const defaultPort int32 = 3000
+
+	image := mcp.Spec.Image
+	if image == "" {
+		image = defaultImage
+	}
+
+	port := defaultPort
+	if mcp.Spec.Server != nil {
+		if mcp.Spec.Server.Port != 0 {
+			port = mcp.Spec.Server.Port
+		}
+	}
+
+	pkg := mcp.Spec.Package
+	if pkg == "" {
+		pkg = "mcp-default-package"
+	}
 
 	deployment := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -120,44 +153,41 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 		},
 	}
 
-	if mcp.Spec.HPA == nil {
-		deployment.Spec.Replicas = &mcp.Spec.Replicas
-	} else {
-		deployment.Spec.Replicas = nil
+	if mcp.Spec.Replicas != nil && mcp.Spec.HPA == nil {
+		deployment.Spec.Replicas = mcp.Spec.Replicas
 	}
 
-	containers := []corev1.Container{
-		{
-			Name:  "mcp",
-			Image: mcp.Spec.Image,
-			Ports: []corev1.ContainerPort{
-				{
-					Name:          "http",
-					ContainerPort: mcp.Spec.Server.Port,
-				},
+	container := corev1.Container{
+		Name:  "mcp",
+		Image: image,
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          "http",
+				ContainerPort: port,
 			},
-			Env: []corev1.EnvVar{
-				{
-					Name:  "MCP_NAME",
-					Value: mcp.Name,
-				},
-				{
-					Name:  "MCP_NAMESPACE",
-					Value: mcp.Namespace,
-				},
+		},
+		Env: []corev1.EnvVar{
+			{
+				Name:  "MCP_NAME",
+				Value: mcp.Name,
 			},
-			Command: []string{"npx"},
-			Args: []string{
-				"-y",
-				mcp.Spec.Package,
-				"--port",
-				string(mcp.Spec.Server.Port),
+			{
+				Name:  "MCP_NAMESPACE",
+				Value: mcp.Namespace,
 			},
+		},
+		Command: []string{"npx"},
+		Args: []string{
+			"-y",
+			pkg,
+			"--port",
+			fmt.Sprintf("%d", port),
 		},
 	}
 
+	containers := []corev1.Container{container}
+
 	if mcp.Spec.Bridge != nil {
-		// TODO - need to implement the bridge container, should probably receive the stdio command and create a streamable MCP server
 		containers = append(containers, corev1.Container{
 			Name:  "bridge",
 			Image: "ghcr.io/inference-gateway/bridge:latest",
@@ -172,7 +202,6 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 	}
 
 	deployment.Spec.Template.Spec.Containers = containers
-
 	return &deployment
 }
 
@@ -182,7 +211,6 @@ func (r *MCPReconciler) createOrUpdateDeployment(ctx context.Context, mcp *v1alp
 	found := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
-		deployment := r.buildDeployment(mcp)
 		logger.Info("creating deployment", "Deployment.Name", deployment.Name)
 		if err = r.Create(ctx, deployment); err != nil {
 			return nil, err

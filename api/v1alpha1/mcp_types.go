@@ -31,7 +31,7 @@ type MCPSpec struct {
 	// Replicas is the number of replicas for the MCP server.
 	// +kubebuilder:default=1
 	// +optional
-	Replicas int32 `json:"replicas,omitempty"`
+	Replicas *int32 `json:"replicas,omitempty"`
 
 	// Image is the container image to use for the MCP server.
 	// +optional
