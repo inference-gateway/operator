@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0](https://github.com/inference-gateway/operator/compare/v0.7.0...v0.8.0) (2025-06-27)
+
+### ✨ Features
+
+* Add A2AServer custom resource and controller ([#4](https://github.com/inference-gateway/operator/issues/4)) ([27d0161](https://github.com/inference-gateway/operator/commit/27d0161d8b8eb1ed0e13411463bc0f1f5d7b8b1b))
+
 ## [0.7.0](https://github.com/inference-gateway/operator/compare/v0.6.0...v0.7.0) (2025-06-26)
 
 ### ✨ Features
