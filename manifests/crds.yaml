@@ -1429,10 +1429,70 @@ spec:
               mcp:
                 description: MCP (Model Context Protocol) configuration
                 properties:
-                  foo:
-                    description: Foo is an example field of MCP. Edit mcp_types.go
-                      to remove/update
-                    type: string
+                  enabled:
+                    default: false
+                    description: Enable MCP integration
+                    type: boolean
+                  expose:
+                    default: false
+                    description: Expose MCP endpoints externally
+                    type: boolean
+                  servers:
+                    description: MCP servers configuration
+                    items:
+                      description: MCPServer contains MCP server configuration
+                      properties:
+                        healthCheck:
+                          description: Health check configuration
+                          properties:
+                            enabled:
+                              default: true
+                              description: Enable health checks
+                              type: boolean
+                            interval:
+                              default: 30s
+                              description: Health check interval
+                              type: string
+                            path:
+                              default: /health
+                              description: Health check path
+                              type: string
+                          type: object
+                        name:
+                          description: Server name
+                          type: string
+                        url:
+                          description: Server URL
+                          type: string
+                      required:
+                      - name
+                      - url
+                      type: object
+                    type: array
+                  timeouts:
+                    description: MCP client timeouts
+                    properties:
+                      client:
+                        default: 10s
+                        description: Client timeout
+                        type: string
+                      dial:
+                        default: 5s
+                        description: Dial timeout
+                        type: string
+                      request:
+                        default: 10s
+                        description: Request timeout
+                        type: string
+                      responseHeader:
+                        default: 5s
+                        description: Response header timeout
+                        type: string
+                      tlsHandshake:
+                        default: 5s
+                        description: TLS handshake timeout
+                        type: string
+                    type: object
                 type: object
               providers:
                 description: Provider configurations for AI/ML backends
@@ -1862,10 +1922,186 @@ spec:
           spec:
             description: MCPSpec defines the desired state of MCP.
             properties:
-              foo:
-                description: Foo is an example field of MCP. Edit mcp_types.go to
-                  remove/update
+              bridge:
+                description: Bridge is an optional side-car container that allows
+                  to use an MCP server that natively supports only STDIO as a streamable
+                  http webserver.
+                properties:
+                  create:
+                    default: true
+                    description: Create indicates whether to create a bridge sidecar
+                      container.
+                    type: boolean
+                  port:
+                    default: 8081
+                    description: Port is the port on which the bridge listens.
+                    format: int32
+                    type: integer
+                type: object
+              image:
+                description: Image is the container image to use for the MCP server.
                 type: string
+              ingress:
+                description: Ingress defines the ingress configuration for the MCP
+                  server.
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: Ingress annotations
+                    type: object
+                  className:
+                    description: Ingress class name
+                    type: string
+                  enabled:
+                    default: false
+                    description: Enable ingress
+                    type: boolean
+                  host:
+                    description: |-
+                      Simple host configuration (alternative to hosts array)
+                      When specified, this will be used as the primary host with automatic TLS and path configuration
+                    type: string
+                  hosts:
+                    description: |-
+                      Ingress hosts configuration (advanced usage)
+                      Use 'host' field for simple single-host configuration
+                    items:
+                      description: IngressHost contains ingress host configuration
+                      properties:
+                        host:
+                          description: Host name
+                          type: string
+                        paths:
+                          description: Paths configuration
+                          items:
+                            description: IngressPath contains ingress path configuration
+                            properties:
+                              path:
+                                description: Path
+                                type: string
+                              pathType:
+                                default: Prefix
+                                description: Path type
+                                enum:
+                                - Exact
+                                - Prefix
+                                - ImplementationSpecific
+                                type: string
+                            required:
+                            - path
+                            type: object
+                          type: array
+                      required:
+                      - host
+                      type: object
+                    type: array
+                  tls:
+                    description: TLS configuration
+                    properties:
+                      config:
+                        description: Advanced TLS configuration (alternative to simple
+                          config above)
+                        items:
+                          description: IngressTLS contains ingress TLS configuration
+                          properties:
+                            hosts:
+                              description: Hosts covered by the certificate
+                              items:
+                                type: string
+                              type: array
+                            secretName:
+                              description: Secret name containing TLS certificate
+                              type: string
+                          required:
+                          - secretName
+                          type: object
+                        type: array
+                      enabled:
+                        default: true
+                        description: Enable TLS for ingress
+                        type: boolean
+                      issuer:
+                        description: |-
+                          Certificate issuer for cert-manager (automatically sets annotation)
+                          Examples: "letsencrypt-prod", "letsencrypt-staging", "selfsigned-issuer"
+                        type: string
+                      secretName:
+                        description: Secret name for TLS certificate (auto-generated
+                          if not specified)
+                        type: string
+                    type: object
+                type: object
+              server:
+                description: Server defines the configuration for the MCP server.
+                properties:
+                  port:
+                    default: 8080
+                    description: Port is the port on which the MCP server listens.
+                    format: int32
+                    type: integer
+                  timeout:
+                    default: 30s
+                    description: Timeout is the timeout for the MCP server.
+                    type: string
+                type: object
+              tls:
+                description: TLS defines the TLS configuration for the MCP server.
+                properties:
+                  certificateRef:
+                    description: Reference to a secret containing the TLS certificate
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  enabled:
+                    default: false
+                    description: Enable TLS
+                    type: boolean
+                  keyRef:
+                    description: Reference to a secret containing the TLS private
+                      key
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
             type: object
           status:
             description: MCPStatus defines the observed state of MCP.

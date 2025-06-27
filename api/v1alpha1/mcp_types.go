@@ -26,16 +26,50 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // MCPSpec defines the desired state of MCP.
 type MCPSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Image is the container image to use for the MCP server.
+	// +kubebuilder:Required
+	Image string `json:"image,omitempty"`
 
-	// Foo is an example field of MCP. Edit mcp_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Server defines the configuration for the MCP server.
+	// +optional
+	Server *MCPServerSpec `json:"server,omitempty"`
+
+	// Bridge is an optional side-car container that allows to use an MCP server that natively supports only STDIO as a streamable http webserver.
+	Bridge *MCPBridgeSpec `json:"bridge,omitempty"`
+
+	// TLS defines the TLS configuration for the MCP server.
+	// +optional
+	TLS *TLSConfig `json:"tls,omitempty"`
+
+	// Ingress defines the ingress configuration for the MCP server.
+	// +optional
+	Ingress *IngressSpec `json:"ingress,omitempty"`
+}
+
+type MCPBridgeSpec struct {
+	// Create indicates whether to create a bridge sidecar container.
+	// +kubebuilder:default=true
+	// +optional
+	Create bool `json:"create,omitempty"`
+
+	// Port is the port on which the bridge listens.
+	// +kubebuilder:default=8081
+	// +optional
+	Port int32 `json:"port,omitempty"`
+}
+
+type MCPServerSpec struct {
+	// Port is the port on which the MCP server listens.
+	// +kubebuilder:default=8080
+	// +optional
+	Port int32 `json:"port,omitempty"`
+
+	// Timeout is the timeout for the MCP server.
+	// +kubebuilder:default="30s"
+	// +optional
+	Timeout string `json:"timeout,omitempty"`
 }
 
 // MCPStatus defines the observed state of MCP.
