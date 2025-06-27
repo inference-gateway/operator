@@ -140,7 +140,7 @@ func buildA2AService(a2a *v1alpha1.A2A) *corev1.Service {
 			Selector: labels,
 			Ports: []corev1.ServicePort{{
 				Name:       "http",
-				Port:       8080,
+				Port:       8080, // TODO - remove hardcoded port to a config
 				TargetPort: intstrFromInt(8080),
 			}},
 		},
