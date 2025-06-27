@@ -133,7 +133,6 @@ var _ = Describe("MCP Controller", func() {
 		}
 
 		for _, tc := range cases {
-			tc := tc
 			It("should handle "+tc.name, func() {
 				safeName := func(s string) string {
 					name := "test-" + s
