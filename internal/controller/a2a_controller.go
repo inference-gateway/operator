@@ -185,7 +185,6 @@ func buildA2ADeployment(a2a *v1alpha1.A2A) *appsv1.Deployment {
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Env:   *a2a.Spec.Env,
 						Name:  "agent",
 						Image: a2a.Spec.Image,
 						Ports: []corev1.ContainerPort{{
