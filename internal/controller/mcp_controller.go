@@ -32,15 +32,13 @@ import (
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	log "sigs.k8s.io/controller-runtime/pkg/log"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
@@ -179,11 +177,12 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 }
 
 func (r *MCPReconciler) createOrUpdateDeployment(ctx context.Context, mcp *v1alpha1.MCP, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	logger := log.FromContext(ctx)
+	logger := logf.FromContext(ctx)
 
 	found := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
+		deployment := r.buildDeployment(mcp)
 		logger.Info("creating deployment", "Deployment.Name", deployment.Name)
 		if err = r.Create(ctx, deployment); err != nil {
 			return nil, err
@@ -196,8 +195,8 @@ func (r *MCPReconciler) createOrUpdateDeployment(ctx context.Context, mcp *v1alp
 	return r.updateDeploymentIfNeeded(ctx, mcp, deployment, found)
 }
 
-func (r *MCPReconciler) updateDeploymentIfNeeded(ctx context.Context, mcp *v1alpha1.MCP, deployment *appsv1.Deployment, found *appsv1.Deployment) (*appsv1.Deployment, error) {
-	logger := log.FromContext(ctx)
+func (r *MCPReconciler) updateDeploymentIfNeeded(ctx context.Context, _ *v1alpha1.MCP, deployment *appsv1.Deployment, found *appsv1.Deployment) (*appsv1.Deployment, error) {
+	logger := logf.FromContext(ctx)
 
 	if reflect.DeepEqual(&deployment.Spec, &found.Spec) {
 		logger.V(1).Info("deployment up-to-date, no update needed", "Deployment.Name", found.Name)
@@ -243,7 +242,7 @@ func (r *MCPReconciler) shouldWatchNamespace(ctx context.Context, namespace stri
 // SetupWithManager sets up the controller with the Manager.
 func (r *MCPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&corev1alpha1.MCP{}).
+		For(&v1alpha1.MCP{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Named("mcp").
