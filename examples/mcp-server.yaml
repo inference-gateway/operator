@@ -1,0 +1,27 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mcp
+  labels:
+    inference-gateway.com/managed: "true"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: MCP
+metadata:
+  name: mcp-playwright
+  namespace: mcp
+spec:
+  image: "ghcr.io/inference-gateway/playwright-mcp:latest"
+  server:
+    port: 8080
+    timeout: "30s"
+  # Bridge is an optional side-car container that allows to use an MCP server that natively supports only STDIO as a webserver.
+  bridge:
+    create: true
+    port: 8081
+  tls:
+    enabled: false
+  ingress:
+    enabled: false
+    host: "mcp.example.com"
