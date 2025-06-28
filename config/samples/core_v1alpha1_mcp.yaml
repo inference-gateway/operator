@@ -1,0 +1,19 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: MCP
+metadata:
+  labels:
+    app.kubernetes.io/name: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: mcp-sample
+spec:
+  replicas: 2
+  image: "my-mcp-server:latest"
+  server:
+    port: 8080
+    command: ["/usr/local/bin/mcp-server"]
+    args: ["--port", "8080"]
+    timeout: "30s"
+    tls:
+      enabled: false
+  hpa:
+    enabled: false

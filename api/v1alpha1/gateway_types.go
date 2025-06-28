@@ -67,7 +67,7 @@ type GatewaySpec struct {
 
 	// MCP (Model Context Protocol) configuration
 	// +optional
-	MCP *MCPSpec `json:"mcp,omitempty"`
+	MCP *MCPServersSpec `json:"mcp,omitempty"`
 
 	// A2A (Agent-to-Agent) configuration
 	// +optional
@@ -272,8 +272,8 @@ type ProviderSpec struct {
 	Env *[]corev1.EnvVar `json:"env,omitempty"`
 }
 
-// MCPSpec contains Model Context Protocol configuration
-type MCPSpec struct {
+// MCPServersSpec contains Model Context Protocol configuration
+type MCPServersSpec struct {
 	// Enable MCP integration
 	// +optional
 	// +kubebuilder:default=false
