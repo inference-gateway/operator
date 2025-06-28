@@ -108,6 +108,13 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 	const defaultImage = "node:lts"
 	const defaultPort int32 = 3000
 
+	envVars := []corev1.EnvVar{
+		{
+			Name:  "SERVER_HOST",
+			Value: "0.0.0.0",
+		},
+	}
+
 	image := mcp.Spec.Image
 	if image == "" {
 		image = defaultImage
@@ -120,9 +127,38 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 		}
 	}
 
-	pkg := mcp.Spec.Package
-	if pkg == "" {
-		pkg = "mcp-default-package"
+	volumes := []corev1.Volume{}
+	volumeMounts := []corev1.VolumeMount{}
+	if mcp.Spec.Server != nil {
+		if mcp.Spec.Server.Port != 0 {
+			envVars = append(envVars, corev1.EnvVar{
+				Name:  "SERVER_PORT",
+				Value: fmt.Sprintf("%d", port),
+			})
+		}
+
+		if mcp.Spec.Server.TLS != nil && mcp.Spec.Server.TLS.Enabled && mcp.Spec.Server.TLS.SecretName != "" {
+			volumes = append(volumes, corev1.Volume{
+				Name: mcp.Spec.Server.TLS.SecretName + "-volume",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: mcp.Spec.Server.TLS.SecretName,
+					},
+				},
+			})
+			volumeMount := corev1.VolumeMount{
+				Name:      mcp.Spec.Server.TLS.SecretName + "-volume",
+				MountPath: "/etc/tls",
+				ReadOnly:  true,
+			}
+			volumeMounts = append(volumeMounts, volumeMount)
+
+		}
+	}
+
+	command := []string{"/mcp-server"}
+	if mcp.Spec.Server != nil && mcp.Spec.Server.Command != "" {
+		command = append(command, mcp.Spec.Server.Command)
 	}
 
 	deployment := appsv1.Deployment{
@@ -145,7 +181,10 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 						"app": mcp.Name,
 					},
 				},
-				Spec: corev1.PodSpec{},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{},
+					Volumes:    volumes,
+				},
 			},
 			Strategy: appsv1.DeploymentStrategy{
 				Type: appsv1.RollingUpdateDeploymentStrategyType,
@@ -157,7 +196,8 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 		deployment.Spec.Replicas = mcp.Spec.Replicas
 	}
 
-	container := corev1.Container{
+	containers := []corev1.Container{}
+	containers = append(containers, corev1.Container{
 		Name:  "mcp",
 		Image: image,
 		Ports: []corev1.ContainerPort{
@@ -166,40 +206,10 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 				ContainerPort: port,
 			},
 		},
-		Env: []corev1.EnvVar{
-			{
-				Name:  "MCP_NAME",
-				Value: mcp.Name,
-			},
-			{
-				Name:  "MCP_NAMESPACE",
-				Value: mcp.Namespace,
-			},
-		},
-		Command: []string{"npx"},
-		Args: []string{
-			"-y",
-			pkg,
-			"--port",
-			fmt.Sprintf("%d", port),
-		},
-	}
-
-	containers := []corev1.Container{container}
-
-	if mcp.Spec.Bridge != nil {
-		containers = append(containers, corev1.Container{
-			Name:  "bridge",
-			Image: "ghcr.io/inference-gateway/bridge:latest",
-			Ports: []corev1.ContainerPort{
-				{
-					Name:          "http",
-					ContainerPort: mcp.Spec.Bridge.Port,
-				},
-			},
-			Env: []corev1.EnvVar{},
-		})
-	}
+		VolumeMounts: volumeMounts,
+		Env:          envVars,
+		Command:      command,
+	})
 
 	deployment.Spec.Template.Spec.Containers = containers
 	return &deployment

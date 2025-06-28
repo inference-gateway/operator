@@ -38,20 +38,9 @@ type MCPSpec struct {
 	// +kubebuilder:default="node:lts"
 	Image string `json:"image,omitempty"`
 
-	// Package is the package to use for the MCP server.
-	// +optional
-	Package string `json:"package,omitempty"`
-
 	// Server defines the configuration for the MCP server.
 	// +optional
 	Server *MCPServerSpec `json:"server,omitempty"`
-
-	// Bridge is an optional side-car container that allows to use an MCP server that natively supports only STDIO as a streamable http webserver.
-	Bridge *MCPBridgeSpec `json:"bridge,omitempty"`
-
-	// TLS defines the TLS configuration for the MCP server.
-	// +optional
-	TLS *TLSConfig `json:"tls,omitempty"`
 
 	// HPA defines the Horizontal Pod Autoscaler configuration for the MCP server.
 	// +optional
@@ -76,16 +65,51 @@ type MCPServerSpec struct {
 	// +optional
 	Port int32 `json:"port,omitempty"`
 
+	// Command is the command to run the MCP server.
+	// If not specified, the default command will be used.
+	// +optional
+	Command string `json:"command,omitempty"`
+
+	// Args are the arguments to pass to the MCP server command.
+	// If not specified, the default arguments will be used.
+	// +optional
+	Args []string `json:"args,omitempty"`
+
 	// Timeout is the timeout for the MCP server.
 	// +kubebuilder:default="30s"
 	// +optional
 	Timeout string `json:"timeout,omitempty"`
+
+	// TLS defines the TLS configuration for the MCP server.
+	// +optional
+	TLS *MCPTLSConfig `json:"tls,omitempty"`
+}
+
+type MCPTLSConfig struct {
+	// +optional
+	// +kubebuilder:default=true
+	// Enabled indicates whether TLS is enabled for the MCP server.
+	Enabled bool `json:"enabled,omitempty"`
+
+	// SecretName is the name of the secret that contains the TLS certificate and key.
+	// +kubebuilder:validation:Required
+	SecretName string `json:"secretName"`
 }
 
 // MCPStatus defines the observed state of MCP.
 type MCPStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// ObservedGeneration is the most recent generation observed for this resource.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Conditions represent the latest available observations of the resource's state.
+	// +optional
+	// +kubebuilder:validation:Enum=Pending;Running;Failed;Unknown
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// Ready indicates if the resource is ready.
+	// +optional
+	Ready bool `json:"ready,omitempty"`
 }
 
 // +kubebuilder:object:root=true

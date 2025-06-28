@@ -9,19 +9,29 @@ metadata:
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: MCP
 metadata:
-  name: mcp-context7
+  name: mcp-memory-server
   namespace: mcp
 spec:
-  package: "@upstash/context7-mcp@latest"
+  image: ghcr.io/inference-gateway/mcp-memory-server:latest
   hpa:
     enabled: true
   server:
-    port: 8080
+    port: 3000
     timeout: "30s"
-  # Bridge is an optional side-car container that allows to use an MCP server that natively supports only STDIO as a webserver.
-  bridge:
-    create: true
-    port: 8081
-  tls:
-    enabled: false
-    secretName: mcp-tls-secret
+    tls:
+      enabled: true
+      secretName: mcp-memory-server-tls
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mcp-tls-cert
+  namespace: mcp
+spec:
+  secretName: mcp-memory-server-tls
+  commonName: mcp-memory-server.mcp.svc.cluster.local
+  privateKey:
+    rotationPolicy: Always
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
