@@ -1906,7 +1906,16 @@ spec:
     singular: mcp
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: URL of the MCP server
+      jsonPath: .status.url
+      name: URL
+      type: string
+    - description: Age of the resource
+      jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: MCP is the Schema for the mcps API.
@@ -2595,7 +2604,9 @@ spec:
                     description: |-
                       Command is the command to run the MCP server.
                       If not specified, the default command will be used.
-                    type: string
+                    items:
+                      type: string
+                    type: array
                   port:
                     default: 8080
                     description: Port is the port on which the MCP server listens.
@@ -2696,6 +2707,9 @@ spec:
               ready:
                 description: Ready indicates if the resource is ready.
                 type: boolean
+              url:
+                description: URL is the URL of the MCP server.
+                type: string
             type: object
         type: object
     served: true

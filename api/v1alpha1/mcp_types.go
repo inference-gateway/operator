@@ -68,7 +68,7 @@ type MCPServerSpec struct {
 	// Command is the command to run the MCP server.
 	// If not specified, the default command will be used.
 	// +optional
-	Command string `json:"command,omitempty"`
+	Command []string `json:"command,omitempty"`
 
 	// Args are the arguments to pass to the MCP server command.
 	// If not specified, the default arguments will be used.
@@ -110,8 +110,14 @@ type MCPStatus struct {
 	// Ready indicates if the resource is ready.
 	// +optional
 	Ready bool `json:"ready,omitempty"`
+
+	// URL is the URL of the MCP server.
+	// +optional
+	URL string `json:"url,omitempty"`
 }
 
+// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=".status.url",description="URL of the MCP server"
+// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 

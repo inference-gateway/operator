@@ -17,7 +17,6 @@ spec:
     enabled: true
   server:
     port: 3000
-    timeout: "30s"
     tls:
       enabled: true
       secretName: mcp-memory-server-tls
