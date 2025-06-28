@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0](https://github.com/inference-gateway/operator/compare/v0.8.0...v0.9.0) (2025-06-28)
+
+### ✨ Features
+
+* Implement MCP (Model Context Protocol) resource and controller with RBAC roles ([#12](https://github.com/inference-gateway/operator/issues/12)) ([ee8c869](https://github.com/inference-gateway/operator/commit/ee8c8690c7daf13663ff37f1e54c45b926838e01))
+
+### 📚 Documentation
+
+* **fix:** Correct emoji rendering in API Overview section of README ([0481b4f](https://github.com/inference-gateway/operator/commit/0481b4f104f52f8836f62827c80aef60461c31c0))
+
 ## [0.8.0](https://github.com/inference-gateway/operator/compare/v0.7.0...v0.8.0) (2025-06-27)
 
 ### ✨ Features
