@@ -17,7 +17,7 @@
 [![Container Registry](https://img.shields.io/badge/Container-ghcr.io-blue.svg?style=flat-square&logo=github)](https://github.com/inference-gateway/operator/pkgs/container/operator)
 [![Multi-Arch](https://img.shields.io/badge/Architecture-amd64%20%7C%20arm64-green?style=flat-square)](https://github.com/inference-gateway/operator/releases)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=flat-square)](https://github.com/inference-gateway/operator)
-[![Tests](https://img.shields.io/badge/Tests-65.1%25%20Coverage-yellow.svg?style=flat-square)](https://github.com/inference-gateway/operator)
+[![Tests](https://img.shields.io/badge/Tests-66%25%20Coverage-yellow.svg?style=flat-square)](https://github.com/inference-gateway/operator)
 [![Lint](https://img.shields.io/badge/Lint-Passing-brightgreen.svg?style=flat-square)](https://golangci-lint.run/)
 
 ---
