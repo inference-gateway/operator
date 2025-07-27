@@ -54,6 +54,8 @@ jobs:
           base_branch: main
           branch_prefix: 'claude/'
           custom_instructions: |
+            IMPORTANT: Before starting any task install the pre-commit hook - `task precommit:activate`
+
             IMPORTANT: You must NEVER push directly to the main branch. Always:
             1. Create a new feature branch (claude/feature-name)
             2. Make your changes on the feature branch
