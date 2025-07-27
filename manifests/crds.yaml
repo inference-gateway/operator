@@ -624,6 +624,26 @@ spec:
                         description: Polling timeout
                         type: string
                     type: object
+                  serviceDiscovery:
+                    description: Service Discovery configuration
+                    properties:
+                      enabled:
+                        default: false
+                        description: Enable service discovery
+                        type: boolean
+                      labelSelector:
+                        default: inference-gateway.com/a2a-agent=true
+                        description: Label selector for A2A agents
+                        type: string
+                      namespace:
+                        default: default
+                        description: Namespace to search for A2A agents
+                        type: string
+                      pollingInterval:
+                        default: 30s
+                        description: Polling interval for service discovery
+                        type: string
+                    type: object
                   timeouts:
                     description: A2A client timeouts
                     properties:

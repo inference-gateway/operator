@@ -135,6 +135,8 @@ Support for multiple AI/ML providers with flexible configuration:
 
 - **MCP (Model Context Protocol)**: Integration with MCP servers for tool access
 - **A2A (Agent-to-Agent)**: Distributed agent communication and polling
+  - **Service Discovery**: Automatic discovery of A2A agents via Kubernetes label selectors
+  - **Dynamic Agent Registration**: Real-time detection and configuration of new agents
 - **Health Checks**: Automated health monitoring for external services
 
 ### Networking
@@ -485,6 +487,53 @@ spec:
           - "ai-gateway.company.com"
 ```
 
+#### A2A Service Discovery Configuration
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: gateway-with-service-discovery
+  namespace: default
+spec:
+  a2a:
+    enabled: true
+    # Service Discovery Configuration
+    serviceDiscovery:
+      enabled: true
+      namespace: "agents"  # Namespace to search for A2A agents
+      labelSelector: "inference-gateway.com/a2a-agent=true"  # Label selector for agent discovery
+      pollingInterval: "30s"  # How often to check for new agents
+    # Manual agents can still be configured alongside service discovery
+    agents:
+      - name: static-agent
+        url: "http://static-agent:8080"
+```
+
+**Service Discovery Features:**
+
+- **Automatic Agent Discovery**: Automatically discovers A2A agents based on Kubernetes service labels
+- **Dynamic Configuration**: Agents are added/removed in real-time as services are created/deleted
+- **Label-Based Selection**: Uses configurable label selectors to identify A2A agent services
+- **Namespace Scoping**: Can search for agents in specific namespaces
+- **Configurable Polling**: Adjustable discovery polling interval
+
+**Agent Service Requirements:**
+
+For a service to be discovered as an A2A agent, it must have the appropriate label:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-agent
+  namespace: agents
+  labels:
+    inference-gateway.com/a2a-agent: "true"  # Required for discovery
+spec:
+  # Service configuration
+```
+
 #### Complete Configuration
 
 See `examples/gateway-complete.yaml` for a comprehensive configuration example with all features enabled.
@@ -499,6 +548,9 @@ kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/ma
 
 # Deploy minimal gateway for development
 kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-minimal.yaml
+
+# Deploy gateway with A2A service discovery
+kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-a2a-service-discovery.yaml
 ```
 
 ### ✅ Configuration Validation

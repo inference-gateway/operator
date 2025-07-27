@@ -356,6 +356,10 @@ type A2AServersSpec struct {
 	// +optional
 	Polling *A2APolling `json:"polling,omitempty"`
 
+	// Service Discovery configuration
+	// +optional
+	ServiceDiscovery *A2AServiceDiscovery `json:"serviceDiscovery,omitempty"`
+
 	// A2A agents configuration
 	// +optional
 	Agents []A2AAgent `json:"agents,omitempty"`
@@ -392,6 +396,29 @@ type A2APolling struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=1000
 	MaxAttempts int32 `json:"maxAttempts,omitempty"`
+}
+
+// A2AServiceDiscovery contains service discovery configuration for A2A
+type A2AServiceDiscovery struct {
+	// Enable service discovery
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Namespace to search for A2A agents
+	// +optional
+	// +kubebuilder:default="default"
+	Namespace string `json:"namespace,omitempty"`
+
+	// Label selector for A2A agents
+	// +optional
+	// +kubebuilder:default="inference-gateway.com/a2a-agent=true"
+	LabelSelector string `json:"labelSelector,omitempty"`
+
+	// Polling interval for service discovery
+	// +optional
+	// +kubebuilder:default="30s"
+	PollingInterval string `json:"pollingInterval,omitempty"`
 }
 
 // A2AAgent contains A2A agent configuration

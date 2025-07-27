@@ -117,6 +117,10 @@ var _ = AfterSuite(func() {
 
 // getFirstFoundEnvTestBinaryDir locates the first binary in the specified path.
 func getFirstFoundEnvTestBinaryDir() string {
+	if assets := os.Getenv("KUBEBUILDER_ASSETS"); assets != "" {
+		return assets
+	}
+
 	basePath := filepath.Join("..", "..", "bin", "k8s")
 	entries, err := os.ReadDir(basePath)
 	if err != nil {
@@ -125,7 +129,19 @@ func getFirstFoundEnvTestBinaryDir() string {
 	}
 	for _, entry := range entries {
 		if entry.IsDir() {
-			return filepath.Join(basePath, entry.Name())
+			subPath := filepath.Join(basePath, entry.Name())
+			subEntries, subErr := os.ReadDir(subPath)
+			if subErr != nil {
+				continue
+			}
+			for _, subEntry := range subEntries {
+				if subEntry.IsDir() {
+					binaryPath := filepath.Join(subPath, subEntry.Name(), "etcd")
+					if _, statErr := os.Stat(binaryPath); statErr == nil {
+						return filepath.Join(subPath, subEntry.Name())
+					}
+				}
+			}
 		}
 	}
 	return ""

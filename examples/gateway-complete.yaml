@@ -201,6 +201,12 @@ spec:
       interval: "2s"
       timeout: "60s"
       maxAttempts: 30
+    # Service Discovery configuration for automatic agent discovery
+    serviceDiscovery:
+      enabled: false
+      namespace: "agents"  # Search for agents in 'agents' namespace
+      labelSelector: "inference-gateway.com/a2a-agent=true"  # Default label selector
+      pollingInterval: "30s"  # Poll for new agents every 30 seconds
     agents:
       - name: google-calendar-agent
         url: "http://google-calendar-agent.agents.svc.cluster.local:8080"
