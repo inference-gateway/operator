@@ -505,6 +505,42 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, contai
 				}(),
 			},
 		)
+
+		if gateway.Spec.A2A.ServiceDiscovery != nil {
+			envVars = append(envVars,
+				corev1.EnvVar{
+					Name:  "A2A_SERVICE_DISCOVERY_ENABLED",
+					Value: fmt.Sprintf("%t", gateway.Spec.A2A.ServiceDiscovery.Enabled),
+				},
+				corev1.EnvVar{
+					Name: "A2A_SERVICE_DISCOVERY_NAMESPACE",
+					Value: func() string {
+						if gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
+							return gateway.Spec.A2A.ServiceDiscovery.Namespace
+						}
+						return "default"
+					}(),
+				},
+				corev1.EnvVar{
+					Name: "A2A_SERVICE_DISCOVERY_LABEL_SELECTOR",
+					Value: func() string {
+						if gateway.Spec.A2A.ServiceDiscovery.LabelSelector != "" {
+							return gateway.Spec.A2A.ServiceDiscovery.LabelSelector
+						}
+						return "inference-gateway.com/a2a-agent=true"
+					}(),
+				},
+				corev1.EnvVar{
+					Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL",
+					Value: func() string {
+						if gateway.Spec.A2A.ServiceDiscovery.PollingInterval != "" {
+							return gateway.Spec.A2A.ServiceDiscovery.PollingInterval
+						}
+						return "30s"
+					}(),
+				},
+			)
+		}
 	}
 
 	providerEnvVars := []corev1.EnvVar{}
