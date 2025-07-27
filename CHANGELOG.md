@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0](https://github.com/inference-gateway/operator/compare/v0.9.0...v0.10.0) (2025-07-27)
+
+### ✨ Features
+
+* **a2a:** Add service discovery configuration to Gateway CRD ([#16](https://github.com/inference-gateway/operator/issues/16)) ([e96edce](https://github.com/inference-gateway/operator/commit/e96edce476d6336d73c007ad814ac4435402fa41))
+
+### 👷 CI
+
+* Add Claude Code GitHub Workflow ([#15](https://github.com/inference-gateway/operator/issues/15)) ([cb6f20b](https://github.com/inference-gateway/operator/commit/cb6f20b7315513de2682d6cef82e32c28f75c2c3))
+
+### 📚 Documentation
+
+* Add CLAUDE.md for project guidance and development workflow ([f10a8f6](https://github.com/inference-gateway/operator/commit/f10a8f6177b8fc84c8d8d7053c9ec6c6982a5f5e))
+
+### 🔧 Miscellaneous
+
+* Add new line at the end of the file ([6fe02fa](https://github.com/inference-gateway/operator/commit/6fe02fa80c420bce17ea07c1cba39e2f56e6fd7d))
+* Update custom instructions to include pre-commit hook installation ([e038f10](https://github.com/inference-gateway/operator/commit/e038f10b6d3ced3f7b6a8e00f7ebf0119faa6c8f))
+
 ## [0.9.0](https://github.com/inference-gateway/operator/compare/v0.8.0...v0.9.0) (2025-06-28)
 
 ### ✨ Features
