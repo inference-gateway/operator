@@ -498,5 +498,86 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "ENABLE_TELEMETRY", Value: "true"},
 			}),
 		)
+
+		It("Should set A2A service discovery environment variables when configured", func() {
+			gateway := &corev1alpha1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.inference-gateway.com/v1alpha1",
+					Kind:       "Gateway",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      GatewayName + "-a2a-sd",
+					Namespace: GatewayNamespace,
+				},
+				Spec: corev1alpha1.GatewaySpec{
+					Environment: "production",
+					Replicas:    &[]int32{1}[0],
+					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
+					A2A: &corev1alpha1.A2AServersSpec{
+						Enabled: true,
+						ServiceDiscovery: &corev1alpha1.A2AServiceDiscovery{
+							Enabled:         true,
+							Namespace:       "test-namespace",
+							LabelSelector:   "app=test-agent",
+							PollingInterval: "60s",
+						},
+					},
+				},
+			}
+
+			expectedEnvVars := []corev1.EnvVar{
+				{Name: "ENVIRONMENT", Value: "production"},
+				{Name: "A2A_ENABLE", Value: "true"},
+				{Name: "A2A_EXPOSE", Value: "false"},
+				{Name: "A2A_AGENTS", Value: ""},
+				{Name: "A2A_CLIENT_TIMEOUT", Value: "5s"},
+				{Name: "A2A_SERVICE_DISCOVERY_ENABLED", Value: "true"},
+				{Name: "A2A_SERVICE_DISCOVERY_NAMESPACE", Value: "test-namespace"},
+				{Name: "A2A_SERVICE_DISCOVERY_LABEL_SELECTOR", Value: "app=test-agent"},
+				{Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL", Value: "60s"},
+			}
+
+			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+			checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, timeout, interval)
+		})
+
+		It("Should set A2A service discovery environment variables with defaults when minimal config", func() {
+			gateway := &corev1alpha1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.inference-gateway.com/v1alpha1",
+					Kind:       "Gateway",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      GatewayName + "-a2a-sd-defaults",
+					Namespace: GatewayNamespace,
+				},
+				Spec: corev1alpha1.GatewaySpec{
+					Environment: "production",
+					Replicas:    &[]int32{1}[0],
+					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
+					A2A: &corev1alpha1.A2AServersSpec{
+						Enabled: true,
+						ServiceDiscovery: &corev1alpha1.A2AServiceDiscovery{
+							Enabled: true,
+						},
+					},
+				},
+			}
+
+			expectedEnvVars := []corev1.EnvVar{
+				{Name: "ENVIRONMENT", Value: "production"},
+				{Name: "A2A_ENABLE", Value: "true"},
+				{Name: "A2A_EXPOSE", Value: "false"},
+				{Name: "A2A_AGENTS", Value: ""},
+				{Name: "A2A_CLIENT_TIMEOUT", Value: "5s"},
+				{Name: "A2A_SERVICE_DISCOVERY_ENABLED", Value: "true"},
+				{Name: "A2A_SERVICE_DISCOVERY_NAMESPACE", Value: "default"},
+				{Name: "A2A_SERVICE_DISCOVERY_LABEL_SELECTOR", Value: "inference-gateway.com/a2a-agent=true"},
+				{Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL", Value: "30s"},
+			}
+
+			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+			checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, timeout, interval)
+		})
 	})
 })
