@@ -15,7 +15,7 @@ spec:
   # Core configuration
   replicas: 2
   environment: development
-  
+
   # Enable telemetry for monitoring
   telemetry:
     enabled: true
@@ -38,14 +38,14 @@ spec:
   a2a:
     enabled: true
     expose: false
-    
+
     # Service Discovery Configuration
     serviceDiscovery:
       enabled: true
-      namespace: "agents"  # Look for agents in 'agents' namespace
-      labelSelector: "inference-gateway.com/a2a-agent=true"  # Use default label selector
-      pollingInterval: "30s"  # Check for new agents every 30 seconds
-    
+      namespace: "agents" # Look for agents in 'agents' namespace
+      labelSelector: "inference-gateway.com/a2a-agent=true" # Use default label selector
+      pollingInterval: "30s" # Check for new agents every 30 seconds
+
     # Optional: Manual agent configuration (agents found via service discovery will be added automatically)
     agents:
       - name: calendar-agent
@@ -81,7 +81,7 @@ metadata:
   name: email-agent
   namespace: agents
   labels:
-    inference-gateway.com/a2a-agent: "true"  # This label makes it discoverable
+    inference-gateway.com/a2a-agent: "true" # This label makes it discoverable
     app: email-agent
 spec:
   selector:
@@ -110,17 +110,17 @@ spec:
         app: email-agent
     spec:
       containers:
-      - name: email-agent
-        image: my-registry/email-agent:latest
-        ports:
-        - containerPort: 8080
-        env:
-        - name: PORT
-          value: "8080"
-        resources:
-          requests:
-            cpu: "50m"
-            memory: "64Mi"
-          limits:
-            cpu: "200m"
-            memory: "128Mi"
+        - name: email-agent
+          image: my-registry/email-agent:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
