@@ -510,7 +510,6 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		)
 
 		if gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Enabled {
-			// Discover A2A endpoints from CRDs instead of using label selectors
 			namespace := gateway.Spec.A2A.ServiceDiscovery.Namespace
 			if namespace == "" {
 				namespace = "default"
@@ -519,7 +518,6 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			endpoints, err := r.discoverA2AEndpoints(ctx, namespace)
 			if err != nil {
 				logger.Error(err, "failed to discover A2A endpoints", "namespace", namespace)
-				// Continue with empty endpoints rather than failing the entire reconciliation
 				endpoints = []string{}
 			}
 
@@ -1252,7 +1250,6 @@ func (r *GatewayReconciler) buildContainerPorts(gateway *corev1alpha1.Gateway) [
 func (r *GatewayReconciler) discoverA2AEndpoints(ctx context.Context, namespace string) ([]string, error) {
 	logger := log.FromContext(ctx)
 
-	// List all A2A resources in the specified namespace
 	a2aList := &corev1alpha1.A2AList{}
 	if err := r.List(ctx, a2aList, client.InNamespace(namespace)); err != nil {
 		logger.Error(err, "failed to list A2A resources", "namespace", namespace)
@@ -1261,7 +1258,6 @@ func (r *GatewayReconciler) discoverA2AEndpoints(ctx context.Context, namespace 
 
 	endpoints := make([]string, 0, len(a2aList.Items))
 	for _, a2a := range a2aList.Items {
-		// Get the service owned by this A2A resource (service has the same name as A2A)
 		svc := &corev1.Service{}
 		svcName := a2a.Name
 		if err := r.Get(ctx, client.ObjectKey{Namespace: a2a.Namespace, Name: svcName}, svc); err != nil {
@@ -1273,7 +1269,6 @@ func (r *GatewayReconciler) discoverA2AEndpoints(ctx context.Context, namespace 
 			continue
 		}
 
-		// Construct the service endpoint (cluster DNS format)
 		endpoint := fmt.Sprintf("%s.%s.svc.cluster.local:8080", svc.Name, svc.Namespace)
 		endpoints = append(endpoints, endpoint)
 		logger.V(1).Info("discovered A2A endpoint", "a2a", a2a.Name, "endpoint", endpoint)
