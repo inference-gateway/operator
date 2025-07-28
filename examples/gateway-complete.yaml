@@ -12,8 +12,8 @@ metadata:
   name: inference-gateway
   namespace: inference-gateway
 spec:
-  # Core gateway configuration
   environment: development
+  image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
   hpa:
     enabled: true
     config:
@@ -25,17 +25,12 @@ spec:
             name: cpu
             target:
               type: Utilization
-              averageUtilization: 80
-  image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
-
-  # OpenTelemetry observability configuration
+              averageUtilization: 8
   telemetry:
     enabled: true
     metrics:
       enabled: true
       port: 9464
-
-  # Server configuration
   server:
     # port: 8080
     timeouts:
@@ -47,8 +42,6 @@ spec:
       # Default behavior: If enabled is true and no custom secret is specified, the controller will automatically mount the
       # same TLS secret used by the Ingress (inference-gateway-tls) into the backend pod for end-to-end TLS.
       # To override, specify certificateRef and keyRef explicitly.
-
-  # Authentication configuration
   auth:
     enabled: false
     provider: oidc
@@ -58,8 +51,6 @@ spec:
       clientSecretRef:
         name: inference-gateway-auth-secret
         key: OIDC_CLIENT_SECRET
-
-  # AI Provider configurations
   providers:
     - name: OpenAI
       enabled: false
@@ -165,8 +156,6 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: CUSTOM_API_KEY
-
-  # Model Context Protocol configuration
   mcp:
     enabled: false
     expose: false
@@ -189,8 +178,6 @@ spec:
           enabled: true
           path: "/health"
           interval: "30s"
-
-  # Agent-to-Agent configuration
   a2a:
     enabled: false
     expose: false
@@ -201,12 +188,10 @@ spec:
       interval: "2s"
       timeout: "60s"
       maxAttempts: 30
-    # Service Discovery configuration for automatic agent discovery
     serviceDiscovery:
       enabled: false
-      namespace: "agents"  # Search for agents in 'agents' namespace
-      labelSelector: "inference-gateway.com/a2a-agent=true"  # Default label selector
-      pollingInterval: "30s"  # Poll for new agents every 30 seconds
+      namespace: "agents"
+      pollingInterval: "30s"
     agents:
       - name: google-calendar-agent
         url: "http://google-calendar-agent.agents.svc.cluster.local:8080"
@@ -220,8 +205,6 @@ spec:
           enabled: true
           path: "/health"
           interval: "30s"
-
-  # Resource management
   resources:
     requests:
       cpu: "100m"
@@ -229,8 +212,6 @@ spec:
     limits:
       cpu: "1000m"
       memory: "512Mi"
-
-  # Ingress configuration
   ingress:
     enabled: true
     host: "api.inference-gateway.local"

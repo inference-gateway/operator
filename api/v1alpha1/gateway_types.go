@@ -410,11 +410,6 @@ type A2AServiceDiscovery struct {
 	// +kubebuilder:default="default"
 	Namespace string `json:"namespace,omitempty"`
 
-	// Label selector for A2A agents
-	// +optional
-	// +kubebuilder:default="inference-gateway.com/a2a-agent=true"
-	LabelSelector string `json:"labelSelector,omitempty"`
-
 	// Polling interval for service discovery
 	// +optional
 	// +kubebuilder:default="30s"

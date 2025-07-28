@@ -12,11 +12,8 @@ metadata:
   name: inference-gateway-advanced
   namespace: inference-gateway
 spec:
-  # Core gateway configuration
   environment: production
   image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
-
-  # AI Provider configurations
   providers:
     - name: OpenAI
       env:
@@ -30,19 +27,14 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: OPENAI_API_KEY
-
-  # Advanced ingress configuration with custom settings
   ingress:
     enabled: true
     className: "nginx"
     annotations:
-      # Custom annotations for advanced features
       nginx.ingress.kubernetes.io/rate-limit: "100"
       nginx.ingress.kubernetes.io/rate-limit-window: "1m"
       nginx.ingress.kubernetes.io/proxy-body-size: "10m"
       nginx.ingress.kubernetes.io/cors-allow-origin: "https://ui.inference-gateway.local"
-
-    # Multiple hosts configuration (advanced usage)
     hosts:
       - host: "api.inference-gateway.local"
         paths:
@@ -54,8 +46,6 @@ spec:
             pathType: "Prefix"
           - path: "/health"
             pathType: "Exact"
-
-    # Advanced TLS configuration
     tls:
       enabled: true
       issuer: "letsencrypt-prod"
@@ -66,8 +56,6 @@ spec:
         - secretName: "gateway-example-tls"
           hosts:
             - "gateway.example.com"
-
-  # Resource management
   resources:
     requests:
       cpu: "100m"

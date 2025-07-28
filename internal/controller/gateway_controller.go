@@ -53,6 +53,7 @@ import (
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2as,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -275,7 +276,7 @@ func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway 
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
 func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway) (*appsv1.Deployment, error) {
-	deployment := r.buildDeployment(gateway)
+	deployment := r.buildDeployment(ctx, gateway)
 
 	if err := controllerutil.SetControllerReference(gateway, deployment, r.Scheme); err != nil {
 		return nil, err
@@ -285,7 +286,7 @@ func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *co
 }
 
 // buildDeployment creates a Deployment resource based on Gateway spec
-func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway) *appsv1.Deployment {
+func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1alpha1.Gateway) *appsv1.Deployment {
 	containerPorts := r.buildContainerPorts(gateway)
 
 	volumes := []corev1.Volume{}
@@ -326,7 +327,7 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway) *apps
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
-						r.buildContainer(gateway, containerPorts, volumeMounts),
+						r.buildContainer(ctx, gateway, containerPorts, volumeMounts),
 					},
 					Volumes: volumes,
 				},
@@ -339,7 +340,9 @@ func (r *GatewayReconciler) buildDeployment(gateway *corev1alpha1.Gateway) *apps
 }
 
 // buildContainer creates the main container specification with custom volume mounts
-func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container { //nolint gocyclo
+func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1alpha1.Gateway, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container { //nolint gocyclo
+	logger := log.FromContext(ctx)
+
 	port := int32(8080)
 	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
 		port = gateway.Spec.Server.Port
@@ -506,29 +509,30 @@ func (r *GatewayReconciler) buildContainer(gateway *corev1alpha1.Gateway, contai
 			},
 		)
 
-		if gateway.Spec.A2A.ServiceDiscovery != nil {
+		if gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Enabled {
+			namespace := gateway.Spec.A2A.ServiceDiscovery.Namespace
+			if namespace == "" {
+				namespace = "default"
+			}
+
+			endpoints, err := r.discoverA2AEndpoints(ctx, namespace)
+			if err != nil {
+				logger.Error(err, "failed to discover A2A endpoints", "namespace", namespace)
+				endpoints = []string{}
+			}
+
 			envVars = append(envVars,
 				corev1.EnvVar{
 					Name:  "A2A_SERVICE_DISCOVERY_ENABLED",
 					Value: fmt.Sprintf("%t", gateway.Spec.A2A.ServiceDiscovery.Enabled),
 				},
 				corev1.EnvVar{
-					Name: "A2A_SERVICE_DISCOVERY_NAMESPACE",
-					Value: func() string {
-						if gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
-							return gateway.Spec.A2A.ServiceDiscovery.Namespace
-						}
-						return "default"
-					}(),
+					Name:  "A2A_SERVICE_DISCOVERY_NAMESPACE",
+					Value: namespace,
 				},
 				corev1.EnvVar{
-					Name: "A2A_SERVICE_DISCOVERY_LABEL_SELECTOR",
-					Value: func() string {
-						if gateway.Spec.A2A.ServiceDiscovery.LabelSelector != "" {
-							return gateway.Spec.A2A.ServiceDiscovery.LabelSelector
-						}
-						return "inference-gateway.com/a2a-agent=true"
-					}(),
+					Name:  "A2A_SERVICE_DISCOVERY_ENDPOINTS",
+					Value: strings.Join(endpoints, ","),
 				},
 				corev1.EnvVar{
 					Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL",
@@ -1240,6 +1244,37 @@ func (r *GatewayReconciler) buildContainerPorts(gateway *corev1alpha1.Gateway) [
 	}
 
 	return ports
+}
+
+// discoverA2AEndpoints discovers A2A CRDs and their associated services in the specified namespace
+func (r *GatewayReconciler) discoverA2AEndpoints(ctx context.Context, namespace string) ([]string, error) {
+	logger := log.FromContext(ctx)
+
+	a2aList := &corev1alpha1.A2AList{}
+	if err := r.List(ctx, a2aList, client.InNamespace(namespace)); err != nil {
+		logger.Error(err, "failed to list A2A resources", "namespace", namespace)
+		return nil, err
+	}
+
+	endpoints := make([]string, 0, len(a2aList.Items))
+	for _, a2a := range a2aList.Items {
+		svc := &corev1.Service{}
+		svcName := a2a.Name
+		if err := r.Get(ctx, client.ObjectKey{Namespace: a2a.Namespace, Name: svcName}, svc); err != nil {
+			if errors.IsNotFound(err) {
+				logger.V(1).Info("service not found for A2A resource", "a2a", a2a.Name, "namespace", a2a.Namespace)
+				continue
+			}
+			logger.Error(err, "failed to get service for A2A resource", "a2a", a2a.Name, "namespace", a2a.Namespace)
+			continue
+		}
+
+		endpoint := fmt.Sprintf("%s.%s.svc.cluster.local:8080", svc.Name, svc.Namespace)
+		endpoints = append(endpoints, endpoint)
+		logger.V(1).Info("discovered A2A endpoint", "a2a", a2a.Name, "endpoint", endpoint)
+	}
+
+	return endpoints, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
