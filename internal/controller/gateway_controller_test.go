@@ -535,7 +535,7 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "A2A_CLIENT_TIMEOUT", Value: "5s"},
 				{Name: "A2A_SERVICE_DISCOVERY_ENABLED", Value: "true"},
 				{Name: "A2A_SERVICE_DISCOVERY_NAMESPACE", Value: "test-namespace"},
-				{Name: "A2A_SERVICE_DISCOVERY_ENDPOINTS", Value: ""}, // Empty since no A2A resources exist in test
+				{Name: "A2A_SERVICE_DISCOVERY_ENDPOINTS", Value: ""},
 				{Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL", Value: "60s"},
 			}
 
@@ -574,7 +574,7 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "A2A_CLIENT_TIMEOUT", Value: "5s"},
 				{Name: "A2A_SERVICE_DISCOVERY_ENABLED", Value: "true"},
 				{Name: "A2A_SERVICE_DISCOVERY_NAMESPACE", Value: "default"},
-				{Name: "A2A_SERVICE_DISCOVERY_ENDPOINTS", Value: ""}, // Empty since no A2A resources exist in test
+				{Name: "A2A_SERVICE_DISCOVERY_ENDPOINTS", Value: ""},
 				{Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL", Value: "30s"},
 			}
 
