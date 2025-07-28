@@ -12,18 +12,13 @@ metadata:
   name: gateway-with-a2a-service-discovery
   namespace: inference-gateway
 spec:
-  # Core configuration
   replicas: 2
   environment: development
-
-  # Enable telemetry for monitoring
   telemetry:
     enabled: true
     metrics:
       enabled: true
       port: 9464
-
-  # Simple provider configuration
   providers:
     - name: openai
       enabled: true
@@ -33,20 +28,13 @@ spec:
             secretKeyRef:
               name: ai-providers-secret
               key: OPENAI_API_KEY
-
-  # Agent-to-Agent configuration with Service Discovery
   a2a:
     enabled: true
     expose: false
-
-    # Service Discovery Configuration
     serviceDiscovery:
       enabled: true
-      namespace: "agents" # Look for agents in 'agents' namespace
-      labelSelector: "inference-gateway.com/a2a-agent=true" # Use default label selector
-      pollingInterval: "30s" # Check for new agents every 30 seconds
-
-    # Optional: Manual agent configuration (agents found via service discovery will be added automatically)
+      namespace: "agents"
+      pollingInterval: "30s"
     agents:
       - name: calendar-agent
         url: "http://calendar-agent.agents.svc.cluster.local:8080"
@@ -54,8 +42,6 @@ spec:
           enabled: true
           path: "/health"
           interval: "30s"
-
-  # Resource configuration
   resources:
     requests:
       cpu: "100m"
@@ -64,7 +50,6 @@ spec:
       cpu: "500m"
       memory: "256Mi"
 ---
-# Example secret for AI providers
 apiVersion: v1
 kind: Secret
 metadata:
@@ -74,53 +59,31 @@ type: Opaque
 stringData:
   OPENAI_API_KEY: "your-openai-api-key-here"
 ---
-# Example A2A agent service that will be discovered automatically
-apiVersion: v1
-kind: Service
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: A2A
 metadata:
   name: email-agent
   namespace: agents
-  labels:
-    inference-gateway.com/a2a-agent: "true" # This label makes it discoverable
-    app: email-agent
 spec:
-  selector:
-    app: email-agent
-  ports:
-    - port: 8080
-      targetPort: 8080
-  type: ClusterIP
----
-# Example A2A agent deployment
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: email-agent
-  namespace: agents
-  labels:
-    app: email-agent
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: email-agent
-  template:
-    metadata:
-      labels:
-        app: email-agent
-    spec:
-      containers:
-        - name: email-agent
-          image: my-registry/email-agent:latest
-          ports:
-            - containerPort: 8080
-          env:
-            - name: PORT
-              value: "8080"
-          resources:
-            requests:
-              cpu: "50m"
-              memory: "64Mi"
-            limits:
-              cpu: "200m"
-              memory: "128Mi"
+  image: "my-registry/email-agent:latest"
+  timezone: "UTC"
+  port: 8080
+  host: "0.0.0.0"
+  readTimeout: "30s"
+  writeTimeout: "30s"
+  idleTimeout: "120s"
+  logging:
+    level: "info"
+    format: "json"
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+  queue:
+    enabled: false
+  tls:
+    enabled: false
+  agent:
+    name: "Email Agent"
+    description: "Agent for handling email operations"
+    version: "1.0.0"

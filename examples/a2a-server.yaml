@@ -12,7 +12,7 @@ metadata:
   name: a2a-google-calendar-agent
   namespace: agents
 spec:
-  image: "ghcr.io/inference-gateway/google-calendar-agent:latest"
+  image: ghcr.io/inference-gateway/google-calendar-agent:latest
   timezone: "UTC"
   port: 8080
   host: "0.0.0.0"
@@ -53,11 +53,11 @@ spec:
           value: "Google Calendar Agent"
       systemPrompt: "You are a helpful assistant for managing Google Calendar events. You can create, read, update, and delete events, and you can also list upcoming events."
   env:
-    - name: "APP_DEMO_MODE"
+    - name: "DEMO_MODE"
       valueFrom:
         configMapKeyRef:
           name: "a2a-google-calendar-agent-config"
-          key: "APP_DEMO_MODE"
+          key: "DEMO_MODE"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -65,4 +65,4 @@ metadata:
   name: a2a-google-calendar-agent-config
   namespace: agents
 data:
-  APP_DEMO_MODE: "true"
+  DEMO_MODE: "true"
