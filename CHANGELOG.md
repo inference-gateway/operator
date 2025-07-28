@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0](https://github.com/inference-gateway/operator/compare/v0.10.0...v0.11.0) (2025-07-28)
+
+### ✨ Features
+
+* **a2a:** Add automatic pod restart on configuration changes ([#20](https://github.com/inference-gateway/operator/issues/20)) ([307fee2](https://github.com/inference-gateway/operator/commit/307fee286f6d81b4e0de2f020e32386d50bd6584))
+
+### ♻️ Improvements
+
+* **a2a:** Simplify Service Discovery to use CRD-based approach ([#21](https://github.com/inference-gateway/operator/issues/21)) ([121e33b](https://github.com/inference-gateway/operator/commit/121e33bacdb08d1e0109ca77946902b201a4b17b)), closes [#19](https://github.com/inference-gateway/operator/issues/19)
+
+### 👷 CI
+
+* Consolidate linting and build processes into a single CI workflow ([#22](https://github.com/inference-gateway/operator/issues/22)) ([f4591e9](https://github.com/inference-gateway/operator/commit/f4591e94275ce37d63efcedfae0c0bd429bd78f8))
+
+### 📚 Documentation
+
+* **examples:** Add Google provider support ([#23](https://github.com/inference-gateway/operator/issues/23)) ([879e762](https://github.com/inference-gateway/operator/commit/879e762ad5477e5d159e5d0647f57f985fcfa720)), closes [#17](https://github.com/inference-gateway/operator/issues/17)
+
 ## [0.10.0](https://github.com/inference-gateway/operator/compare/v0.9.0...v0.10.0) (2025-07-27)
 
 ### ✨ Features
