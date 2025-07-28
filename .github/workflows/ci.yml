@@ -20,10 +20,18 @@ jobs:
         uses: actions/setup-go@v5.5.0
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Install go-task
         run: |
           sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+      - name: Install golangci-lint
+        run: |
+          GOLANGCI_LINT_VERSION=v2.1.5
+
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
+          golangci-lint --version || (echo "golangci-lint not installed" && exit 1)
 
       - name: Run linter
         run: task lint
@@ -39,6 +47,13 @@ jobs:
         uses: actions/setup-go@v5.5.0
         with:
           go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.1.0
+        with:
+          node-version: '18'
+          cache: 'npm'
 
       - name: Install go-task
         run: |
@@ -51,11 +66,15 @@ jobs:
 
           go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
           go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
+          
           npm install -g prettier
 
           controller-gen --version || (echo "controller-gen not installed" && exit 1)
           kustomize version || (echo "kustomize not installed" && exit 1)
           prettier --version || (echo "prettier not installed" && exit 1)
+
+      - name: Tidy Go modules
+        run: go mod tidy
 
       - name: Run code generation
         run: task generate
@@ -73,6 +92,7 @@ jobs:
             git status --porcelain
             echo ""
             echo "Please run the following commands locally and commit the changes:"
+            echo "  go mod tidy"
             echo "  task generate"
             echo "  task manifests" 
             echo "  task fmt"
@@ -95,6 +115,13 @@ jobs:
         uses: actions/setup-go@v5.5.0
         with:
           go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.1.0
+        with:
+          node-version: '22'
+          cache: 'npm'
 
       - name: Install go-task
         run: |
@@ -107,11 +134,11 @@ jobs:
 
           go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
           go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
+          
           npm install -g prettier
 
-          controller-gen --version || (echo "controller-gen not installed" && exit 1)
-          kustomize version || (echo "kustomize not installed" && exit 1)
-          prettier --version || (echo "prettier not installed" && exit 1)
+      - name: Tidy Go modules
+        run: go mod tidy
 
       - name: Run build
         run: task build
