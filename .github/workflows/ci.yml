@@ -55,8 +55,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4.1.0
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: 'lts/*'
 
       - name: Install go-task
         run: |
@@ -123,8 +122,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4.4.0
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: 'lts/*'
 
       - name: Install go-task
         run: |
