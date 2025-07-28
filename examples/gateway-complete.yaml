@@ -143,6 +143,19 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: OLLAMA_API_KEY
+    - name: Google
+      enabled: true
+      env:
+        - name: GOOGLE_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: GOOGLE_API_URL
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: GOOGLE_API_KEY
     - name: Custom
       enabled: true
       env:
@@ -244,6 +257,7 @@ stringData:
 #   CLOUDFLARE_API_KEY: ""
 #   DEEPSEEK_API_KEY: ""
 #   OLLAMA_API_KEY: ""
+#   GOOGLE_API_KEY: ""
 #   CUSTOM_API_KEY: ""
 ---
 apiVersion: v1
@@ -259,4 +273,5 @@ data:
   CLOUDFLARE_API_URL: "https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai"
   DEEPSEEK_API_URL: "https://api.deepseek.com"
   OLLAMA_API_URL: "http://ollama:11434/v1"
+  GOOGLE_API_URL: "https://generativelanguage.googleapis.com/v1"
   CUSTOM_API_URL: "http://your-domain.example.local:8080/v1"
