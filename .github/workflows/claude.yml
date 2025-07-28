@@ -31,17 +31,47 @@ jobs:
       actions: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 1
+
+      - name: Setup Go
+        uses: actions/setup-go@v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: "lts/*"
+
+      - name: Install prettier
+        run: |
+          npm install -g prettier
+
+      - name: Install task
+        run: |
+          curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin v3.44.1
 
       - name: Install golangci-lint
         run: |
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v2.1.6
 
-      - name: Install task
+      - name: Install Controllergen
         run: |
-          curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin v3.43.3
+          go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2
+
+      - name: Install Kustomize
+        run: |
+          go install sigs.k8s.io/kustomize/kustomize/v5@v5.6.0
+
+      - name: Verify dependencies installed
+        run: |
+          task --version || (echo "task not installed" && exit 1)
+          controller-gen --version || (echo "controller-gen not installed" && exit 1)
+          kustomize version || (echo "kustomize not installed" && exit 1)
+          prettier --version || (echo "prettier not installed" && exit 1)
 
       - name: Run Claude Code
         id: claude
@@ -52,7 +82,7 @@ jobs:
             actions: read
           use_commit_signing: true
           base_branch: main
-          branch_prefix: 'claude/'
+          branch_prefix: "claude/"
           custom_instructions: |
             IMPORTANT: Before starting any task install the pre-commit hook - `task precommit:activate`
 
