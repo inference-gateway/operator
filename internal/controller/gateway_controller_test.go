@@ -518,7 +518,6 @@ var _ = Describe("Gateway controller", func() {
 						ServiceDiscovery: &corev1alpha1.A2AServiceDiscovery{
 							Enabled:         true,
 							Namespace:       "test-namespace",
-							LabelSelector:   "app=test-agent",
 							PollingInterval: "60s",
 						},
 					},
@@ -533,7 +532,7 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "A2A_CLIENT_TIMEOUT", Value: "5s"},
 				{Name: "A2A_SERVICE_DISCOVERY_ENABLED", Value: "true"},
 				{Name: "A2A_SERVICE_DISCOVERY_NAMESPACE", Value: "test-namespace"},
-				{Name: "A2A_SERVICE_DISCOVERY_LABEL_SELECTOR", Value: "app=test-agent"},
+				{Name: "A2A_SERVICE_DISCOVERY_ENDPOINTS", Value: ""}, // Empty since no A2A resources exist in test
 				{Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL", Value: "60s"},
 			}
 
@@ -572,7 +571,7 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "A2A_CLIENT_TIMEOUT", Value: "5s"},
 				{Name: "A2A_SERVICE_DISCOVERY_ENABLED", Value: "true"},
 				{Name: "A2A_SERVICE_DISCOVERY_NAMESPACE", Value: "default"},
-				{Name: "A2A_SERVICE_DISCOVERY_LABEL_SELECTOR", Value: "inference-gateway.com/a2a-agent=true"},
+				{Name: "A2A_SERVICE_DISCOVERY_ENDPOINTS", Value: ""}, // Empty since no A2A resources exist in test
 				{Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL", Value: "30s"},
 			}
 
