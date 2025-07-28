@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install go-task
+        run: |
+          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+      - name: Run linter
+        run: task lint
+
+  generate:
+    name: Generate & Verify Clean State
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install go-task
+        run: |
+          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+      - name: Install dependencies
+        run: |
+          CONTROLLER_GEN_VERSION=v0.17.2
+          KUSTOMIZE_VERSION=v5.6.0
+
+          go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
+          go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
+          npm install -g prettier
+
+          controller-gen --version || (echo "controller-gen not installed" && exit 1)
+          kustomize version || (echo "kustomize not installed" && exit 1)
+          prettier --version || (echo "prettier not installed" && exit 1)
+
+      - name: Run code generation
+        run: task generate
+
+      - name: Run manifest generation
+        run: task manifests
+
+      - name: Run formatting
+        run: task fmt
+
+      - name: Check for dirty state
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "❌ Working directory is dirty after running generate, manifests, and fmt tasks:"
+            git status --porcelain
+            echo ""
+            echo "Please run the following commands locally and commit the changes:"
+            echo "  task generate"
+            echo "  task manifests" 
+            echo "  task fmt"
+            echo ""
+            echo "Diff:"
+            git diff
+            exit 1
+          else
+            echo "✅ Working directory is clean - all generated files are up to date"
+          fi
+
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install go-task
+        run: |
+          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+      - name: Install dependencies
+        run: |
+          CONTROLLER_GEN_VERSION=v0.17.2
+          KUSTOMIZE_VERSION=v5.6.0
+
+          go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
+          go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
+          npm install -g prettier
+
+          controller-gen --version || (echo "controller-gen not installed" && exit 1)
+          kustomize version || (echo "kustomize not installed" && exit 1)
+          prettier --version || (echo "prettier not installed" && exit 1)
+
+      - name: Run build
+        run: task build
