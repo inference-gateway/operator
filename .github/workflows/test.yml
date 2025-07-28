@@ -2,11 +2,17 @@ name: Tests
 
 on:
   push:
+    branches:
+      - main
     paths-ignore:
       - "**.md"
   pull_request:
     paths-ignore:
       - "**.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -20,6 +26,7 @@ jobs:
         uses: actions/setup-go@v5.4.0
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Install go-task
         run: |
@@ -31,16 +38,10 @@ jobs:
           KUSTOMIZE_VERSION=v5.6.0
           ENVTEST_VERSION=latest
 
-          # Install controller-gen globally
           go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
-
-          # Install kustomize globally
           go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}
-
-          # Install setup-envtest globally
           go install sigs.k8s.io/controller-runtime/tools/setup-envtest@${ENVTEST_VERSION}
 
-          # Verify installations
           controller-gen --version || (echo "controller-gen not installed" && exit 1)
           kustomize version || (echo "kustomize not installed" && exit 1)
           setup-envtest version || (echo "setup-envtest not installed" && exit 1)
