@@ -12,11 +12,8 @@ metadata:
   name: inference-gateway
   namespace: inference-gateway
 spec:
-  # Core gateway configuration
   environment: development
   image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
-
-  # AI Provider configurations
   providers:
     - name: OpenAI
       env:
@@ -30,8 +27,6 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: OPENAI_API_KEY
-
-  # Simple ingress configuration - minimal setup
   ingress:
     enabled: true
     host: "api.inference-gateway.local"
@@ -40,8 +35,6 @@ spec:
     # - path: "/" with pathType: "Prefix"
     # - TLS enabled with auto-generated secret name
     # - cert-manager issuer based on environment (development = selfsigned-issuer)
-
-  # Resource management
   resources:
     requests:
       cpu: "100m"
