@@ -179,10 +179,8 @@ func (r *A2AReconciler) buildA2ADeployment(a2a *v1alpha1.A2A) *appsv1.Deployment
 		"app": a2a.Name,
 	}
 
-	// Build comprehensive environment variables from A2A spec
 	env := r.buildA2AEnvironmentVars(a2a)
 
-	// Get port from spec or default to 8080
 	port := int32(8080)
 	if a2a.Spec.Port > 0 {
 		port = a2a.Spec.Port
@@ -218,12 +216,10 @@ func (r *A2AReconciler) buildA2ADeployment(a2a *v1alpha1.A2A) *appsv1.Deployment
 func (r *A2AReconciler) buildA2AEnvironmentVars(a2a *v1alpha1.A2A) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
-	// Add user-defined environment variables first
 	if a2a.Spec.Env != nil {
 		envVars = append(envVars, *a2a.Spec.Env...)
 	}
 
-	// Add configuration-based environment variables
 	envVars = append(envVars,
 		corev1.EnvVar{
 			Name:  "TIMEZONE",
@@ -263,7 +259,6 @@ func (r *A2AReconciler) buildA2AEnvironmentVars(a2a *v1alpha1.A2A) []corev1.EnvV
 			Name:  "TELEMETRY_ENABLED",
 			Value: strconv.FormatBool(a2a.Spec.Telemetry.Enabled),
 		},
-		// Queue configuration
 		corev1.EnvVar{
 			Name:  "QUEUE_ENABLED",
 			Value: strconv.FormatBool(a2a.Spec.Queue.Enabled),
@@ -276,7 +271,6 @@ func (r *A2AReconciler) buildA2AEnvironmentVars(a2a *v1alpha1.A2A) []corev1.EnvV
 			Name:  "QUEUE_CLEANUP_INTERVAL",
 			Value: a2a.Spec.Queue.CleanupInterval,
 		},
-		// TLS configuration
 		corev1.EnvVar{
 			Name:  "TLS_ENABLED",
 			Value: strconv.FormatBool(a2a.Spec.TLS.Enabled),
@@ -285,7 +279,6 @@ func (r *A2AReconciler) buildA2AEnvironmentVars(a2a *v1alpha1.A2A) []corev1.EnvV
 			Name:  "TLS_SECRET_REF",
 			Value: a2a.Spec.TLS.SecretRef,
 		},
-		// Agent configuration
 		corev1.EnvVar{
 			Name:  "AGENT_ENABLED",
 			Value: strconv.FormatBool(a2a.Spec.Agent.Enabled),
@@ -316,7 +309,6 @@ func (r *A2AReconciler) buildA2AEnvironmentVars(a2a *v1alpha1.A2A) []corev1.EnvV
 		},
 	)
 
-	// Add optional LLM configuration
 	if a2a.Spec.Agent.LLM.MaxTokens != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "AGENT_LLM_MAX_TOKENS",
@@ -331,7 +323,6 @@ func (r *A2AReconciler) buildA2AEnvironmentVars(a2a *v1alpha1.A2A) []corev1.EnvV
 		})
 	}
 
-	// Add custom headers
 	if a2a.Spec.Agent.LLM.CustomHeaders != nil {
 		for i, header := range *a2a.Spec.Agent.LLM.CustomHeaders {
 			envVars = append(envVars,
@@ -382,7 +373,6 @@ func (r *A2AReconciler) updateDeploymentIfNeeded(ctx context.Context, desired, f
 		needsUpdate := false
 		var changes []string
 
-		// Always keep replicas at 1 for A2A
 		desiredReplicas := int32(1)
 		if latestDeployment.Spec.Replicas == nil || *latestDeployment.Spec.Replicas != desiredReplicas {
 			latestDeployment.Spec.Replicas = &desiredReplicas
@@ -396,13 +386,11 @@ func (r *A2AReconciler) updateDeploymentIfNeeded(ctx context.Context, desired, f
 				}(), desiredReplicas))
 		}
 
-		// Check if pod template has changed (this is the key part for configuration changes)
 		desiredTemplate := desired.Spec.Template.DeepCopy()
 		if desiredTemplate.Annotations == nil {
 			desiredTemplate.Annotations = map[string]string{}
 		}
 
-		// Preserve certain Kubernetes-managed annotations
 		existingAnnotations := latestDeployment.Spec.Template.Annotations
 		for k, v := range existingAnnotations {
 			if k == "kubectl.kubernetes.io/restartedAt" ||
@@ -411,14 +399,12 @@ func (r *A2AReconciler) updateDeploymentIfNeeded(ctx context.Context, desired, f
 			}
 		}
 
-		// This deep comparison will detect any configuration changes in the pod template
 		if !reflect.DeepEqual(latestDeployment.Spec.Template, *desiredTemplate) {
 			latestDeployment.Spec.Template = *desiredTemplate
 			needsUpdate = true
 			changes = append(changes, "pod template")
 		}
 
-		// Check selector changes
 		if !reflect.DeepEqual(latestDeployment.Spec.Selector, desired.Spec.Selector) {
 			latestDeployment.Spec.Selector = desired.Spec.Selector
 			needsUpdate = true
