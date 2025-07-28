@@ -55,7 +55,6 @@ func checkGatewayDeploymentEnvVars(ctx context.Context, k8sClient client.Client,
 		Scheme: k8sClient.Scheme(),
 	}
 
-	// Reconcile to ensure deployment exists and is up to date
 	Eventually(func() error {
 		_, err := gatewayReconciler.Reconcile(ctx, reconcile.Request{
 			NamespacedName: gatewayLookupKey,
