@@ -129,10 +129,6 @@ spec:
                         default: false
                         description: Enable service discovery
                         type: boolean
-                      labelSelector:
-                        default: inference-gateway.com/a2a-agent=true
-                        description: Label selector for A2A agents
-                        type: string
                       namespace:
                         default: default
                         description: Namespace to search for A2A agents
