@@ -68,6 +68,10 @@ jobs:
         run: |
           curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin ${{ env.TASK_VERSION }}
 
+      - name: Install prettier
+        run: |
+          npm install -g prettier
+
       - name: Install golangci-lint
         run: |
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin ${{ env.GOLANGCI_LINT_VERSION }}
@@ -79,6 +83,13 @@ jobs:
       - name: Install Kustomize
         run: |
           go install sigs.k8s.io/kustomize/kustomize/v5@${{ env.KUSTOMIZE_VERSION }}
+
+      - name: Verify dependencies installed
+        run: |
+          task --version || (echo "task not installed" && exit 1)
+          controller-gen --version || (echo "controller-gen not installed" && exit 1)
+          kustomize version || (echo "kustomize not installed" && exit 1)
+          prettier --version || (echo "prettier not installed" && exit 1)
 
       - name: Tidy Go modules
         run: go mod tidy
@@ -128,6 +139,10 @@ jobs:
         uses: actions/setup-node@v4.4.0
         with:
           node-version: "lts/*"
+
+      - name: Install prettier
+        run: |
+          npm install -g prettier
 
       - name: Install task
         run: |
