@@ -170,7 +170,7 @@ func (r *A2AReconciler) reconcileDeployment(ctx context.Context, a2a *v1alpha1.A
 		return nil, err
 	}
 
-	return r.createOrUpdateDeployment(ctx, a2a, deployment)
+	return r.createOrUpdateDeployment(ctx, deployment)
 }
 
 // buildA2ADeployment returns a Deployment for the given A2A resource with comprehensive configuration.
@@ -351,7 +351,7 @@ func (r *A2AReconciler) buildA2AEnvironmentVars(a2a *v1alpha1.A2A) []corev1.EnvV
 }
 
 // createOrUpdateDeployment handles deployment creation and updates
-func (r *A2AReconciler) createOrUpdateDeployment(ctx context.Context, a2a *v1alpha1.A2A, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+func (r *A2AReconciler) createOrUpdateDeployment(ctx context.Context, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	logger := logf.FromContext(ctx)
 
 	found := &appsv1.Deployment{}
@@ -366,11 +366,11 @@ func (r *A2AReconciler) createOrUpdateDeployment(ctx context.Context, a2a *v1alp
 		return nil, err
 	}
 
-	return r.updateDeploymentIfNeeded(ctx, a2a, deployment, found)
+	return r.updateDeploymentIfNeeded(ctx, deployment, found)
 }
 
 // updateDeploymentIfNeeded updates deployment if changes are detected
-func (r *A2AReconciler) updateDeploymentIfNeeded(ctx context.Context, a2a *v1alpha1.A2A, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
+func (r *A2AReconciler) updateDeploymentIfNeeded(ctx context.Context, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
 	logger := logf.FromContext(ctx)
 
 	for retries := 0; retries < 3; retries++ {
