@@ -14,6 +14,13 @@ metadata:
 spec:
   environment: development
   image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
+  # # ServiceAccount configuration for RBAC
+  # serviceAccount:
+  #   # Create a service account (default: true)
+  #   create: true
+  #   # Custom name for the service account (optional)
+  #   # If not specified, uses the gateway name
+  #   name: "custom-gateway-sa"
   hpa:
     enabled: true
     config:

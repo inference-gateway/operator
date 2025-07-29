@@ -88,6 +88,23 @@ type GatewaySpec struct {
 	// HPA (Horizontal Pod Autoscaler) configuration
 	// +optional
 	HPA *HPASpec `json:"hpa,omitempty"`
+
+	// ServiceAccount configuration for RBAC
+	// +optional
+	ServiceAccount *ServiceAccountSpec `json:"serviceAccount,omitempty"`
+}
+
+// ServiceAccountSpec contains service account configuration for RBAC
+type ServiceAccountSpec struct {
+	// Create specifies whether to create a service account
+	// +optional
+	// +kubebuilder:default=true
+	Create bool `json:"create,omitempty"`
+
+	// Name is the name of the service account to use
+	// If not set and create is true, a name is generated using the gateway name
+	// +optional
+	Name string `json:"name,omitempty"`
 }
 
 type HPASpec struct {
@@ -613,6 +630,10 @@ type GatewayStatus struct {
 	// otherwise it will use the service URL
 	// +optional
 	URL string `json:"url,omitempty"`
+
+	// ServiceAccountName is the name of the created service account
+	// +optional
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 }
 
 // GatewayCondition represents a condition of a Gateway deployment
