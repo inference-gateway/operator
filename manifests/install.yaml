@@ -1800,6 +1800,19 @@ spec:
                     - ExternalName
                     type: string
                 type: object
+              serviceAccount:
+                description: ServiceAccount configuration for RBAC
+                properties:
+                  create:
+                    default: true
+                    description: Create specifies whether to create a service account
+                    type: boolean
+                  name:
+                    description: |-
+                      Name is the name of the service account to use
+                      If not set and create is true, a name is generated using the gateway name
+                    type: string
+                type: object
               telemetry:
                 description: Telemetry configuration for observability
                 properties:
@@ -1894,6 +1907,10 @@ spec:
                 description: Current number of ready replicas
                 format: int32
                 type: integer
+              serviceAccountName:
+                description: ServiceAccountName is the name of the created service
+                  account
+                type: string
               url:
                 description: |-
                   URL presents the address the gateway can be accessed at
@@ -2934,6 +2951,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - serviceaccounts
   - services
   verbs:
   - create
@@ -3012,6 +3030,19 @@ rules:
   - networking.k8s.io
   resources:
   - ingresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
   verbs:
   - create
   - delete
