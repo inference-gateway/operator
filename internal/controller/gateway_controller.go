@@ -407,7 +407,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			Value: gateway.Spec.Environment,
 		},
 		{
-			Name:  "ENABLE_TELEMETRY",
+			Name:  "TELEMETRY_ENABLE",
 			Value: strconv.FormatBool(gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled),
 		},
 		{

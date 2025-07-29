@@ -944,7 +944,7 @@ spec:
 						output, err := utils.Run(cmd)
 						g.Expect(err).NotTo(HaveOccurred(), "Failed to get deployment environment variables")
 
-						g.Expect(output).To(ContainSubstring("\"name\":\"ENABLE_TELEMETRY\""), "Telemetry enabled variable not found")
+						g.Expect(output).To(ContainSubstring("\"name\":\"TELEMETRY_ENABLE\""), "Telemetry enabled variable not found")
 						g.Expect(output).To(ContainSubstring("\"value\":\"true\""), "Telemetry should be enabled")
 					}
 					Eventually(verifyMetricsConfig, timeout, interval).Should(Succeed())
