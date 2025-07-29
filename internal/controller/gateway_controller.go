@@ -35,6 +35,7 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,6 +62,9 @@ import (
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
 
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
@@ -114,6 +118,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	err = r.reconcileHPA(ctx, gateway, deployment)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile HPA")
+		return ctrl.Result{}, err
+	}
+
+	err = r.reconcileRBAC(ctx, gateway)
+	if err != nil {
+		logger.Error(err, "Failed to reconcile RBAC")
 		return ctrl.Result{}, err
 	}
 
@@ -326,6 +336,7 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 					},
 				},
 				Spec: corev1.PodSpec{
+					ServiceAccountName: r.getServiceAccountName(gateway),
 					Containers: []corev1.Container{
 						r.buildContainer(ctx, gateway, containerPorts, volumeMounts),
 					},
@@ -1277,6 +1288,302 @@ func (r *GatewayReconciler) discoverA2AEndpoints(ctx context.Context, namespace 
 	return endpoints, nil
 }
 
+// reconcileRBAC manages RBAC resources (ServiceAccount, Role, RoleBinding) for the Gateway
+func (r *GatewayReconciler) reconcileRBAC(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+	logger := log.FromContext(ctx)
+
+	// Determine if RBAC should be created
+	shouldCreate := gateway.Spec.ServiceAccount == nil || gateway.Spec.ServiceAccount.Create
+
+	if !shouldCreate {
+		logger.V(1).Info("RBAC creation disabled for Gateway", "gateway", gateway.Name)
+		return nil
+	}
+
+	// Determine service account name
+	serviceAccountName := gateway.Name
+	if gateway.Spec.ServiceAccount != nil && gateway.Spec.ServiceAccount.Name != "" {
+		serviceAccountName = gateway.Spec.ServiceAccount.Name
+	}
+
+	// Create ServiceAccount
+	err := r.reconcileServiceAccount(ctx, gateway, serviceAccountName)
+	if err != nil {
+		return fmt.Errorf("failed to reconcile ServiceAccount: %w", err)
+	}
+
+	// Create Role for A2A discovery permissions
+	err = r.reconcileRole(ctx, gateway, serviceAccountName)
+	if err != nil {
+		return fmt.Errorf("failed to reconcile Role: %w", err)
+	}
+
+	// Create RoleBinding
+	err = r.reconcileRoleBinding(ctx, gateway, serviceAccountName)
+	if err != nil {
+		return fmt.Errorf("failed to reconcile RoleBinding: %w", err)
+	}
+
+	// Update Gateway status with service account name
+	err = r.updateServiceAccountStatus(ctx, gateway, serviceAccountName)
+	if err != nil {
+		return fmt.Errorf("failed to update service account status: %w", err)
+	}
+
+	logger.Info("Successfully reconciled RBAC resources", "gateway", gateway.Name, "serviceAccount", serviceAccountName)
+	return nil
+}
+
+// reconcileServiceAccount creates or updates the ServiceAccount for the Gateway
+func (r *GatewayReconciler) reconcileServiceAccount(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
+	logger := log.FromContext(ctx)
+
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceAccountName,
+			Namespace: gateway.Namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":       "inference-gateway",
+				"app.kubernetes.io/instance":   gateway.Name,
+				"app.kubernetes.io/component":  "gateway",
+				"app.kubernetes.io/managed-by": "inference-gateway-operator",
+			},
+		},
+	}
+
+	// Set owner reference
+	err := controllerutil.SetControllerReference(gateway, serviceAccount, r.Scheme)
+	if err != nil {
+		return fmt.Errorf("failed to set controller reference: %w", err)
+	}
+
+	// Check if ServiceAccount already exists
+	existing := &corev1.ServiceAccount{}
+	err = r.Get(ctx, types.NamespacedName{Name: serviceAccountName, Namespace: gateway.Namespace}, existing)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Create new ServiceAccount
+			err = r.Create(ctx, serviceAccount)
+			if err != nil {
+				logger.Error(err, "Failed to create ServiceAccount", "serviceAccount", serviceAccountName)
+				return fmt.Errorf("failed to create ServiceAccount: %w", err)
+			}
+			logger.Info("Successfully created ServiceAccount", "serviceAccount", serviceAccountName)
+		} else {
+			return fmt.Errorf("failed to get ServiceAccount: %w", err)
+		}
+	} else {
+		// Update existing ServiceAccount if needed
+		existing.Labels = serviceAccount.Labels
+		err = r.Update(ctx, existing)
+		if err != nil {
+			logger.Error(err, "Failed to update ServiceAccount", "serviceAccount", serviceAccountName)
+			return fmt.Errorf("failed to update ServiceAccount: %w", err)
+		}
+		logger.V(1).Info("Successfully updated ServiceAccount", "serviceAccount", serviceAccountName)
+	}
+
+	return nil
+}
+
+// reconcileRole creates or updates the Role for A2A discovery permissions
+func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
+	logger := log.FromContext(ctx)
+
+	// Determine namespace for A2A discovery - default to gateway namespace if not specified
+	a2aNamespace := gateway.Namespace
+	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
+		a2aNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
+	}
+
+	roleName := fmt.Sprintf("%s-a2a-discovery", serviceAccountName)
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      roleName,
+			Namespace: a2aNamespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":       "inference-gateway",
+				"app.kubernetes.io/instance":   gateway.Name,
+				"app.kubernetes.io/component":  "gateway-rbac",
+				"app.kubernetes.io/managed-by": "inference-gateway-operator",
+			},
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{"core.inference-gateway.com"},
+				Resources: []string{"a2as"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"services"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+		},
+	}
+
+	// Set owner reference only if Role is in the same namespace as Gateway
+	if a2aNamespace == gateway.Namespace {
+		err := controllerutil.SetControllerReference(gateway, role, r.Scheme)
+		if err != nil {
+			return fmt.Errorf("failed to set controller reference: %w", err)
+		}
+	}
+
+	// Check if Role already exists
+	existing := &rbacv1.Role{}
+	err := r.Get(ctx, types.NamespacedName{Name: roleName, Namespace: a2aNamespace}, existing)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Create new Role
+			err = r.Create(ctx, role)
+			if err != nil {
+				logger.Error(err, "Failed to create Role", "role", roleName, "namespace", a2aNamespace)
+				return fmt.Errorf("failed to create Role: %w", err)
+			}
+			logger.Info("Successfully created Role", "role", roleName, "namespace", a2aNamespace)
+		} else {
+			return fmt.Errorf("failed to get Role: %w", err)
+		}
+	} else {
+		// Update existing Role if needed
+		existing.Rules = role.Rules
+		existing.Labels = role.Labels
+		err = r.Update(ctx, existing)
+		if err != nil {
+			logger.Error(err, "Failed to update Role", "role", roleName, "namespace", a2aNamespace)
+			return fmt.Errorf("failed to update Role: %w", err)
+		}
+		logger.V(1).Info("Successfully updated Role", "role", roleName, "namespace", a2aNamespace)
+	}
+
+	return nil
+}
+
+// reconcileRoleBinding creates or updates the RoleBinding
+func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
+	logger := log.FromContext(ctx)
+
+	// Determine namespace for A2A discovery - default to gateway namespace if not specified
+	a2aNamespace := gateway.Namespace
+	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
+		a2aNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
+	}
+
+	roleName := fmt.Sprintf("%s-a2a-discovery", serviceAccountName)
+	roleBindingName := fmt.Sprintf("%s-a2a-discovery", serviceAccountName)
+
+	roleBinding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      roleBindingName,
+			Namespace: a2aNamespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":       "inference-gateway",
+				"app.kubernetes.io/instance":   gateway.Name,
+				"app.kubernetes.io/component":  "gateway-rbac",
+				"app.kubernetes.io/managed-by": "inference-gateway-operator",
+			},
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      serviceAccountName,
+				Namespace: gateway.Namespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			Kind:     "Role",
+			Name:     roleName,
+			APIGroup: "rbac.authorization.k8s.io",
+		},
+	}
+
+	// Set owner reference only if RoleBinding is in the same namespace as Gateway
+	if a2aNamespace == gateway.Namespace {
+		err := controllerutil.SetControllerReference(gateway, roleBinding, r.Scheme)
+		if err != nil {
+			return fmt.Errorf("failed to set controller reference: %w", err)
+		}
+	}
+
+	// Check if RoleBinding already exists
+	existing := &rbacv1.RoleBinding{}
+	err := r.Get(ctx, types.NamespacedName{Name: roleBindingName, Namespace: a2aNamespace}, existing)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Create new RoleBinding
+			err = r.Create(ctx, roleBinding)
+			if err != nil {
+				logger.Error(err, "Failed to create RoleBinding", "roleBinding", roleBindingName, "namespace", a2aNamespace)
+				return fmt.Errorf("failed to create RoleBinding: %w", err)
+			}
+			logger.Info("Successfully created RoleBinding", "roleBinding", roleBindingName, "namespace", a2aNamespace)
+		} else {
+			return fmt.Errorf("failed to get RoleBinding: %w", err)
+		}
+	} else {
+		// Update existing RoleBinding if needed
+		existing.Subjects = roleBinding.Subjects
+		existing.RoleRef = roleBinding.RoleRef
+		existing.Labels = roleBinding.Labels
+		err = r.Update(ctx, existing)
+		if err != nil {
+			logger.Error(err, "Failed to update RoleBinding", "roleBinding", roleBindingName, "namespace", a2aNamespace)
+			return fmt.Errorf("failed to update RoleBinding: %w", err)
+		}
+		logger.V(1).Info("Successfully updated RoleBinding", "roleBinding", roleBindingName, "namespace", a2aNamespace)
+	}
+
+	return nil
+}
+
+// updateServiceAccountStatus updates the Gateway status with the service account name
+func (r *GatewayReconciler) updateServiceAccountStatus(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
+	const maxRetries = 3
+	var lastErr error
+
+	for i := 0; i < maxRetries; i++ {
+		latest := &corev1alpha1.Gateway{}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(gateway), latest); err != nil {
+			return err
+		}
+
+		if latest.Status.ServiceAccountName == serviceAccountName {
+			return nil
+		}
+
+		latest.Status.ServiceAccountName = serviceAccountName
+		if err := r.Status().Update(ctx, latest); err != nil {
+			if errors.IsConflict(err) {
+				lastErr = err
+				continue
+			}
+			return err
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// getServiceAccountName returns the service account name for the Gateway
+func (r *GatewayReconciler) getServiceAccountName(gateway *corev1alpha1.Gateway) string {
+	// If serviceAccount is disabled, use default
+	if gateway.Spec.ServiceAccount != nil && !gateway.Spec.ServiceAccount.Create {
+		if gateway.Spec.ServiceAccount.Name != "" {
+			return gateway.Spec.ServiceAccount.Name
+		}
+		return "default"
+	}
+
+	// If custom name is specified, use it
+	if gateway.Spec.ServiceAccount != nil && gateway.Spec.ServiceAccount.Name != "" {
+		return gateway.Spec.ServiceAccount.Name
+	}
+
+	// Default to gateway name
+	return gateway.Name
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -1285,5 +1592,8 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
 		Complete(r)
 }
