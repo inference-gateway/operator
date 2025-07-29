@@ -199,7 +199,7 @@ var _ = Describe("Gateway controller", func() {
 				Value: "production",
 			}))
 			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "ENABLE_TELEMETRY",
+				Name:  "TELEMETRY_ENABLE",
 				Value: "true",
 			}))
 			Expect(envVars).To(ContainElement(MatchFields(IgnoreExtras, Fields{
@@ -493,15 +493,22 @@ var _ = Describe("Gateway controller", func() {
 			},
 			Entry("OpenTelemetry enabled", GatewayName+"-otel", "production", true, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
-				{Name: "ENABLE_TELEMETRY", Value: "true"},
+				{Name: "TELEMETRY_ENABLE", Value: "true"},
 			}),
 			Entry("Telemetry enabled in development", GatewayName+"-no-telemetry", "development", true, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "development"},
-				{Name: "ENABLE_TELEMETRY", Value: "true"},
+				{Name: "TELEMETRY_ENABLE", Value: "true"},
 			}),
 		)
 
 		It("Should set A2A service discovery environment variables when configured", func() {
+			testNamespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-namespace",
+				},
+			}
+			Expect(k8sClient.Create(ctx, testNamespace)).Should(Succeed())
+
 			gateway := &corev1alpha1.Gateway{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "core.inference-gateway.com/v1alpha1",
@@ -532,7 +539,7 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "A2A_EXPOSE", Value: "false"},
 				{Name: "A2A_AGENTS", Value: ""},
 				{Name: "A2A_CLIENT_TIMEOUT", Value: "5s"},
-				{Name: "A2A_SERVICE_DISCOVERY_ENABLED", Value: "true"},
+				{Name: "A2A_SERVICE_DISCOVERY_ENABLE", Value: "true"},
 				{Name: "A2A_SERVICE_DISCOVERY_NAMESPACE", Value: "test-namespace"},
 				{Name: "A2A_SERVICE_DISCOVERY_ENDPOINTS", Value: ""},
 				{Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL", Value: "60s"},
@@ -540,6 +547,8 @@ var _ = Describe("Gateway controller", func() {
 
 			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
 			checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, timeout, interval)
+
+			Expect(k8sClient.Delete(ctx, testNamespace)).Should(Succeed())
 		})
 
 		It("Should set A2A service discovery environment variables with defaults when minimal config", func() {
@@ -571,7 +580,7 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "A2A_EXPOSE", Value: "false"},
 				{Name: "A2A_AGENTS", Value: ""},
 				{Name: "A2A_CLIENT_TIMEOUT", Value: "5s"},
-				{Name: "A2A_SERVICE_DISCOVERY_ENABLED", Value: "true"},
+				{Name: "A2A_SERVICE_DISCOVERY_ENABLE", Value: "true"},
 				{Name: "A2A_SERVICE_DISCOVERY_NAMESPACE", Value: "default"},
 				{Name: "A2A_SERVICE_DISCOVERY_ENDPOINTS", Value: ""},
 				{Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL", Value: "30s"},
