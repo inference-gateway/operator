@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.1](https://github.com/inference-gateway/operator/compare/v0.11.0...v0.11.1) (2025-07-29)
+
+### 🐛 Bug Fixes
+
+* **a2a:** Rename A2A_SERVICE_DISCOVERY_ENABLED to A2A_SERVICE_DISCOVERY_ENABLE ([#27](https://github.com/inference-gateway/operator/issues/27)) ([78ed5c0](https://github.com/inference-gateway/operator/commit/78ed5c071de902b4e8f36d378c57a1f953aca4b9)), closes [#25](https://github.com/inference-gateway/operator/issues/25)
+
 ## [0.11.0](https://github.com/inference-gateway/operator/compare/v0.10.0...v0.11.0) (2025-07-28)
 
 ### ✨ Features
