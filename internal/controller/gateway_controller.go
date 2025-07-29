@@ -523,7 +523,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 
 			envVars = append(envVars,
 				corev1.EnvVar{
-					Name:  "A2A_SERVICE_DISCOVERY_ENABLED",
+					Name:  "A2A_SERVICE_DISCOVERY_ENABLE",
 					Value: fmt.Sprintf("%t", gateway.Spec.A2A.ServiceDiscovery.Enabled),
 				},
 				corev1.EnvVar{
