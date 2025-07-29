@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0](https://github.com/inference-gateway/operator/compare/v0.11.1...v0.12.0) (2025-07-29)
+
+### ✨ Features
+
+* **gateway:** Add ServiceAccount for RBAC configuration to Gateway CRD ([#33](https://github.com/inference-gateway/operator/issues/33)) ([dda8cc6](https://github.com/inference-gateway/operator/commit/dda8cc65ccb2deff9b300c7e1e48430006c50004))
+
+### ♻️ Improvements
+
+* **a2a:** Remove A2A_SERVICE_DISCOVERY_ENDPOINTS environment variable ([#34](https://github.com/inference-gateway/operator/issues/34)) ([987171c](https://github.com/inference-gateway/operator/commit/987171c82c2383b4945ebd2ee2844c2bd8e1d995)), closes [#29](https://github.com/inference-gateway/operator/issues/29)
+* **controller:** Rename ENABLE_AUTH environment variable to AUTH_ENABLE ([#30](https://github.com/inference-gateway/operator/issues/30)) ([86fe434](https://github.com/inference-gateway/operator/commit/86fe43417148859006bccd19b1590f249f2f4e15)), closes [#28](https://github.com/inference-gateway/operator/issues/28)
+* **gateway:** Rename ENABLE_TELEMETRY to TELEMETRY_ENABLE ([#31](https://github.com/inference-gateway/operator/issues/31)) ([adbaefc](https://github.com/inference-gateway/operator/commit/adbaefce0fee88503b077f5c18b70a31046abcd5)), closes [#26](https://github.com/inference-gateway/operator/issues/26)
+
+### 🔨 Miscellaneous
+
+* **deps:** Bump the go_modules group across 1 directory with 2 updates ([#24](https://github.com/inference-gateway/operator/issues/24)) ([76d5a51](https://github.com/inference-gateway/operator/commit/76d5a51b6620f0d7d67f26ed051a232494b959bd))
+
 ## [0.11.1](https://github.com/inference-gateway/operator/compare/v0.11.0...v0.11.1) (2025-07-29)
 
 ### 🐛 Bug Fixes
