@@ -411,7 +411,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			Value: strconv.FormatBool(gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled),
 		},
 		{
-			Name:  "ENABLE_AUTH",
+			Name:  "AUTH_ENABLE",
 			Value: strconv.FormatBool(gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled),
 		},
 	}
