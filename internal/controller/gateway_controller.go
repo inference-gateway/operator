@@ -1292,7 +1292,6 @@ func (r *GatewayReconciler) discoverA2AEndpoints(ctx context.Context, namespace 
 func (r *GatewayReconciler) reconcileRBAC(ctx context.Context, gateway *corev1alpha1.Gateway) error {
 	logger := log.FromContext(ctx)
 
-	// Determine if RBAC should be created
 	shouldCreate := gateway.Spec.ServiceAccount == nil || gateway.Spec.ServiceAccount.Create
 
 	if !shouldCreate {
@@ -1300,31 +1299,26 @@ func (r *GatewayReconciler) reconcileRBAC(ctx context.Context, gateway *corev1al
 		return nil
 	}
 
-	// Determine service account name
 	serviceAccountName := gateway.Name
 	if gateway.Spec.ServiceAccount != nil && gateway.Spec.ServiceAccount.Name != "" {
 		serviceAccountName = gateway.Spec.ServiceAccount.Name
 	}
 
-	// Create ServiceAccount
 	err := r.reconcileServiceAccount(ctx, gateway, serviceAccountName)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile ServiceAccount: %w", err)
 	}
 
-	// Create Role for A2A discovery permissions
 	err = r.reconcileRole(ctx, gateway, serviceAccountName)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile Role: %w", err)
 	}
 
-	// Create RoleBinding
 	err = r.reconcileRoleBinding(ctx, gateway, serviceAccountName)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile RoleBinding: %w", err)
 	}
 
-	// Update Gateway status with service account name
 	err = r.updateServiceAccountStatus(ctx, gateway, serviceAccountName)
 	if err != nil {
 		return fmt.Errorf("failed to update service account status: %w", err)
