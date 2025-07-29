@@ -1384,7 +1384,6 @@ func (r *GatewayReconciler) reconcileServiceAccount(ctx context.Context, gateway
 func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
 	logger := log.FromContext(ctx)
 
-	// Determine namespace for A2A discovery - default to gateway namespace if not specified
 	a2aNamespace := gateway.Namespace
 	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
 		a2aNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
@@ -1416,7 +1415,6 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 		},
 	}
 
-	// Set owner reference only if Role is in the same namespace as Gateway
 	if a2aNamespace == gateway.Namespace {
 		err := controllerutil.SetControllerReference(gateway, role, r.Scheme)
 		if err != nil {
@@ -1424,12 +1422,10 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 		}
 	}
 
-	// Check if Role already exists
 	existing := &rbacv1.Role{}
 	err := r.Get(ctx, types.NamespacedName{Name: roleName, Namespace: a2aNamespace}, existing)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Create new Role
 			err = r.Create(ctx, role)
 			if err != nil {
 				logger.Error(err, "Failed to create Role", "role", roleName, "namespace", a2aNamespace)
@@ -1440,7 +1436,6 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 			return fmt.Errorf("failed to get Role: %w", err)
 		}
 	} else {
-		// Update existing Role if needed
 		existing.Rules = role.Rules
 		existing.Labels = role.Labels
 		err = r.Update(ctx, existing)
@@ -1458,7 +1453,6 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
 	logger := log.FromContext(ctx)
 
-	// Determine namespace for A2A discovery - default to gateway namespace if not specified
 	a2aNamespace := gateway.Namespace
 	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
 		a2aNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
@@ -1492,7 +1486,6 @@ func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *c
 		},
 	}
 
-	// Set owner reference only if RoleBinding is in the same namespace as Gateway
 	if a2aNamespace == gateway.Namespace {
 		err := controllerutil.SetControllerReference(gateway, roleBinding, r.Scheme)
 		if err != nil {
@@ -1500,12 +1493,10 @@ func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *c
 		}
 	}
 
-	// Check if RoleBinding already exists
 	existing := &rbacv1.RoleBinding{}
 	err := r.Get(ctx, types.NamespacedName{Name: roleBindingName, Namespace: a2aNamespace}, existing)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Create new RoleBinding
 			err = r.Create(ctx, roleBinding)
 			if err != nil {
 				logger.Error(err, "Failed to create RoleBinding", "roleBinding", roleBindingName, "namespace", a2aNamespace)
@@ -1516,7 +1507,6 @@ func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *c
 			return fmt.Errorf("failed to get RoleBinding: %w", err)
 		}
 	} else {
-		// Update existing RoleBinding if needed
 		existing.Subjects = roleBinding.Subjects
 		existing.RoleRef = roleBinding.RoleRef
 		existing.Labels = roleBinding.Labels
@@ -1561,7 +1551,6 @@ func (r *GatewayReconciler) updateServiceAccountStatus(ctx context.Context, gate
 
 // getServiceAccountName returns the service account name for the Gateway
 func (r *GatewayReconciler) getServiceAccountName(gateway *corev1alpha1.Gateway) string {
-	// If serviceAccount is disabled, use default
 	if gateway.Spec.ServiceAccount != nil && !gateway.Spec.ServiceAccount.Create {
 		if gateway.Spec.ServiceAccount.Name != "" {
 			return gateway.Spec.ServiceAccount.Name
@@ -1569,12 +1558,10 @@ func (r *GatewayReconciler) getServiceAccountName(gateway *corev1alpha1.Gateway)
 		return "default"
 	}
 
-	// If custom name is specified, use it
 	if gateway.Spec.ServiceAccount != nil && gateway.Spec.ServiceAccount.Name != "" {
 		return gateway.Spec.ServiceAccount.Name
 	}
 
-	// Default to gateway name
 	return gateway.Name
 }
 
