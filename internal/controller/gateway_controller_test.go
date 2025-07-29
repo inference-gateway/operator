@@ -199,7 +199,7 @@ var _ = Describe("Gateway controller", func() {
 				Value: "production",
 			}))
 			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "ENABLE_TELEMETRY",
+				Name:  "TELEMETRY_ENABLE",
 				Value: "true",
 			}))
 			Expect(envVars).To(ContainElement(MatchFields(IgnoreExtras, Fields{
@@ -493,11 +493,11 @@ var _ = Describe("Gateway controller", func() {
 			},
 			Entry("OpenTelemetry enabled", GatewayName+"-otel", "production", true, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
-				{Name: "ENABLE_TELEMETRY", Value: "true"},
+				{Name: "TELEMETRY_ENABLE", Value: "true"},
 			}),
 			Entry("Telemetry enabled in development", GatewayName+"-no-telemetry", "development", true, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "development"},
-				{Name: "ENABLE_TELEMETRY", Value: "true"},
+				{Name: "TELEMETRY_ENABLE", Value: "true"},
 			}),
 		)
 
