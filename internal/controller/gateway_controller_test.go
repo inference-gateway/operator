@@ -502,7 +502,6 @@ var _ = Describe("Gateway controller", func() {
 		)
 
 		It("Should set A2A service discovery environment variables when configured", func() {
-			// Create the test namespace required for A2A service discovery
 			testNamespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-namespace",
@@ -549,7 +548,6 @@ var _ = Describe("Gateway controller", func() {
 			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
 			checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, timeout, interval)
 
-			// Clean up the test namespace
 			Expect(k8sClient.Delete(ctx, testNamespace)).Should(Succeed())
 		})
 
