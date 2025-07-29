@@ -1555,7 +1555,7 @@ func (r *GatewayReconciler) getServiceAccountName(gateway *corev1alpha1.Gateway)
 		if gateway.Spec.ServiceAccount.Name != "" {
 			return gateway.Spec.ServiceAccount.Name
 		}
-		return "default"
+		return gateway.Name
 	}
 
 	if gateway.Spec.ServiceAccount != nil && gateway.Spec.ServiceAccount.Name != "" {
