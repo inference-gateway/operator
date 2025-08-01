@@ -53,11 +53,16 @@ spec:
           value: "Google Calendar Agent"
       systemPrompt: "You are a helpful assistant for managing Google Calendar events. You can create, read, update, and delete events, and you can also list upcoming events."
   env:
-    - name: "DEMO_MODE"
+    - name: DEMO_MODE
       valueFrom:
         configMapKeyRef:
-          name: "google-calendar-agent-config"
-          key: "DEMO_MODE"
+          name: google-calendar-agent-config
+          key: DEMO_MODE
+    - name: A2A_AGENT_URL
+      valueFrom:
+        configMapKeyRef:
+          name: google-calendar-agent-config
+          key: A2A_AGENT_URL
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -66,3 +71,4 @@ metadata:
   namespace: agents
 data:
   DEMO_MODE: "true"
+  A2A_AGENT_URL: "http://google-calendar-agent.agents.svc.cluster.local:8080"
