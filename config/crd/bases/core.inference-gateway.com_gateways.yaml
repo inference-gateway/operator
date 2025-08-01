@@ -56,8 +56,8 @@ spec:
           spec:
             description: GatewaySpec defines the desired state of Gateway.
             properties:
-              a2a:
-                description: A2A (Agent-to-Agent) configuration
+              agents:
+                description: Agents (Agent-to-Agent) configuration
                 properties:
                   agents:
                     description: A2A agents configuration
