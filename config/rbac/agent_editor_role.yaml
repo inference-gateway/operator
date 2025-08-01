@@ -11,12 +11,12 @@ metadata:
   labels:
     app.kubernetes.io/name: operator
     app.kubernetes.io/managed-by: kustomize
-  name: a2a-editor-role
+  name: agent-editor-role
 rules:
   - apiGroups:
       - core.inference-gateway.com
     resources:
-      - a2as
+      - agents
     verbs:
       - create
       - delete
@@ -28,6 +28,6 @@ rules:
   - apiGroups:
       - core.inference-gateway.com
     resources:
-      - a2as/status
+      - agents/status
     verbs:
       - get

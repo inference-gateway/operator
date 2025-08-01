@@ -9,7 +9,7 @@ metadata:
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: Gateway
 metadata:
-  name: gateway-with-a2a-service-discovery
+  name: gateway-with-agent-service-discovery
   namespace: inference-gateway
 spec:
   replicas: 2
@@ -28,7 +28,7 @@ spec:
             secretKeyRef:
               name: ai-providers-secret
               key: OPENAI_API_KEY
-  a2a:
+  agents:
     enabled: true
     expose: false
     serviceDiscovery:
@@ -60,7 +60,7 @@ stringData:
   OPENAI_API_KEY: "your-openai-api-key-here"
 ---
 apiVersion: core.inference-gateway.com/v1alpha1
-kind: A2A
+kind: Agent
 metadata:
   name: email-agent
   namespace: agents

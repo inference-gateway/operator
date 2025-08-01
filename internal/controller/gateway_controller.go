@@ -54,7 +54,7 @@ import (
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/finalizers,verbs=update
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2as,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=agents,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -1341,16 +1341,16 @@ func (r *GatewayReconciler) reconcileServiceAccount(ctx context.Context, gateway
 func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
 	logger := log.FromContext(ctx)
 
-	a2aNamespace := gateway.Namespace
+	agentNamespace := gateway.Namespace
 	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
-		a2aNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
+		agentNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
 	}
 
-	roleName := fmt.Sprintf("%s-a2a-discovery", serviceAccountName)
+	roleName := fmt.Sprintf("%s-agent-discovery", serviceAccountName)
 	role := &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleName,
-			Namespace: a2aNamespace,
+			Namespace: agentNamespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":       "inference-gateway",
 				"app.kubernetes.io/instance":   gateway.Name,
@@ -1361,7 +1361,7 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{"core.inference-gateway.com"},
-				Resources: []string{"a2as"},
+				Resources: []string{"agents"},
 				Verbs:     []string{"get", "list", "watch"},
 			},
 			{
@@ -1372,7 +1372,7 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 		},
 	}
 
-	if a2aNamespace == gateway.Namespace {
+	if agentNamespace == gateway.Namespace {
 		err := controllerutil.SetControllerReference(gateway, role, r.Scheme)
 		if err != nil {
 			return fmt.Errorf("failed to set controller reference: %w", err)
@@ -1380,15 +1380,15 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 	}
 
 	existing := &rbacv1.Role{}
-	err := r.Get(ctx, types.NamespacedName{Name: roleName, Namespace: a2aNamespace}, existing)
+	err := r.Get(ctx, types.NamespacedName{Name: roleName, Namespace: agentNamespace}, existing)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			err = r.Create(ctx, role)
 			if err != nil {
-				logger.Error(err, "Failed to create Role", "role", roleName, "namespace", a2aNamespace)
+				logger.Error(err, "Failed to create Role", "role", roleName, "namespace", agentNamespace)
 				return fmt.Errorf("failed to create Role: %w", err)
 			}
-			logger.Info("Successfully created Role", "role", roleName, "namespace", a2aNamespace)
+			logger.Info("Successfully created Role", "role", roleName, "namespace", agentNamespace)
 		} else {
 			return fmt.Errorf("failed to get Role: %w", err)
 		}
@@ -1397,10 +1397,10 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 		existing.Labels = role.Labels
 		err = r.Update(ctx, existing)
 		if err != nil {
-			logger.Error(err, "Failed to update Role", "role", roleName, "namespace", a2aNamespace)
+			logger.Error(err, "Failed to update Role", "role", roleName, "namespace", agentNamespace)
 			return fmt.Errorf("failed to update Role: %w", err)
 		}
-		logger.V(1).Info("Successfully updated Role", "role", roleName, "namespace", a2aNamespace)
+		logger.V(1).Info("Successfully updated Role", "role", roleName, "namespace", agentNamespace)
 	}
 
 	return nil
@@ -1410,18 +1410,18 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
 	logger := log.FromContext(ctx)
 
-	a2aNamespace := gateway.Namespace
+	agentNamespace := gateway.Namespace
 	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
-		a2aNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
+		agentNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
 	}
 
-	roleName := fmt.Sprintf("%s-a2a-discovery", serviceAccountName)
-	roleBindingName := fmt.Sprintf("%s-a2a-discovery", serviceAccountName)
+	roleName := fmt.Sprintf("%s-agent-discovery", serviceAccountName)
+	roleBindingName := fmt.Sprintf("%s-agent-discovery", serviceAccountName)
 
 	roleBinding := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleBindingName,
-			Namespace: a2aNamespace,
+			Namespace: agentNamespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":       "inference-gateway",
 				"app.kubernetes.io/instance":   gateway.Name,
@@ -1443,7 +1443,7 @@ func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *c
 		},
 	}
 
-	if a2aNamespace == gateway.Namespace {
+	if agentNamespace == gateway.Namespace {
 		err := controllerutil.SetControllerReference(gateway, roleBinding, r.Scheme)
 		if err != nil {
 			return fmt.Errorf("failed to set controller reference: %w", err)
@@ -1451,15 +1451,15 @@ func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *c
 	}
 
 	existing := &rbacv1.RoleBinding{}
-	err := r.Get(ctx, types.NamespacedName{Name: roleBindingName, Namespace: a2aNamespace}, existing)
+	err := r.Get(ctx, types.NamespacedName{Name: roleBindingName, Namespace: agentNamespace}, existing)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			err = r.Create(ctx, roleBinding)
 			if err != nil {
-				logger.Error(err, "Failed to create RoleBinding", "roleBinding", roleBindingName, "namespace", a2aNamespace)
+				logger.Error(err, "Failed to create RoleBinding", "roleBinding", roleBindingName, "namespace", agentNamespace)
 				return fmt.Errorf("failed to create RoleBinding: %w", err)
 			}
-			logger.Info("Successfully created RoleBinding", "roleBinding", roleBindingName, "namespace", a2aNamespace)
+			logger.Info("Successfully created RoleBinding", "roleBinding", roleBindingName, "namespace", agentNamespace)
 		} else {
 			return fmt.Errorf("failed to get RoleBinding: %w", err)
 		}
@@ -1469,10 +1469,10 @@ func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *c
 		existing.Labels = roleBinding.Labels
 		err = r.Update(ctx, existing)
 		if err != nil {
-			logger.Error(err, "Failed to update RoleBinding", "roleBinding", roleBindingName, "namespace", a2aNamespace)
+			logger.Error(err, "Failed to update RoleBinding", "roleBinding", roleBindingName, "namespace", agentNamespace)
 			return fmt.Errorf("failed to update RoleBinding: %w", err)
 		}
-		logger.V(1).Info("Successfully updated RoleBinding", "roleBinding", roleBindingName, "namespace", a2aNamespace)
+		logger.V(1).Info("Successfully updated RoleBinding", "roleBinding", roleBindingName, "namespace", agentNamespace)
 	}
 
 	return nil

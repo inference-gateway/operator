@@ -501,7 +501,7 @@ var _ = Describe("Gateway controller", func() {
 			}),
 		)
 
-		It("Should set A2A service discovery environment variables when configured", func() {
+		It("Should set Agent service discovery environment variables when configured", func() {
 			testNamespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-namespace",
@@ -515,7 +515,7 @@ var _ = Describe("Gateway controller", func() {
 					Kind:       "Gateway",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      GatewayName + "-a2a-sd",
+					Name:      GatewayName + "-agent-sd",
 					Namespace: GatewayNamespace,
 				},
 				Spec: corev1alpha1.GatewaySpec{
@@ -524,7 +524,7 @@ var _ = Describe("Gateway controller", func() {
 					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
 					A2A: &corev1alpha1.A2AServersSpec{
 						Enabled: true,
-						ServiceDiscovery: &corev1alpha1.A2AServiceDiscovery{
+						ServiceDiscovery: &corev1alpha1.AgentServiceDiscovery{
 							Enabled:         true,
 							Namespace:       "test-namespace",
 							PollingInterval: "60s",
@@ -550,14 +550,14 @@ var _ = Describe("Gateway controller", func() {
 			Expect(k8sClient.Delete(ctx, testNamespace)).Should(Succeed())
 		})
 
-		It("Should set A2A service discovery environment variables with defaults when minimal config", func() {
+		It("Should set Agent service discovery environment variables with defaults when minimal config", func() {
 			gateway := &corev1alpha1.Gateway{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "core.inference-gateway.com/v1alpha1",
 					Kind:       "Gateway",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      GatewayName + "-a2a-sd-defaults",
+					Name:      GatewayName + "-agent-sd-defaults",
 					Namespace: GatewayNamespace,
 				},
 				Spec: corev1alpha1.GatewaySpec{
@@ -566,7 +566,7 @@ var _ = Describe("Gateway controller", func() {
 					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
 					A2A: &corev1alpha1.A2AServersSpec{
 						Enabled: true,
-						ServiceDiscovery: &corev1alpha1.A2AServiceDiscovery{
+						ServiceDiscovery: &corev1alpha1.AgentServiceDiscovery{
 							Enabled: true,
 						},
 					},

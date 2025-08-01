@@ -501,9 +501,8 @@ spec:
     # Service Discovery Configuration
     serviceDiscovery:
       enabled: true
-      namespace: "agents"  # Namespace to search for A2A agents
-      labelSelector: "inference-gateway.com/a2a-agent=true"  # Label selector for agent discovery
-      pollingInterval: "30s"  # How often to check for new agents
+      namespace: "agents" # Namespace to search for A2A agents
+      pollingInterval: "30s" # How often to check for new agents
     # Manual agents can still be configured alongside service discovery
     agents:
       - name: static-agent
@@ -528,8 +527,6 @@ kind: Service
 metadata:
   name: my-agent
   namespace: agents
-  labels:
-    inference-gateway.com/a2a-agent: "true"  # Required for discovery
 spec:
   # Service configuration
 ```

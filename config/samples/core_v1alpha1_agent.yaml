@@ -1,10 +1,10 @@
 apiVersion: core.inference-gateway.com/v1alpha1
-kind: A2A
+kind: Agent
 metadata:
   labels:
     app.kubernetes.io/name: operator
     app.kubernetes.io/managed-by: kustomize
-  name: a2a-sample
+  name: agent-sample
 spec:
   image: "ghcr.io/inference-gateway/google-calendar-agent:latest"
   timezone: "UTC"
@@ -46,7 +46,7 @@ spec:
       systemPrompt: "You are a helpful assistant for managing Google Calendar events. You can create, read, update, and delete events, and you can also list upcoming events."
   card:
     name: "Google Calendar Agent"
-    description: "A2A-compatible agent for Google Calendar integration with full CRUD operations and event management capabilities"
+    description: "Agent for Google Calendar integration with full CRUD operations and event management capabilities"
     version: "0.1.0"
     url: "http://google-calendar-agent.agents.svc.cluster.local:8080"
     defaultInputModes:

@@ -30,20 +30,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// A2ASpec defines the desired state of A2A.
-type A2ASpec struct {
-	Image        string        `json:"image"`
-	Timezone     string        `json:"timezone"`
-	Port         int32         `json:"port"`
-	Host         string        `json:"host"`
-	ReadTimeout  string        `json:"readTimeout"`
-	WriteTimeout string        `json:"writeTimeout"`
-	IdleTimeout  string        `json:"idleTimeout"`
-	Logging      LoggingSpec   `json:"logging"`
-	Telemetry    TelemetrySpec `json:"telemetry"`
-	Queue        QueueSpec     `json:"queue"`
-	TLS          TLSSpec       `json:"tls"`
-	Agent        AgentSpec     `json:"agent"`
+// AgentSpec defines the desired state of Agent.
+type AgentSpec struct {
+	Image        string          `json:"image"`
+	Timezone     string          `json:"timezone"`
+	Port         int32           `json:"port"`
+	Host         string          `json:"host"`
+	ReadTimeout  string          `json:"readTimeout"`
+	WriteTimeout string          `json:"writeTimeout"`
+	IdleTimeout  string          `json:"idleTimeout"`
+	Logging      LoggingSpec     `json:"logging"`
+	Telemetry    TelemetrySpec   `json:"telemetry"`
+	Queue        QueueSpec       `json:"queue"`
+	TLS          TLSSpec         `json:"tls"`
+	Agent        AgentConfigSpec `json:"agent"`
 
 	// Environment variables for the provider
 	// +optional
@@ -66,7 +66,7 @@ type TLSSpec struct {
 	SecretRef string `json:"secretRef"`
 }
 
-type AgentSpec struct {
+type AgentConfigSpec struct {
 	Enabled                     bool       `json:"enabled"`
 	TLS                         TLSSpec    `json:"tls"`
 	MaxConversationHistory      int32      `json:"maxConversationHistory"`
@@ -152,7 +152,7 @@ type Card struct {
 	DefaultInputModes  []string `json:"defaultInputModes"`
 	DefaultOutputModes []string `json:"defaultOutputModes"`
 
-	// DocumentationURL is an optional field that provides a URL to the documentation for the A2A.
+	// DocumentationURL is an optional field that provides a URL to the documentation for the Agent.
 	// +optional
 	DocumentationURL string `json:"documentationUrl,omitempty"`
 
@@ -169,8 +169,8 @@ type CapabilitiesSpec struct {
 	StateTransitionHistory bool `json:"stateTransitionHistory"`
 }
 
-// A2AStatus defines the observed state of A2A.
-type A2AStatus struct {
+// AgentStatus defines the observed state of Agent.
+type AgentStatus struct {
 	// ObservedGeneration is the most recent generation observed for this resource.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
@@ -184,38 +184,38 @@ type A2AStatus struct {
 	// +optional
 	Ready bool `json:"ready,omitempty"`
 
-	// Card indicates the version of the A2A resource.
+	// Card indicates the version of the Agent resource.
 	// +optional
 	Card Card `json:"card,omitempty"`
 }
 
-// +kubebuilder:printcolumn:name="VERSION",type=string,JSONPath=".status.card.version",description="Version of the A2A resource"
-// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=".status.card.url",description="URL of the A2A resource"
-// +kubebuilder:printcolumn:name="STREAMING",type=string,JSONPath=".status.card.capabilities.streaming",description="Streaming Capability of the A2A resource"
-// +kubebuilder:printcolumn:name="PUSH NOTIFICATIONS",type=string,JSONPath=".status.card.capabilities.pushNotifications",description="Push Notifications Capability of the A2A resource"
-// +kubebuilder:printcolumn:name="STATE TRANSITION HISTORY",type=string,JSONPath=".status.card.capabilities.stateTransitionHistory",description="State Transition History Capability of the A2A resource"
+// +kubebuilder:printcolumn:name="VERSION",type=string,JSONPath=".status.card.version",description="Version of the Agent resource"
+// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=".status.card.url",description="URL of the Agent resource"
+// +kubebuilder:printcolumn:name="STREAMING",type=string,JSONPath=".status.card.capabilities.streaming",description="Streaming Capability of the Agent resource"
+// +kubebuilder:printcolumn:name="PUSH NOTIFICATIONS",type=string,JSONPath=".status.card.capabilities.pushNotifications",description="Push Notifications Capability of the Agent resource"
+// +kubebuilder:printcolumn:name="STATE TRANSITION HISTORY",type=string,JSONPath=".status.card.capabilities.stateTransitionHistory",description="State Transition History Capability of the Agent resource"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// A2A is the Schema for the a2as API.
-type A2A struct {
+// Agent is the Schema for the agents API.
+type Agent struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   A2ASpec   `json:"spec,omitempty"`
-	Status A2AStatus `json:"status,omitempty"`
+	Spec   AgentSpec   `json:"spec,omitempty"`
+	Status AgentStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// A2AList contains a list of A2A.
-type A2AList struct {
+// AgentList contains a list of Agent.
+type AgentList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []A2A `json:"items"`
+	Items           []Agent `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&A2A{}, &A2AList{})
+	SchemeBuilder.Register(&Agent{}, &AgentList{})
 }

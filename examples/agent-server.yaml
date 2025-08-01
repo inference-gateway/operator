@@ -7,9 +7,9 @@ metadata:
     inference-gateway.com/managed: "true"
 ---
 apiVersion: core.inference-gateway.com/v1alpha1
-kind: A2A
+kind: Agent
 metadata:
-  name: a2a-google-calendar-agent
+  name: google-calendar-agent
   namespace: agents
 spec:
   image: ghcr.io/inference-gateway/google-calendar-agent:latest
@@ -53,16 +53,22 @@ spec:
           value: "Google Calendar Agent"
       systemPrompt: "You are a helpful assistant for managing Google Calendar events. You can create, read, update, and delete events, and you can also list upcoming events."
   env:
-    - name: "DEMO_MODE"
+    - name: DEMO_MODE
       valueFrom:
         configMapKeyRef:
-          name: "a2a-google-calendar-agent-config"
-          key: "DEMO_MODE"
+          name: google-calendar-agent-config
+          key: DEMO_MODE
+    - name: A2A_AGENT_URL
+      valueFrom:
+        configMapKeyRef:
+          name: google-calendar-agent-config
+          key: A2A_AGENT_URL
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: a2a-google-calendar-agent-config
+  name: google-calendar-agent-config
   namespace: agents
 data:
   DEMO_MODE: "true"
+  A2A_AGENT_URL: "http://google-calendar-agent.agents.svc.cluster.local:8080"

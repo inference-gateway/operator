@@ -49,39 +49,39 @@ import (
 	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
-// A2AReconciler reconciles a A2A object
-type A2AReconciler struct {
+// AgentReconciler reconciles a Agent object
+type AgentReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2as,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2as/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=a2as/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=agents,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=agents/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=agents/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-func (r *A2AReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx)
 
 	if !r.shouldWatchNamespace(ctx, req.Namespace) {
-		logger.V(1).Info("Skipping Gateway in namespace not matching watch criteria", "namespace", req.Namespace)
+		logger.V(1).Info("Skipping Agent in namespace not matching watch criteria", "namespace", req.Namespace)
 		return ctrl.Result{}, nil
 	}
 
-	var a2a v1alpha1.A2A
-	if err := r.Get(ctx, req.NamespacedName, &a2a); err != nil {
+	var agent v1alpha1.Agent
+	if err := r.Get(ctx, req.NamespacedName, &agent); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !a2a.DeletionTimestamp.IsZero() {
+	if !agent.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, nil
 	}
 
-	_, err := r.reconcileDeployment(ctx, &a2a)
+	_, err := r.reconcileDeployment(ctx, &agent)
 	if err != nil {
 		if apiErrors.IsConflict(err) {
 			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
@@ -92,10 +92,10 @@ func (r *A2AReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	svc := &corev1.Service{}
-	svcName := a2a.Name
-	err = r.Get(ctx, client.ObjectKey{Namespace: a2a.Namespace, Name: svcName}, svc)
+	svcName := agent.Name
+	err = r.Get(ctx, client.ObjectKey{Namespace: agent.Namespace, Name: svcName}, svc)
 	if err != nil {
-		svc = buildA2AService(&a2a)
+		svc = buildAgentService(&agent)
 		if err := r.Create(ctx, svc); err != nil {
 			logger.Error(err, "failed to create service")
 			return ctrl.Result{}, err
@@ -110,39 +110,39 @@ func (r *A2AReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 	card.SkillsNames = card.Skills.SkillsNames()
 
-	patch := client.MergeFrom(a2a.DeepCopy())
-	a2a.Status.Card = *card
-	if err := r.Status().Patch(ctx, &a2a, patch); err != nil {
-		logger.Error(err, "unable to update a2a status.card")
+	patch := client.MergeFrom(agent.DeepCopy())
+	agent.Status.Card = *card
+	if err := r.Status().Patch(ctx, &agent, patch); err != nil {
+		logger.Error(err, "unable to update agent status.card")
 		return ctrl.Result{}, err
 	}
-	logger.Info("updated a2a status.card", "version", card.Version)
+	logger.Info("updated agent status.card", "version", card.Version)
 	return ctrl.Result{}, nil
 }
 
-// buildA2AService returns a Service for the given A2A resource.
-func buildA2AService(a2a *v1alpha1.A2A) *corev1.Service {
+// buildAgentService returns a Service for the given Agent resource.
+func buildAgentService(agent *v1alpha1.Agent) *corev1.Service {
 	labels := map[string]string{
-		"app": a2a.Name,
+		"app": agent.Name,
 	}
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      a2a.Name,
-			Namespace: a2a.Namespace,
+			Name:      agent.Name,
+			Namespace: agent.Namespace,
 			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: labels,
 			Ports: []corev1.ServicePort{{
 				Name:       "http",
-				Port:       a2a.Spec.Port,
-				TargetPort: intstrFromInt(int(a2a.Spec.Port)),
+				Port:       agent.Spec.Port,
+				TargetPort: intstrFromInt(int(agent.Spec.Port)),
 			}},
 		},
 	}
 }
 
-// fetchAgentCard retrieves the agent card from the given base URL and unmarshals it into an A2ACard.
+// fetchAgentCard retrieves the agent card from the given base URL and unmarshals it into an AgentCard.
 func fetchAgentCard(svc *corev1.Service) (*v1alpha1.Card, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get("http://" + svc.Name + "." + svc.Namespace + ".svc.cluster.local:8080" + "/.well-known/agent.json")
@@ -163,33 +163,33 @@ func fetchAgentCard(svc *corev1.Service) (*v1alpha1.Card, error) {
 }
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
-func (r *A2AReconciler) reconcileDeployment(ctx context.Context, a2a *v1alpha1.A2A) (*appsv1.Deployment, error) {
-	deployment := r.buildA2ADeployment(a2a)
+func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *v1alpha1.Agent) (*appsv1.Deployment, error) {
+	deployment := r.buildAgentDeployment(agent)
 
-	if err := controllerutil.SetControllerReference(a2a, deployment, r.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(agent, deployment, r.Scheme); err != nil {
 		return nil, err
 	}
 
 	return r.createOrUpdateDeployment(ctx, deployment)
 }
 
-// buildA2ADeployment returns a Deployment for the given A2A resource with comprehensive configuration.
-func (r *A2AReconciler) buildA2ADeployment(a2a *v1alpha1.A2A) *appsv1.Deployment {
+// buildAgentDeployment returns a Deployment for the given Agent resource with comprehensive configuration.
+func (r *AgentReconciler) buildAgentDeployment(agent *v1alpha1.Agent) *appsv1.Deployment {
 	labels := map[string]string{
-		"app": a2a.Name,
+		"app": agent.Name,
 	}
 
-	env := r.buildA2AEnvironmentVars(a2a)
+	env := r.buildAgentEnvironmentVars(agent)
 
 	port := int32(8080)
-	if a2a.Spec.Port > 0 {
-		port = a2a.Spec.Port
+	if agent.Spec.Port > 0 {
+		port = agent.Spec.Port
 	}
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      a2a.Name,
-			Namespace: a2a.Namespace,
+			Name:      agent.Name,
+			Namespace: agent.Namespace,
 			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -201,7 +201,7 @@ func (r *A2AReconciler) buildA2ADeployment(a2a *v1alpha1.A2A) *appsv1.Deployment
 					Containers: []corev1.Container{{
 						Env:   env,
 						Name:  "agent",
-						Image: a2a.Spec.Image,
+						Image: agent.Spec.Image,
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: port,
 						}},
@@ -212,119 +212,119 @@ func (r *A2AReconciler) buildA2ADeployment(a2a *v1alpha1.A2A) *appsv1.Deployment
 	}
 }
 
-// buildA2AEnvironmentVars creates comprehensive environment variables from A2A spec
-func (r *A2AReconciler) buildA2AEnvironmentVars(a2a *v1alpha1.A2A) []corev1.EnvVar {
+// buildAgentEnvironmentVars creates comprehensive environment variables from Agent spec
+func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
-	if a2a.Spec.Env != nil {
-		envVars = append(envVars, *a2a.Spec.Env...)
+	if agent.Spec.Env != nil {
+		envVars = append(envVars, *agent.Spec.Env...)
 	}
 
 	envVars = append(envVars,
 		corev1.EnvVar{
 			Name:  "TIMEZONE",
-			Value: a2a.Spec.Timezone,
+			Value: agent.Spec.Timezone,
 		},
 		corev1.EnvVar{
 			Name:  "PORT",
-			Value: strconv.Itoa(int(a2a.Spec.Port)),
+			Value: strconv.Itoa(int(agent.Spec.Port)),
 		},
 		corev1.EnvVar{
 			Name:  "HOST",
-			Value: a2a.Spec.Host,
+			Value: agent.Spec.Host,
 		},
 		corev1.EnvVar{
 			Name:  "READ_TIMEOUT",
-			Value: a2a.Spec.ReadTimeout,
+			Value: agent.Spec.ReadTimeout,
 		},
 		corev1.EnvVar{
 			Name:  "WRITE_TIMEOUT",
-			Value: a2a.Spec.WriteTimeout,
+			Value: agent.Spec.WriteTimeout,
 		},
 		corev1.EnvVar{
 			Name:  "IDLE_TIMEOUT",
-			Value: a2a.Spec.IdleTimeout,
+			Value: agent.Spec.IdleTimeout,
 		},
 		// Logging configuration
 		corev1.EnvVar{
 			Name:  "LOG_LEVEL",
-			Value: a2a.Spec.Logging.Level,
+			Value: agent.Spec.Logging.Level,
 		},
 		corev1.EnvVar{
 			Name:  "LOG_FORMAT",
-			Value: a2a.Spec.Logging.Format,
+			Value: agent.Spec.Logging.Format,
 		},
 		// Telemetry configuration
 		corev1.EnvVar{
 			Name:  "TELEMETRY_ENABLED",
-			Value: strconv.FormatBool(a2a.Spec.Telemetry.Enabled),
+			Value: strconv.FormatBool(agent.Spec.Telemetry.Enabled),
 		},
 		corev1.EnvVar{
 			Name:  "QUEUE_ENABLED",
-			Value: strconv.FormatBool(a2a.Spec.Queue.Enabled),
+			Value: strconv.FormatBool(agent.Spec.Queue.Enabled),
 		},
 		corev1.EnvVar{
 			Name:  "QUEUE_MAX_SIZE",
-			Value: strconv.Itoa(int(a2a.Spec.Queue.MaxSize)),
+			Value: strconv.Itoa(int(agent.Spec.Queue.MaxSize)),
 		},
 		corev1.EnvVar{
 			Name:  "QUEUE_CLEANUP_INTERVAL",
-			Value: a2a.Spec.Queue.CleanupInterval,
+			Value: agent.Spec.Queue.CleanupInterval,
 		},
 		corev1.EnvVar{
 			Name:  "TLS_ENABLED",
-			Value: strconv.FormatBool(a2a.Spec.TLS.Enabled),
+			Value: strconv.FormatBool(agent.Spec.TLS.Enabled),
 		},
 		corev1.EnvVar{
 			Name:  "TLS_SECRET_REF",
-			Value: a2a.Spec.TLS.SecretRef,
+			Value: agent.Spec.TLS.SecretRef,
 		},
 		corev1.EnvVar{
 			Name:  "AGENT_ENABLED",
-			Value: strconv.FormatBool(a2a.Spec.Agent.Enabled),
+			Value: strconv.FormatBool(agent.Spec.Agent.Enabled),
 		},
 		corev1.EnvVar{
 			Name:  "AGENT_MAX_CONVERSATION_HISTORY",
-			Value: strconv.Itoa(int(a2a.Spec.Agent.MaxConversationHistory)),
+			Value: strconv.Itoa(int(agent.Spec.Agent.MaxConversationHistory)),
 		},
 		corev1.EnvVar{
 			Name:  "AGENT_MAX_CHAT_COMPLETION_ITERATIONS",
-			Value: strconv.Itoa(int(a2a.Spec.Agent.MaxChatCompletionIterations)),
+			Value: strconv.Itoa(int(agent.Spec.Agent.MaxChatCompletionIterations)),
 		},
 		corev1.EnvVar{
 			Name:  "AGENT_MAX_RETRIES",
-			Value: strconv.Itoa(int(a2a.Spec.Agent.MaxRetries)),
+			Value: strconv.Itoa(int(agent.Spec.Agent.MaxRetries)),
 		},
 		corev1.EnvVar{
 			Name:  "AGENT_API_KEY_SECRET_REF",
-			Value: a2a.Spec.Agent.APIKey.SecretRef,
+			Value: agent.Spec.Agent.APIKey.SecretRef,
 		},
 		corev1.EnvVar{
 			Name:  "AGENT_LLM_MODEL",
-			Value: a2a.Spec.Agent.LLM.Model,
+			Value: agent.Spec.Agent.LLM.Model,
 		},
 		corev1.EnvVar{
 			Name:  "AGENT_LLM_SYSTEM_PROMPT",
-			Value: a2a.Spec.Agent.LLM.SystemPrompt,
+			Value: agent.Spec.Agent.LLM.SystemPrompt,
 		},
 	)
 
-	if a2a.Spec.Agent.LLM.MaxTokens != nil {
+	if agent.Spec.Agent.LLM.MaxTokens != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "AGENT_LLM_MAX_TOKENS",
-			Value: strconv.Itoa(int(*a2a.Spec.Agent.LLM.MaxTokens)),
+			Value: strconv.Itoa(int(*agent.Spec.Agent.LLM.MaxTokens)),
 		})
 	}
 
-	if a2a.Spec.Agent.LLM.Temperature != nil {
+	if agent.Spec.Agent.LLM.Temperature != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "AGENT_LLM_TEMPERATURE",
-			Value: *a2a.Spec.Agent.LLM.Temperature,
+			Value: *agent.Spec.Agent.LLM.Temperature,
 		})
 	}
 
-	if a2a.Spec.Agent.LLM.CustomHeaders != nil {
-		for i, header := range *a2a.Spec.Agent.LLM.CustomHeaders {
+	if agent.Spec.Agent.LLM.CustomHeaders != nil {
+		for i, header := range *agent.Spec.Agent.LLM.CustomHeaders {
 			envVars = append(envVars,
 				corev1.EnvVar{
 					Name:  fmt.Sprintf("AGENT_LLM_CUSTOM_HEADER_%d_NAME", i),
@@ -342,7 +342,7 @@ func (r *A2AReconciler) buildA2AEnvironmentVars(a2a *v1alpha1.A2A) []corev1.EnvV
 }
 
 // createOrUpdateDeployment handles deployment creation and updates
-func (r *A2AReconciler) createOrUpdateDeployment(ctx context.Context, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+func (r *AgentReconciler) createOrUpdateDeployment(ctx context.Context, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	logger := logf.FromContext(ctx)
 
 	found := &appsv1.Deployment{}
@@ -361,7 +361,7 @@ func (r *A2AReconciler) createOrUpdateDeployment(ctx context.Context, deployment
 }
 
 // updateDeploymentIfNeeded updates deployment if changes are detected
-func (r *A2AReconciler) updateDeploymentIfNeeded(ctx context.Context, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
+func (r *AgentReconciler) updateDeploymentIfNeeded(ctx context.Context, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
 	logger := logf.FromContext(ctx)
 
 	for retries := 0; retries < 3; retries++ {
@@ -416,7 +416,7 @@ func (r *A2AReconciler) updateDeploymentIfNeeded(ctx context.Context, desired, f
 			return latestDeployment, nil
 		}
 
-		logger.Info("Updating A2A Deployment", "Deployment.Name", desired.Name, "changes", fmt.Sprintf("[%s]", fmt.Sprintf("%v", changes)))
+		logger.Info("Updating Agent Deployment", "Deployment.Name", desired.Name, "changes", fmt.Sprintf("[%s]", fmt.Sprintf("%v", changes)))
 		if err := r.Update(ctx, latestDeployment); err != nil {
 			if apiErrors.IsConflict(err) && retries < 2 {
 				logger.Info("Deployment update conflict, retrying", "retry", retries+1, "error", err)
@@ -441,7 +441,7 @@ func intstrFromInt(i int) intstr.IntOrString {
 
 // shouldWatchNamespace checks if the operator should watch resources in the given namespace
 // based on WATCH_NAMESPACE_SELECTOR environment variable
-func (r *A2AReconciler) shouldWatchNamespace(ctx context.Context, namespace string) bool {
+func (r *AgentReconciler) shouldWatchNamespace(ctx context.Context, namespace string) bool {
 	watchNamespaceSelector := os.Getenv("WATCH_NAMESPACE_SELECTOR")
 
 	if watchNamespaceSelector == "" {
@@ -462,11 +462,11 @@ func (r *A2AReconciler) shouldWatchNamespace(ctx context.Context, namespace stri
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *A2AReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *AgentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.A2A{}).
+		For(&v1alpha1.Agent{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
-		Named("a2a").
+		Named("agent").
 		Complete(r)
 }
