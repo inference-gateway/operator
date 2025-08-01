@@ -522,7 +522,7 @@ var _ = Describe("Gateway controller", func() {
 					Environment: "production",
 					Replicas:    &[]int32{1}[0],
 					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-					Agents: &corev1alpha1.AgentServersSpec{
+					A2A: &corev1alpha1.A2AServersSpec{
 						Enabled: true,
 						ServiceDiscovery: &corev1alpha1.AgentServiceDiscovery{
 							Enabled:         true,
@@ -564,7 +564,7 @@ var _ = Describe("Gateway controller", func() {
 					Environment: "production",
 					Replicas:    &[]int32{1}[0],
 					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-					Agents: &corev1alpha1.AgentServersSpec{
+					A2A: &corev1alpha1.A2AServersSpec{
 						Enabled: true,
 						ServiceDiscovery: &corev1alpha1.AgentServiceDiscovery{
 							Enabled: true,

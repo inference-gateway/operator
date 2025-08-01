@@ -12,34 +12,34 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
-  name: a2as.core.inference-gateway.com
+  name: agents.core.inference-gateway.com
 spec:
   group: core.inference-gateway.com
   names:
-    kind: A2A
-    listKind: A2AList
-    plural: a2as
-    singular: a2a
+    kind: Agent
+    listKind: AgentList
+    plural: agents
+    singular: agent
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Version of the A2A resource
+    - description: Version of the Agent resource
       jsonPath: .status.card.version
       name: VERSION
       type: string
-    - description: URL of the A2A resource
+    - description: URL of the Agent resource
       jsonPath: .status.card.url
       name: URL
       type: string
-    - description: Streaming Capability of the A2A resource
+    - description: Streaming Capability of the Agent resource
       jsonPath: .status.card.capabilities.streaming
       name: STREAMING
       type: string
-    - description: Push Notifications Capability of the A2A resource
+    - description: Push Notifications Capability of the Agent resource
       jsonPath: .status.card.capabilities.pushNotifications
       name: PUSH NOTIFICATIONS
       type: string
-    - description: State Transition History Capability of the A2A resource
+    - description: State Transition History Capability of the Agent resource
       jsonPath: .status.card.capabilities.stateTransitionHistory
       name: STATE TRANSITION HISTORY
       type: string
@@ -50,7 +50,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A2A is the Schema for the a2as API.
+        description: Agent is the Schema for the agents API.
         properties:
           apiVersion:
             description: |-
@@ -70,7 +70,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: A2ASpec defines the desired state of A2A.
+            description: AgentSpec defines the desired state of Agent.
             properties:
               agent:
                 properties:
@@ -346,10 +346,10 @@ spec:
             - writeTimeout
             type: object
           status:
-            description: A2AStatus defines the observed state of A2A.
+            description: AgentStatus defines the observed state of Agent.
             properties:
               card:
-                description: Card indicates the version of the A2A resource.
+                description: Card indicates the version of the Agent resource.
                 properties:
                   capabilities:
                     properties:
@@ -376,7 +376,7 @@ spec:
                     type: string
                   documentationUrl:
                     description: DocumentationURL is an optional field that provides
-                      a URL to the documentation for the A2A.
+                      a URL to the documentation for the Agent.
                     type: string
                   name:
                     type: string
@@ -567,8 +567,8 @@ spec:
           spec:
             description: GatewaySpec defines the desired state of Gateway.
             properties:
-              agents:
-                description: Agents (Agent-to-Agent) configuration
+              a2a:
+                description: A2A (Agent-to-Agent) configuration
                 properties:
                   agents:
                     description: A2A agents configuration
@@ -2806,18 +2806,18 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: operator
-  name: operator-a2a-admin-role
+  name: operator-agent-admin-role
 rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
-  - a2as
+  - agents
   verbs:
   - '*'
 - apiGroups:
   - core.inference-gateway.com
   resources:
-  - a2as/status
+  - agents/status
   verbs:
   - get
 ---
@@ -2827,12 +2827,12 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: operator
-  name: operator-a2a-editor-role
+  name: operator-agent-editor-role
 rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
-  - a2as
+  - agents
   verbs:
   - create
   - delete
@@ -2844,7 +2844,7 @@ rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
-  - a2as/status
+  - agents/status
   verbs:
   - get
 ---
@@ -2854,12 +2854,12 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: operator
-  name: operator-a2a-viewer-role
+  name: operator-agent-viewer-role
 rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
-  - a2as
+  - agents
   verbs:
   - get
   - list
@@ -2867,7 +2867,7 @@ rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
-  - a2as/status
+  - agents/status
   verbs:
   - get
 ---

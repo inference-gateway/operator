@@ -3,7 +3,7 @@
 # It should be run by config/default
 resources:
   - bases/core.inference-gateway.com_gateways.yaml
-  - bases/core.inference-gateway.com_a2as.yaml
+  - bases/core.inference-gateway.com_agents.yaml
   - bases/core.inference-gateway.com_mcps.yaml
   # +kubebuilder:scaffold:crdkustomizeresource
 # patches:

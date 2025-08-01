@@ -487,21 +487,21 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		)
 	}
 
-	if gateway.Spec.Agents != nil && gateway.Spec.Agents.Enabled {
+	if gateway.Spec.A2A != nil && gateway.Spec.A2A.Enabled {
 		envVars = append(envVars,
 			corev1.EnvVar{
 				Name:  "A2A_ENABLE",
-				Value: fmt.Sprintf("%t", gateway.Spec.Agents.Enabled),
+				Value: fmt.Sprintf("%t", gateway.Spec.A2A.Enabled),
 			},
 			corev1.EnvVar{
 				Name:  "A2A_EXPOSE",
-				Value: fmt.Sprintf("%t", gateway.Spec.Agents.Expose),
+				Value: fmt.Sprintf("%t", gateway.Spec.A2A.Expose),
 			},
 			corev1.EnvVar{
 				Name: "A2A_AGENTS",
 				Value: strings.Join(func() []string {
 					var agents []string
-					for _, a := range gateway.Spec.Agents.Agents {
+					for _, a := range gateway.Spec.A2A.Agents {
 						agents = append(agents, a.URL)
 					}
 					return agents
@@ -510,16 +510,16 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			corev1.EnvVar{
 				Name: "A2A_CLIENT_TIMEOUT",
 				Value: func() string {
-					if gateway.Spec.Agents.Timeouts != nil {
-						return gateway.Spec.Agents.Timeouts.Client
+					if gateway.Spec.A2A.Timeouts != nil {
+						return gateway.Spec.A2A.Timeouts.Client
 					}
 					return "5s"
 				}(),
 			},
 		)
 
-		if gateway.Spec.Agents.ServiceDiscovery != nil && gateway.Spec.Agents.ServiceDiscovery.Enabled {
-			namespace := gateway.Spec.Agents.ServiceDiscovery.Namespace
+		if gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Enabled {
+			namespace := gateway.Spec.A2A.ServiceDiscovery.Namespace
 			if namespace == "" {
 				namespace = "default"
 			}
@@ -527,7 +527,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			envVars = append(envVars,
 				corev1.EnvVar{
 					Name:  "A2A_SERVICE_DISCOVERY_ENABLE",
-					Value: fmt.Sprintf("%t", gateway.Spec.Agents.ServiceDiscovery.Enabled),
+					Value: fmt.Sprintf("%t", gateway.Spec.A2A.ServiceDiscovery.Enabled),
 				},
 				corev1.EnvVar{
 					Name:  "A2A_SERVICE_DISCOVERY_NAMESPACE",
@@ -536,8 +536,8 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 				corev1.EnvVar{
 					Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL",
 					Value: func() string {
-						if gateway.Spec.Agents.ServiceDiscovery.PollingInterval != "" {
-							return gateway.Spec.Agents.ServiceDiscovery.PollingInterval
+						if gateway.Spec.A2A.ServiceDiscovery.PollingInterval != "" {
+							return gateway.Spec.A2A.ServiceDiscovery.PollingInterval
 						}
 						return "30s"
 					}(),
@@ -1342,8 +1342,8 @@ func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1al
 	logger := log.FromContext(ctx)
 
 	agentNamespace := gateway.Namespace
-	if gateway.Spec.Agents != nil && gateway.Spec.Agents.ServiceDiscovery != nil && gateway.Spec.Agents.ServiceDiscovery.Namespace != "" {
-		agentNamespace = gateway.Spec.Agents.ServiceDiscovery.Namespace
+	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
+		agentNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
 	}
 
 	roleName := fmt.Sprintf("%s-agent-discovery", serviceAccountName)
@@ -1411,8 +1411,8 @@ func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *c
 	logger := log.FromContext(ctx)
 
 	agentNamespace := gateway.Namespace
-	if gateway.Spec.Agents != nil && gateway.Spec.Agents.ServiceDiscovery != nil && gateway.Spec.Agents.ServiceDiscovery.Namespace != "" {
-		agentNamespace = gateway.Spec.Agents.ServiceDiscovery.Namespace
+	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
+		agentNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
 	}
 
 	roleName := fmt.Sprintf("%s-agent-discovery", serviceAccountName)

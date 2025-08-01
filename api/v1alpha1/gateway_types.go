@@ -69,9 +69,9 @@ type GatewaySpec struct {
 	// +optional
 	MCP *MCPServersSpec `json:"mcp,omitempty"`
 
-	// Agents (Agent-to-Agent) configuration
+	// A2A (Agent-to-Agent) configuration
 	// +optional
-	Agents *AgentServersSpec `json:"agents,omitempty"`
+	A2A *A2AServersSpec `json:"a2a,omitempty"`
 
 	// Resource requirements for the gateway pods
 	// +optional
@@ -353,8 +353,8 @@ type MCPServer struct {
 	HealthCheck *HealthCheck `json:"healthCheck,omitempty"`
 }
 
-// AgentServersSpec contains Agent-to-Agent configuration
-type AgentServersSpec struct {
+// A2AServersSpec contains Agent-to-Agent configuration
+type A2AServersSpec struct {
 	// Enable A2A integration
 	// +optional
 	// +kubebuilder:default=false
