@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.1](https://github.com/inference-gateway/operator/compare/v0.12.0...v0.12.1) (2025-08-01)
+
+### ♻️ Improvements
+
+* **api:** Rename A2A Custom Resource Definition to Agent ([#36](https://github.com/inference-gateway/operator/issues/36)) ([e68cadf](https://github.com/inference-gateway/operator/commit/e68cadfc33019d07fd32531f746931a48afba650))
+
+### 🔧 Miscellaneous
+
+* **issue-templates:** Add bug report, feature request, and refactor request templates ([dd77567](https://github.com/inference-gateway/operator/commit/dd77567b1aac9c737c5fbe01cbbd44fc580c9fb0))
+
 ## [0.12.0](https://github.com/inference-gateway/operator/compare/v0.11.1...v0.12.0) (2025-07-29)
 
 ### ✨ Features
