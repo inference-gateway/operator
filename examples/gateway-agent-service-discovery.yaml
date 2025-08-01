@@ -1,0 +1,89 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: gateway-with-agent-service-discovery
+  namespace: inference-gateway
+spec:
+  replicas: 2
+  environment: development
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+      port: 9464
+  providers:
+    - name: openai
+      enabled: true
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-providers-secret
+              key: OPENAI_API_KEY
+  agents:
+    enabled: true
+    expose: false
+    serviceDiscovery:
+      enabled: true
+      namespace: "agents"
+      pollingInterval: "30s"
+    agents:
+      - name: calendar-agent
+        url: "http://calendar-agent.agents.svc.cluster.local:8080"
+        healthCheck:
+          enabled: true
+          path: "/health"
+          interval: "30s"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-providers-secret
+  namespace: inference-gateway
+type: Opaque
+stringData:
+  OPENAI_API_KEY: "your-openai-api-key-here"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Agent
+metadata:
+  name: email-agent
+  namespace: agents
+spec:
+  image: "my-registry/email-agent:latest"
+  timezone: "UTC"
+  port: 8080
+  host: "0.0.0.0"
+  readTimeout: "30s"
+  writeTimeout: "30s"
+  idleTimeout: "120s"
+  logging:
+    level: "info"
+    format: "json"
+  telemetry:
+    enabled: true
+    metrics:
+      enabled: true
+  queue:
+    enabled: false
+  tls:
+    enabled: false
+  agent:
+    name: "Email Agent"
+    description: "Agent for handling email operations"
+    version: "1.0.0"

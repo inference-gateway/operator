@@ -1,0 +1,63 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Agent
+metadata:
+  labels:
+    app.kubernetes.io/name: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: agent-sample
+spec:
+  image: "ghcr.io/inference-gateway/google-calendar-agent:latest"
+  timezone: "UTC"
+  port: 8080
+  host: "0.0.0.0"
+  readTimeout: "30s"
+  writeTimeout: "30s"
+  idleTimeout: "60s"
+  logging:
+    level: "info"
+    format: "json"
+  telemetry:
+    enabled: true
+    port: 9090
+  queue:
+    enabled: true
+    maxSize: 1000
+    cleanupInterval: "5m"
+  tls:
+    enabled: false
+    secretRef: ""
+  agent:
+    enabled: true
+    tls:
+      enabled: true
+      secretRef: ""
+    maxConversationHistory: 10
+    maxChatCompletionIterations: 5
+    maxRetries: 3
+    apiKey:
+      secretRef: "your-api-key"
+    llm:
+      model: "openai/gpt-3.5-turbo"
+      maxTokens: 4096
+      temperature: 0.7
+      customHeaders:
+        - name: "User-Agent"
+          value: "Google Calendar Agent"
+      systemPrompt: "You are a helpful assistant for managing Google Calendar events. You can create, read, update, and delete events, and you can also list upcoming events."
+  card:
+    name: "Google Calendar Agent"
+    description: "Agent for Google Calendar integration with full CRUD operations and event management capabilities"
+    version: "0.1.0"
+    url: "http://google-calendar-agent.agents.svc.cluster.local:8080"
+    defaultInputModes:
+      - "text"
+      - "voice"
+    defaultOutputModes:
+      - "text"
+      - "voice"
+    documentationUrl: ""
+    capabilities:
+      streaming: true
+      pushNotifications: false
+      stateTransitionHistory: true
+    skills: []

@@ -54,7 +54,7 @@ rules:
   - apiGroups:
       - core.inference-gateway.com
     resources:
-      - a2as
+      - agents
       - gateways
       - mcps
     verbs:
@@ -68,7 +68,7 @@ rules:
   - apiGroups:
       - core.inference-gateway.com
     resources:
-      - a2as/finalizers
+      - agents/finalizers
       - gateways/finalizers
       - mcps/finalizers
     verbs:
@@ -76,7 +76,7 @@ rules:
   - apiGroups:
       - core.inference-gateway.com
     resources:
-      - a2as/status
+      - agents/status
       - gateways/status
       - mcps/status
     verbs:

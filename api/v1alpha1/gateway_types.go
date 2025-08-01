@@ -69,9 +69,9 @@ type GatewaySpec struct {
 	// +optional
 	MCP *MCPServersSpec `json:"mcp,omitempty"`
 
-	// A2A (Agent-to-Agent) configuration
+	// Agents (Agent-to-Agent) configuration
 	// +optional
-	A2A *A2AServersSpec `json:"a2a,omitempty"`
+	Agents *AgentServersSpec `json:"agents,omitempty"`
 
 	// Resource requirements for the gateway pods
 	// +optional
@@ -353,8 +353,8 @@ type MCPServer struct {
 	HealthCheck *HealthCheck `json:"healthCheck,omitempty"`
 }
 
-// A2AServersSpec contains Agent-to-Agent configuration
-type A2AServersSpec struct {
+// AgentServersSpec contains Agent-to-Agent configuration
+type AgentServersSpec struct {
 	// Enable A2A integration
 	// +optional
 	// +kubebuilder:default=false
@@ -367,23 +367,23 @@ type A2AServersSpec struct {
 
 	// A2A client timeouts
 	// +optional
-	Timeouts *A2ATimeouts `json:"timeouts,omitempty"`
+	Timeouts *AgentTimeouts `json:"timeouts,omitempty"`
 
 	// Polling configuration
 	// +optional
-	Polling *A2APolling `json:"polling,omitempty"`
+	Polling *AgentPolling `json:"polling,omitempty"`
 
 	// Service Discovery configuration
 	// +optional
-	ServiceDiscovery *A2AServiceDiscovery `json:"serviceDiscovery,omitempty"`
+	ServiceDiscovery *AgentServiceDiscovery `json:"serviceDiscovery,omitempty"`
 
 	// A2A agents configuration
 	// +optional
-	Agents []A2AAgent `json:"agents,omitempty"`
+	Agents []AgentServer `json:"agents,omitempty"`
 }
 
 // A2ATimeouts contains timeout configurations for A2A
-type A2ATimeouts struct {
+type AgentTimeouts struct {
 	// Client timeout
 	// +optional
 	// +kubebuilder:default="60s"
@@ -391,7 +391,7 @@ type A2ATimeouts struct {
 }
 
 // A2APolling contains polling configuration for A2A
-type A2APolling struct {
+type AgentPolling struct {
 	// Enable polling
 	// +optional
 	// +kubebuilder:default=true
@@ -416,7 +416,7 @@ type A2APolling struct {
 }
 
 // A2AServiceDiscovery contains service discovery configuration for A2A
-type A2AServiceDiscovery struct {
+type AgentServiceDiscovery struct {
 	// Enable service discovery
 	// +optional
 	// +kubebuilder:default=false
@@ -434,7 +434,7 @@ type A2AServiceDiscovery struct {
 }
 
 // A2AAgent contains A2A agent configuration
-type A2AAgent struct {
+type AgentServer struct {
 	// Agent name
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`

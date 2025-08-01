@@ -73,52 +73,258 @@ spec:
             description: A2ASpec defines the desired state of A2A.
             properties:
               agent:
+                description: AgentSpec defines the desired state of Agent.
                 properties:
-                  apiKey:
+                  agent:
                     properties:
-                      secretRef:
-                        type: string
-                    required:
-                    - secretRef
-                    type: object
-                  enabled:
-                    type: boolean
-                  llm:
-                    properties:
-                      customHeaders:
-                        items:
-                          properties:
-                            name:
-                              type: string
-                            value:
-                              type: string
-                          required:
-                          - name
-                          - value
-                          type: object
-                        type: array
-                      maxTokens:
+                      apiKey:
+                        properties:
+                          secretRef:
+                            type: string
+                        required:
+                        - secretRef
+                        type: object
+                      enabled:
+                        type: boolean
+                      llm:
+                        properties:
+                          customHeaders:
+                            items:
+                              properties:
+                                name:
+                                  type: string
+                                value:
+                                  type: string
+                              required:
+                              - name
+                              - value
+                              type: object
+                            type: array
+                          maxTokens:
+                            format: int32
+                            type: integer
+                          model:
+                            type: string
+                          systemPrompt:
+                            type: string
+                          temperature:
+                            type: string
+                        required:
+                        - model
+                        - systemPrompt
+                        type: object
+                      maxChatCompletionIterations:
                         format: int32
                         type: integer
-                      model:
+                      maxConversationHistory:
+                        format: int32
+                        type: integer
+                      maxRetries:
+                        format: int32
+                        type: integer
+                      tls:
+                        properties:
+                          enabled:
+                            type: boolean
+                          secretRef:
+                            type: string
+                        required:
+                        - enabled
+                        - secretRef
+                        type: object
+                    required:
+                    - apiKey
+                    - enabled
+                    - llm
+                    - maxChatCompletionIterations
+                    - maxConversationHistory
+                    - maxRetries
+                    - tls
+                    type: object
+                  env:
+                    description: Environment variables for the provider
+                    items:
+                      description: EnvVar represents an environment variable present
+                        in a Container.
+                      properties:
+                        name:
+                          description: Name of the environment variable. Must be a
+                            C_IDENTIFIER.
+                          type: string
+                        value:
+                          description: |-
+                            Variable references $(VAR_NAME) are expanded
+                            using the previously defined environment variables in the container and
+                            any service environment variables. If a variable cannot be resolved,
+                            the reference in the input string will be unchanged. Double $$ are reduced
+                            to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                            "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                            Escaped references will never be expanded, regardless of whether the variable
+                            exists or not.
+                            Defaults to "".
+                          type: string
+                        valueFrom:
+                          description: Source for the environment variable's value.
+                            Cannot be used if value is not empty.
+                          properties:
+                            configMapKeyRef:
+                              description: Selects a key of a ConfigMap.
+                              properties:
+                                key:
+                                  description: The key to select.
+                                  type: string
+                                name:
+                                  default: ""
+                                  description: |-
+                                    Name of the referent.
+                                    This field is effectively required, but due to backwards compatibility is
+                                    allowed to be empty. Instances of this type with an empty value here are
+                                    almost certainly wrong.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  type: string
+                                optional:
+                                  description: Specify whether the ConfigMap or its
+                                    key must be defined
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            fieldRef:
+                              description: |-
+                                Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                              properties:
+                                apiVersion:
+                                  description: Version of the schema the FieldPath
+                                    is written in terms of, defaults to "v1".
+                                  type: string
+                                fieldPath:
+                                  description: Path of the field to select in the
+                                    specified API version.
+                                  type: string
+                              required:
+                              - fieldPath
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            resourceFieldRef:
+                              description: |-
+                                Selects a resource of the container: only resources limits and requests
+                                (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                              properties:
+                                containerName:
+                                  description: 'Container name: required for volumes,
+                                    optional for env vars'
+                                  type: string
+                                divisor:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  description: Specifies the output format of the
+                                    exposed resources, defaults to "1"
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                resource:
+                                  description: 'Required: resource to select'
+                                  type: string
+                              required:
+                              - resource
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            secretKeyRef:
+                              description: Selects a key of a secret in the pod's
+                                namespace
+                              properties:
+                                key:
+                                  description: The key of the secret to select from.  Must
+                                    be a valid secret key.
+                                  type: string
+                                name:
+                                  default: ""
+                                  description: |-
+                                    Name of the referent.
+                                    This field is effectively required, but due to backwards compatibility is
+                                    allowed to be empty. Instances of this type with an empty value here are
+                                    almost certainly wrong.
+                                    More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                  type: string
+                                optional:
+                                  description: Specify whether the Secret or its key
+                                    must be defined
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                          type: object
+                      required:
+                      - name
+                      type: object
+                    type: array
+                  host:
+                    type: string
+                  idleTimeout:
+                    type: string
+                  image:
+                    type: string
+                  logging:
+                    properties:
+                      format:
                         type: string
-                      systemPrompt:
-                        type: string
-                      temperature:
+                      level:
                         type: string
                     required:
-                    - model
-                    - systemPrompt
+                    - format
+                    - level
                     type: object
-                  maxChatCompletionIterations:
+                  port:
                     format: int32
                     type: integer
-                  maxConversationHistory:
-                    format: int32
-                    type: integer
-                  maxRetries:
-                    format: int32
-                    type: integer
+                  queue:
+                    properties:
+                      cleanupInterval:
+                        type: string
+                      enabled:
+                        type: boolean
+                      maxSize:
+                        format: int32
+                        type: integer
+                    required:
+                    - cleanupInterval
+                    - enabled
+                    - maxSize
+                    type: object
+                  readTimeout:
+                    type: string
+                  telemetry:
+                    description: TelemetrySpec contains telemetry and observability
+                      configuration
+                    properties:
+                      enabled:
+                        default: false
+                        description: Enable telemetry collection
+                        type: boolean
+                      metrics:
+                        default:
+                          enabled: false
+                          port: 9464
+                        description: Metrics configuration
+                        properties:
+                          enabled:
+                            default: false
+                            description: Enable metrics collection
+                            type: boolean
+                          port:
+                            default: 9464
+                            description: Port for metrics endpoint
+                            format: int32
+                            maximum: 65535
+                            minimum: 1024
+                            type: integer
+                        type: object
+                    type: object
+                  timezone:
+                    type: string
                   tls:
                     properties:
                       enabled:
@@ -129,14 +335,21 @@ spec:
                     - enabled
                     - secretRef
                     type: object
+                  writeTimeout:
+                    type: string
                 required:
-                - apiKey
-                - enabled
-                - llm
-                - maxChatCompletionIterations
-                - maxConversationHistory
-                - maxRetries
+                - agent
+                - host
+                - idleTimeout
+                - image
+                - logging
+                - port
+                - queue
+                - readTimeout
+                - telemetry
+                - timezone
                 - tls
+                - writeTimeout
                 type: object
               env:
                 description: Environment variables for the provider
@@ -376,7 +589,7 @@ spec:
                     type: string
                   documentationUrl:
                     description: DocumentationURL is an optional field that provides
-                      a URL to the documentation for the A2A.
+                      a URL to the documentation for the Agent.
                     type: string
                   name:
                     type: string
@@ -567,8 +780,8 @@ spec:
           spec:
             description: GatewaySpec defines the desired state of Gateway.
             properties:
-              a2a:
-                description: A2A (Agent-to-Agent) configuration
+              agents:
+                description: Agents (Agent-to-Agent) configuration
                 properties:
                   agents:
                     description: A2A agents configuration
@@ -2997,7 +3210,7 @@ rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
-  - a2as
+  - agents
   - gateways
   - mcps
   verbs:
@@ -3011,7 +3224,7 @@ rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
-  - a2as/finalizers
+  - agents/finalizers
   - gateways/finalizers
   - mcps/finalizers
   verbs:
@@ -3019,7 +3232,7 @@ rules:
 - apiGroups:
   - core.inference-gateway.com
   resources:
-  - a2as/status
+  - agents/status
   - gateways/status
   - mcps/status
   verbs:
