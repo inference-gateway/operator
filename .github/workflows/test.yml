@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4.2.2
 
       - name: Setup Go
-        uses: actions/setup-go@v5.4.0
+        uses: actions/setup-go@v6.4.0
         with:
           go-version-file: go.mod
           cache: true
@@ -34,9 +34,9 @@ jobs:
 
       - name: Install controller-gen and kustomize
         run: |
-          CONTROLLER_GEN_VERSION=v0.17.2
-          KUSTOMIZE_VERSION=v5.6.0
-          ENVTEST_VERSION=latest
+          CONTROLLER_GEN_VERSION=v0.20.1
+          KUSTOMIZE_VERSION=v5.8.1
+          ENVTEST_VERSION=release-0.23
 
           go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
           go install sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}

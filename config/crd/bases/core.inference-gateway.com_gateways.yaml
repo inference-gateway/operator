@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.2
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: gateways.core.inference-gateway.com
 spec:
   group: core.inference-gateway.com
@@ -229,7 +229,9 @@ spec:
                               policies:
                                 description: |-
                                   policies is a list of potential scaling polices which can be used during scaling.
-                                  At least one policy must be specified, otherwise the HPAScalingRules will be discarded as invalid
+                                  If not set, use the default values:
+                                  - For scale up: allow doubling the number of pods, or an absolute change of 4 pods in a 15s window.
+                                  - For scale down: allow all pods to be removed in a 15s window.
                                 items:
                                   description: HPAScalingPolicy is a single policy
                                     which must hold true for a specified past interval.
@@ -272,6 +274,24 @@ spec:
                                   - For scale down: 300 (i.e. the stabilization window is 300 seconds long).
                                 format: int32
                                 type: integer
+                              tolerance:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                description: |-
+                                  tolerance is the tolerance on the ratio between the current and desired
+                                  metric value under which no updates are made to the desired number of
+                                  replicas (e.g. 0.01 for 1%). Must be greater than or equal to zero. If not
+                                  set, the default cluster-wide tolerance is applied (by default 10%).
+
+                                  For example, if autoscaling is configured with a memory consumption target of 100Mi,
+                                  and scale-down and scale-up tolerances of 5% and 1% respectively, scaling will be
+                                  triggered when the actual consumption falls below 95Mi or exceeds 101Mi.
+
+                                  This is an beta field and requires the HPAConfigurableTolerance feature
+                                  gate to be enabled.
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
                             type: object
                           scaleUp:
                             description: |-
@@ -284,7 +304,9 @@ spec:
                               policies:
                                 description: |-
                                   policies is a list of potential scaling polices which can be used during scaling.
-                                  At least one policy must be specified, otherwise the HPAScalingRules will be discarded as invalid
+                                  If not set, use the default values:
+                                  - For scale up: allow doubling the number of pods, or an absolute change of 4 pods in a 15s window.
+                                  - For scale down: allow all pods to be removed in a 15s window.
                                 items:
                                   description: HPAScalingPolicy is a single policy
                                     which must hold true for a specified past interval.
@@ -327,6 +349,24 @@ spec:
                                   - For scale down: 300 (i.e. the stabilization window is 300 seconds long).
                                 format: int32
                                 type: integer
+                              tolerance:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                description: |-
+                                  tolerance is the tolerance on the ratio between the current and desired
+                                  metric value under which no updates are made to the desired number of
+                                  replicas (e.g. 0.01 for 1%). Must be greater than or equal to zero. If not
+                                  set, the default cluster-wide tolerance is applied (by default 10%).
+
+                                  For example, if autoscaling is configured with a memory consumption target of 100Mi,
+                                  and scale-down and scale-up tolerances of 5% and 1% respectively, scaling will be
+                                  triggered when the actual consumption falls below 95Mi or exceeds 101Mi.
+
+                                  This is an beta field and requires the HPAConfigurableTolerance feature
+                                  gate to be enabled.
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
                             type: object
                         type: object
                       maxReplicas:
@@ -1025,8 +1065,9 @@ spec:
                           in a Container.
                         properties:
                           name:
-                            description: Name of the environment variable. Must be
-                              a C_IDENTIFIER.
+                            description: |-
+                              Name of the environment variable.
+                              May consist of any printable ASCII characters except '='.
                             type: string
                           value:
                             description: |-
@@ -1082,6 +1123,43 @@ spec:
                                     type: string
                                 required:
                                 - fieldPath
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              fileKeyRef:
+                                description: |-
+                                  FileKeyRef selects a key of the env file.
+                                  Requires the EnvFiles feature gate to be enabled.
+                                properties:
+                                  key:
+                                    description: |-
+                                      The key within the env file. An invalid key will prevent the pod from starting.
+                                      The keys defined within a source may consist of any printable ASCII characters except '='.
+                                      During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                    type: string
+                                  optional:
+                                    default: false
+                                    description: |-
+                                      Specify whether the file or its key must be defined. If the file or key
+                                      does not exist, then the env var is not published.
+                                      If optional is set to true and the specified key does not exist,
+                                      the environment variable will not be set in the Pod's containers.
+
+                                      If optional is set to false and the specified key does not exist,
+                                      an error will be returned during Pod creation.
+                                    type: boolean
+                                  path:
+                                    description: |-
+                                      The path within the volume from which to select the file.
+                                      Must be relative and may not contain the '..' path or start with '..'.
+                                    type: string
+                                  volumeName:
+                                    description: The name of the volume mount containing
+                                      the env file.
+                                    type: string
+                                required:
+                                - key
+                                - path
+                                - volumeName
                                 type: object
                                 x-kubernetes-map-type: atomic
                               resourceFieldRef:

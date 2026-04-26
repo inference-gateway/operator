@@ -1,23 +1,23 @@
-FROM mcr.microsoft.com/devcontainers/go:1-1.24-bookworm
+FROM mcr.microsoft.com/devcontainers/go:1-1.26-bookworm
 
 ENV GOPATH=/home/vscode/go \
     PATH="/home/vscode/go/bin:${PATH}"
 
 # Tool Versions
-ENV TASK_VERSION=v3.43.3 \
-    CTLPTL_VERSION=0.8.40 \
+ENV TASK_VERSION=v3.48.0 \
+    CTLPTL_VERSION=0.9.2 \
     K3D_VERSION=v5.8.3 \
-    KUBECTL_VERSION=v1.33.0 \
-    GOLANG_CI_LINT_VERSION=v2.1.6 \
-    GITHUB_CLI_VERSION=2.72.0 \
-    SEMANTIC_RELEASE_VERSION=v24.2.3 \
-    KUBEBUILDER_VERSION=v4.5.2 \
-    CONTROLLER_GEN_VERSION=v0.17.2 \
-    KUSTOMIZE_VERSION=v5.6.0 \
-    ENVTEST_VERSION=latest
+    KUBECTL_VERSION=v1.35.4 \
+    GOLANGCI_LINT_VERSION=v2.11.4 \
+    GITHUB_CLI_VERSION=2.90.0 \
+    SEMANTIC_RELEASE_VERSION=v25.0.2 \
+    KUBEBUILDER_VERSION=v4.13.1 \
+    CONTROLLER_GEN_VERSION=v0.20.1 \
+    KUSTOMIZE_VERSION=v5.8.1 \
+    ENVTEST_VERSION=release-0.23
 
 # Install common
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 RUN apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg nodejs tmux
 
 # Install task
@@ -37,7 +37,7 @@ RUN curl -L "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/$(dpkg --pri
 RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
 # Install golangci-lint
-RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANG_CI_LINT_VERSION}
+RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}
 
 # Install controller-gen
 RUN go install sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}
@@ -61,7 +61,7 @@ RUN curl -fsSL https://github.com/operator-framework/operator-sdk/releases/downl
     chmod +x /usr/local/bin/operator-sdk
 
 # Install prettier for YAML formatting
-RUN npm install -g prettier
+RUN npm install -g prettier@3.6.2
 
 # Install semantic-release
 RUN npm install -g semantic-release@${SEMANTIC_RELEASE_VERSION} \
