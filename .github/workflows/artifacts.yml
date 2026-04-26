@@ -114,7 +114,7 @@ jobs:
       TAG: ${{ github.event.release.tag_name }}
     steps:
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.8.2
+        uses: sigstore/cosign-installer@v4.1.1
         with:
           cosign-release: "v3.0.5"
 
