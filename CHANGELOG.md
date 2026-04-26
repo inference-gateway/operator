@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.2](https://github.com/inference-gateway/operator/compare/v0.12.1...v0.12.2) (2026-04-26)
+
+### 👷 CI
+
+* Bump all actions to their latest ([7673221](https://github.com/inference-gateway/operator/commit/76732216fa87cb67fe8275e0f55241e55a6bf28e))
+
+### 📚 Documentation
+
+* Add Flox environment as recommended dev setup, refresh versions ([183a5f5](https://github.com/inference-gateway/operator/commit/183a5f5f4383c7635a188ea18eca9f5bfbeb9803))
+
+### 🔨 Miscellaneous
+
+* **deps:** Bump aquasecurity/trivy-action ([#38](https://github.com/inference-gateway/operator/issues/38)) ([4f47ce1](https://github.com/inference-gateway/operator/commit/4f47ce14198f9e6d9f6098fc3d256b286b79cd66))
+* **deps:** Bump go.opentelemetry.io/otel/sdk ([#37](https://github.com/inference-gateway/operator/issues/37)) ([c4706ea](https://github.com/inference-gateway/operator/commit/c4706ea69e2103b72f414ac22787e8f6a68c6758))
+* **deps:** Bump the go_modules group across 1 directory with 3 updates ([#41](https://github.com/inference-gateway/operator/issues/41)) ([a92a4d7](https://github.com/inference-gateway/operator/commit/a92a4d7257f3cac535510395b9043d4aeaed1e11))
+* **deps:** Bump to kubebuilder v4.13.1 dependency baseline ([#40](https://github.com/inference-gateway/operator/issues/40)) ([4ed5893](https://github.com/inference-gateway/operator/commit/4ed5893ddb810acb0120eb98182456b70336f0ba))
+
 ## [0.12.1](https://github.com/inference-gateway/operator/compare/v0.12.0...v0.12.1) (2025-08-01)
 
 ### ♻️ Improvements
