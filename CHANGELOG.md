@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.3](https://github.com/inference-gateway/operator/compare/v0.12.2...v0.12.3) (2026-04-26)
+
+### 🐛 Bug Fixes
+
+* Add version prefix ([ee9e4c0](https://github.com/inference-gateway/operator/commit/ee9e4c0cfd545c80889529230e2ba69947e85f93))
+
 ## [0.12.2](https://github.com/inference-gateway/operator/compare/v0.12.1...v0.12.2) (2026-04-26)
 
 ### 👷 CI
