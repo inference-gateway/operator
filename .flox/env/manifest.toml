@@ -23,6 +23,8 @@ kubernetes-code-generator.pkg-path = "kubernetes-code-generator"
 kubernetes-code-generator.version = "0.25.4"
 kustomize.pkg-path = "kustomize"
 kustomize.version = "5.8.1"
+prettier.pkg-path = "prettier"
+prettier.version = "3.6.2"
 
 [hook]
 on-activate = """

@@ -61,7 +61,7 @@ RUN curl -fsSL https://github.com/operator-framework/operator-sdk/releases/downl
     chmod +x /usr/local/bin/operator-sdk
 
 # Install prettier for YAML formatting
-RUN npm install -g prettier
+RUN npm install -g prettier@3.6.2
 
 # Install semantic-release
 RUN npm install -g semantic-release@${SEMANTIC_RELEASE_VERSION} \

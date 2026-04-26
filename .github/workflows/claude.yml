@@ -48,7 +48,7 @@ jobs:
 
       - name: Install prettier
         run: |
-          npm install -g prettier
+          npm install -g prettier@3.6.2
 
       - name: Install task
         run: |
