@@ -176,8 +176,8 @@ This command will:
 For production environments, pin to a specific version:
 
 ```bash
-# Install version v0.12.1 (replace with desired version)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.1/install.yaml
+# Install version v0.12.4 (replace with desired version)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.4/install.yaml
 ```
 
 ### Method 3: GitOps/ArgoCD-Friendly Installation
@@ -195,7 +195,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.12.1
+    targetRevision: v0.12.4
     path: manifests
   destination:
     server: https://kubernetes.default.svc
@@ -272,7 +272,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.12.1
+    targetRevision: v0.12.4
     path: manifests
     kustomize:
       patches:
@@ -377,7 +377,7 @@ To upgrade the operator to a newer version:
 kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 
 # Or upgrade to specific version
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.1/install.yaml
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.4/install.yaml
 ```
 
 The operator supports rolling upgrades and will not affect running Gateway instances.
@@ -671,7 +671,7 @@ Simply reapply the installation with a newer version:
 kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 
 # Or upgrade to specific version
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.1/install.yaml
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.4/install.yaml
 ```
 
 The operator supports rolling upgrades without affecting running Gateway instances.
