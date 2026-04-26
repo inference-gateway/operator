@@ -91,7 +91,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.2.1 # Pin to specific version
+    targetRevision: v0.12.1 # Pin to specific version
     path: manifests # Use this directory
   destination:
     server: https://kubernetes.default.svc

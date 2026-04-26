@@ -53,15 +53,22 @@ This project is developed using a containerized development environment with the
 
 2. **Set up your development environment**:
 
-   - Option A: Use the provided dev container configuration (recommended)
+   - Option A: Use the provided [Flox](https://flox.dev) environment (recommended)
+     ```sh
+     # Install Flox (https://flox.dev/docs/install-flox/), then activate
+     # the project environment to get Go, kubectl, kubebuilder, kustomize,
+     # golangci-lint, k3d, ctlptl, gh, prettier, and other tools on your PATH:
+     flox activate
+     ```
+   - Option B: Use the provided dev container configuration
      ```sh
      # If using VS Code with the Remote - Containers extension
      # Simply open the folder in VS Code and click "Reopen in Container"
      # when prompted
      ```
-   - Option B: Set up your local environment with the required dependencies
+   - Option C: Set up your local environment with the required dependencies
      ```sh
-     # Ensure you have Go 1.24+, Docker 17.03+, and kubectl 1.11.3+ installed
+     # Ensure you have Go 1.26+, Docker 29.4+, and kubectl 1.35+ installed
      ```
 
 3. **Install development dependencies**:

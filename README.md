@@ -149,8 +149,8 @@ Support for multiple AI/ML providers with flexible configuration:
 
 ### Prerequisites
 
-- `kubectl` version v1.11.3+ with access to a Kubernetes cluster
-- Kubernetes cluster v1.11.3+ (supports both arm64 and amd64 architectures)
+- `kubectl` version v1.35.4+ with access to a Kubernetes cluster
+- Kubernetes cluster v1.35.4+ (supports both arm64 and amd64 architectures)
 
 ## 📦 Installation
 
@@ -176,8 +176,8 @@ This command will:
 For production environments, pin to a specific version:
 
 ```bash
-# Install version v0.2.1 (replace with desired version)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.2.1/install.yaml
+# Install version v0.12.1 (replace with desired version)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.1/install.yaml
 ```
 
 ### Method 3: GitOps/ArgoCD-Friendly Installation
@@ -195,7 +195,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.2.1
+    targetRevision: v0.12.1
     path: manifests
   destination:
     server: https://kubernetes.default.svc
@@ -272,7 +272,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.2.1
+    targetRevision: v0.12.1
     path: manifests
     kustomize:
       patches:
@@ -377,7 +377,7 @@ To upgrade the operator to a newer version:
 kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 
 # Or upgrade to specific version
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.2.1/install.yaml
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.1/install.yaml
 ```
 
 The operator supports rolling upgrades and will not affect running Gateway instances.
@@ -442,7 +442,7 @@ metadata:
   namespace: inference-gateway
 spec:
   replicas: 3
-  image: "ghcr.io/inference-gateway/inference-gateway:0.12.0"
+  image: "ghcr.io/inference-gateway/inference-gateway:0.23.6"
   environment: production
 
   auth:
@@ -671,7 +671,7 @@ Simply reapply the installation with a newer version:
 kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 
 # Or upgrade to specific version
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.2.1/install.yaml
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.1/install.yaml
 ```
 
 The operator supports rolling upgrades without affecting running Gateway instances.
@@ -692,10 +692,14 @@ kubectl delete -f https://github.com/inference-gateway/operator/releases/latest/
 
 ### Prerequisites for Development
 
+The recommended way to get a complete toolchain is via the project's [Flox](https://flox.dev) environment — `flox activate` provides Go, `task`, `kubectl`, `kubebuilder`, `kustomize`, `golangci-lint`, `k3d`, `ctlptl`, `gh`, and `prettier` at the pinned versions used by CI. See [CONTRIBUTING.md](CONTRIBUTING.md#setting-up-your-environment) for alternatives (dev container or manual install).
+
+If installing manually:
+
 - Task runner (`task`)
-- Go 1.24+
+- Go 1.26+
 - Docker
-- Kind or similar local Kubernetes cluster
+- k3d (via `ctlptl`) or similar local Kubernetes cluster
 
 ### Development Workflow
 
