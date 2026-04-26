@@ -13,15 +13,15 @@ vars:
       fi
   CONTAINER_TOOL: '{{default "docker" .CONTAINER_TOOL}}'
   LOCALBIN: "{{.ROOT_DIR}}/bin"
-  KUSTOMIZE_VERSION: v5.6.0
-  CONTROLLER_TOOLS_VERSION: v0.17.2
-  ENVTEST_VERSION: "release-0.20"
-  ENVTEST_K8S_VERSION: "1.32"
-  GOLANGCI_LINT_VERSION: v2.1.5
+  KUSTOMIZE_VERSION: v5.8.1
+  CONTROLLER_TOOLS_VERSION: v0.20.1
+  ENVTEST_VERSION: "release-0.23"
+  ENVTEST_K8S_VERSION: "1.35"
+  GOLANGCI_LINT_VERSION: v2.11.4
   KUBECTL: kubectl
   KUSTOMIZE: kustomize
-  CONTROLLER_GEN: controller-gen
-  ENVTEST: setup-envtest
+  CONTROLLER_GEN: "{{.ROOT_DIR}}/bin/controller-gen"
+  ENVTEST: "{{.ROOT_DIR}}/bin/setup-envtest"
   GOLANGCI_LINT: golangci-lint
   IGNORE_NOT_FOUND: '{{default "false" .IGNORE_NOT_FOUND}}'
   PLATFORMS: linux/arm64,linux/amd64
@@ -50,6 +50,7 @@ tasks:
 
   manifests:
     desc: Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects and installation manifests
+    deps: [ensure-controller-gen]
     cmds:
       - '{{.CONTROLLER_GEN}} rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases'
       - "prettier --write config/**/*.yaml"
@@ -59,6 +60,7 @@ tasks:
 
   generate:
     desc: Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations
+    deps: [ensure-controller-gen]
     cmds:
       - '{{.CONTROLLER_GEN}} object:headerFile="hack/boilerplate.go.txt" paths="./..."'
 
@@ -269,8 +271,26 @@ tasks:
     status:
       - test -d {{.LOCALBIN}}
 
+  ensure-controller-gen:
+    desc: Install controller-gen into ./bin if missing
+    deps: [ensure-bin-dir]
+    cmds:
+      - GOBIN={{.LOCALBIN}} go install sigs.k8s.io/controller-tools/cmd/controller-gen@{{.CONTROLLER_TOOLS_VERSION}}
+    status:
+      - test -x {{.LOCALBIN}}/controller-gen
+      - "{{.LOCALBIN}}/controller-gen --version 2>/dev/null | grep -q {{.CONTROLLER_TOOLS_VERSION}}"
+
+  ensure-setup-envtest:
+    desc: Install setup-envtest into ./bin if missing
+    deps: [ensure-bin-dir]
+    cmds:
+      - GOBIN={{.LOCALBIN}} go install sigs.k8s.io/controller-runtime/tools/setup-envtest@{{.ENVTEST_VERSION}}
+    status:
+      - test -x {{.LOCALBIN}}/setup-envtest
+
   ensure-k8s-envtest:
     desc: Ensure Kubernetes test binaries are available
+    deps: [ensure-setup-envtest]
     cmds:
       - |
         echo "Setting up envtest binaries for Kubernetes version {{.ENVTEST_K8S_VERSION}}..."

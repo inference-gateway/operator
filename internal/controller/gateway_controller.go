@@ -441,7 +441,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			corev1.EnvVar{
 				Name: "MCP_SERVERS",
 				Value: strings.Join(func() []string {
-					var servers []string
+					servers := make([]string, 0, len(gateway.Spec.MCP.Servers))
 					for _, s := range gateway.Spec.MCP.Servers {
 						servers = append(servers, s.URL)
 					}
@@ -500,7 +500,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			corev1.EnvVar{
 				Name: "A2A_AGENTS",
 				Value: strings.Join(func() []string {
-					var agents []string
+					agents := make([]string, 0, len(gateway.Spec.A2A.Agents))
 					for _, a := range gateway.Spec.A2A.Agents {
 						agents = append(agents, a.URL)
 					}

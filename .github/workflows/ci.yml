@@ -16,9 +16,9 @@ concurrency:
 
 env:
   TASK_VERSION: "v3.44.1"
-  GOLANGCI_LINT_VERSION: "v2.1.6"
-  CONTROLLER_GEN_VERSION: "v0.17.2"
-  KUSTOMIZE_VERSION: "v5.6.0"
+  GOLANGCI_LINT_VERSION: "v2.11.4"
+  CONTROLLER_GEN_VERSION: "v0.20.1"
+  KUSTOMIZE_VERSION: "v5.8.1"
 
 jobs:
   lint:
@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4.2.2
 
       - name: Setup Go
-        uses: actions/setup-go@v5.5.0
+        uses: actions/setup-go@v6.4.0
         with:
           go-version-file: go.mod
           cache: true
@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@v4.2.2
 
       - name: Setup Go
-        uses: actions/setup-go@v5.5.0
+        uses: actions/setup-go@v6.4.0
         with:
           go-version-file: go.mod
           cache: true
@@ -130,7 +130,7 @@ jobs:
         uses: actions/checkout@v4.2.2
 
       - name: Setup Go
-        uses: actions/setup-go@v5.5.0
+        uses: actions/setup-go@v6.4.0
         with:
           go-version-file: go.mod
           cache: true
