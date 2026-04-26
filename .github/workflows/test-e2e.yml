@@ -1,3 +1,4 @@
+---
 name: E2E Tests
 
 on:
@@ -20,17 +21,17 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v6.0.2
 
       - name: Setup Go
-        uses: actions/setup-go@v5.5.0
+        uses: actions/setup-go@v6.4.0
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Install go-task
         run: |
-          curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin v3.44.1
+          curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin v3.48.0
 
       - name: Install k3d
         run: |
@@ -38,7 +39,7 @@ jobs:
 
       - name: Install ctlptl
         run: |
-          CTLPTL_VERSION=0.8.40
+          CTLPTL_VERSION=0.9.2
           curl -fsSL -o /tmp/ctlptl.tar.gz https://github.com/tilt-dev/ctlptl/releases/download/v${CTLPTL_VERSION}/ctlptl.${CTLPTL_VERSION}.linux.x86_64.tar.gz
           tar -xzf /tmp/ctlptl.tar.gz
           sudo mv ctlptl /usr/local/bin/

@@ -1,3 +1,4 @@
+---
 name: CI
 
 on:
@@ -15,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TASK_VERSION: "v3.44.1"
+  TASK_VERSION: "v3.48.0"
   GOLANGCI_LINT_VERSION: "v2.11.4"
   CONTROLLER_GEN_VERSION: "v0.20.1"
   KUSTOMIZE_VERSION: "v5.8.1"
@@ -26,7 +27,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v6.0.2
 
       - name: Setup Go
         uses: actions/setup-go@v6.4.0
@@ -51,7 +52,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v6.0.2
 
       - name: Setup Go
         uses: actions/setup-go@v6.4.0
@@ -60,9 +61,9 @@ jobs:
           cache: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4.4.0
+        uses: actions/setup-node@v6.4.0
         with:
-          node-version: "lts/*"
+          node-version: 24
 
       - name: Install task
         run: |
@@ -127,7 +128,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v6.0.2
 
       - name: Setup Go
         uses: actions/setup-go@v6.4.0
@@ -136,9 +137,9 @@ jobs:
           cache: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4.4.0
+        uses: actions/setup-node@v6.4.0
         with:
-          node-version: "lts/*"
+          node-version: 24
 
       - name: Install prettier
         run: |
