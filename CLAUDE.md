@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Kubernetes operator for the Inference Gateway project, built using Go 1.24+ and the Operator SDK. The operator manages Gateway, A2A (Agent-to-Agent), and MCP (Model Context Protocol) custom resources in Kubernetes clusters.
+This is a Kubernetes operator for the Inference Gateway project, built using Go 1.26+ and the Operator SDK. The operator manages Gateway, A2A (Agent-to-Agent), and MCP (Model Context Protocol) custom resources in Kubernetes clusters.
 
 ## Development Commands
 
