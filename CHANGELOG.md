@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.4](https://github.com/inference-gateway/operator/compare/v0.12.3...v0.12.4) (2026-04-26)
+
+### 👷 CI
+
+* **deps:** Bump docker buildx action to v4 ([ccc2d3d](https://github.com/inference-gateway/operator/commit/ccc2d3d390a62ecdbf2bfba9115680e710afd198))
+* **deps:** Bump goreleaser to version 2.15.2 ([be720da](https://github.com/inference-gateway/operator/commit/be720da43875149a781acd22c872d24a60f22a81))
+* **fix:** Bump cosign-installer to version 4.1.1 ([e3b8a69](https://github.com/inference-gateway/operator/commit/e3b8a6940096cf58b94d5cfe1f9165205aec6bad))
+
 ## [0.12.3](https://github.com/inference-gateway/operator/compare/v0.12.2...v0.12.3) (2026-04-26)
 
 ### 🐛 Bug Fixes
