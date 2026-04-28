@@ -55,6 +55,7 @@ rules:
       - core.inference-gateway.com
     resources:
       - agents
+      - bots
       - gateways
       - mcps
     verbs:
@@ -69,6 +70,7 @@ rules:
       - core.inference-gateway.com
     resources:
       - agents/finalizers
+      - bots/finalizers
       - gateways/finalizers
       - mcps/finalizers
     verbs:
@@ -77,6 +79,7 @@ rules:
       - core.inference-gateway.com
     resources:
       - agents/status
+      - bots/status
       - gateways/status
       - mcps/status
     verbs:

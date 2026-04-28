@@ -1,0 +1,35 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Bot
+metadata:
+  labels:
+    app.kubernetes.io/name: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: bot-sample
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  channels:
+    maxWorkers: 5
+    imageRetention: 5
+    requireApproval: true
+    telegram:
+      enabled: true
+      tokenSecretRef:
+        name: telegram-bot-credentials
+        key: token
+      allowedUsersSecretRef:
+        name: telegram-bot-credentials
+        key: allowedUsers
+      pollTimeout: 30s
+  gateway:
+    url: http://inference-gateway:8080
+    apiKeySecretRef:
+      name: gateway-credentials
+      key: apiKey
+  agent:
+    model: deepseek/deepseek-v4-pro
+    systemPrompt: "You are a helpful assistant"
+  tools:
+    enabled: true
+    schedule: true
+  a2a:
+    enabled: false

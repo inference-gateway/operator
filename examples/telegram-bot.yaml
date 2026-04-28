@@ -1,0 +1,96 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+# Provider URLs (non-secret) consumed by the Inference Gateway.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-gateway-config
+  namespace: inference-gateway
+data:
+  DEEPSEEK_API_URL: "https://api.deepseek.com"
+---
+# Provider API keys. Replace with real values before applying.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inference-gateway-providers-secret
+  namespace: inference-gateway
+type: Opaque
+stringData:
+  DEEPSEEK_API_KEY: "REPLACE_WITH_DEEPSEEK_API_KEY"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway
+  namespace: inference-gateway
+spec:
+  environment: development
+  server:
+    host: "0.0.0.0"
+    port: 8080
+  providers:
+    - name: DeepSeek
+      enabled: true
+      env:
+        - name: DEEPSEEK_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: DEEPSEEK_API_URL
+        - name: DEEPSEEK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: DEEPSEEK_API_KEY
+---
+# Telegram bot credentials. Replace the placeholder values before applying.
+#
+#   token         - The bot token issued by @BotFather.
+#   allowedUsers  - Comma-separated Telegram user IDs allowed to interact with the bot.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: telegram-bot-credentials
+  namespace: inference-gateway
+type: Opaque
+stringData:
+  token: "REPLACE_WITH_TELEGRAM_BOT_TOKEN"
+  allowedUsers: "REPLACE_WITH_TELEGRAM_USER_IDS"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Bot
+metadata:
+  name: my-telegram-bot
+  namespace: inference-gateway
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  channels:
+    maxWorkers: 5
+    imageRetention: 5
+    requireApproval: true
+    telegram:
+      enabled: true
+      tokenSecretRef:
+        name: telegram-bot-credentials
+        key: token
+      allowedUsersSecretRef:
+        name: telegram-bot-credentials
+        key: allowedUsers
+      pollTimeout: 30s
+  gateway:
+    url: http://inference-gateway.inference-gateway.svc.cluster.local:8080
+  agent:
+    model: deepseek/deepseek-chat
+    systemPrompt: "You are a helpful assistant running as a Telegram bot."
+  tools:
+    enabled: true
+    schedule: true
+  a2a:
+    enabled: false

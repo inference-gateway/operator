@@ -67,6 +67,7 @@ The operator follows cloud-native best practices and provides a unified control 
 - [📦 Installation](#-installation)
 - [✅ Verification](#-verification)
 - [🚀 Deploy Your First Gateway](#-deploy-your-first-gateway)
+- [🤖 Deploy a Telegram Bot](#-deploy-a-telegram-bot)
 - [🔄 Upgrade](#-upgrade)
 - [🗑️ Uninstallation](#️-uninstallation)
 - [🏗️ Supported Architectures](#️-supported-architectures)
@@ -367,6 +368,58 @@ EOF
 kubectl create secret generic openai-secret \
   --from-literal=api-key=your-openai-api-key-here
 ```
+
+## 🤖 Deploy a Telegram Bot
+
+The `Bot` CRD deploys the Inference Gateway CLI's `channels-manager` daemon as a
+Telegram bot. The Deployment is always a singleton (`replicas: 1`,
+`strategy: Recreate`) because Telegram allows only one active `getUpdates`
+consumer per bot token — running two replicas would cause them to terminate
+each other with `409 Conflict`.
+
+For high-availability, run multiple `Bot` resources with different tokens and
+disjoint `allowedUsers` (manual sharding); webhook mode and shared state would
+be required for true scale-out and are out of scope today.
+
+```bash
+# 1. Create the bot credentials secret
+kubectl create namespace bots
+kubectl create secret generic telegram-bot-credentials -n bots \
+  --from-literal=token='<TELEGRAM_BOT_TOKEN>' \
+  --from-literal=allowedUsers='111111111,222222222'
+
+# 2. Apply the Bot resource
+cat <<EOF | kubectl apply -f -
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Bot
+metadata:
+  name: my-telegram-bot
+  namespace: bots
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  channels:
+    telegram:
+      enabled: true
+      tokenSecretRef:
+        name: telegram-bot-credentials
+        key: token
+      allowedUsersSecretRef:
+        name: telegram-bot-credentials
+        key: allowedUsers
+      pollTimeout: 30s
+  gateway:
+    url: http://inference-gateway.inference-gateway.svc.cluster.local:8080
+  agent:
+    model: deepseek/deepseek-v4-pro
+    systemPrompt: "You are a helpful assistant running as a Telegram bot."
+EOF
+
+# 3. Watch logs (requires CLI built with INFER_LOGGING_STDOUT support)
+kubectl logs -n bots deploy/my-telegram-bot -f
+```
+
+A complete example including the `Secret` definitions is available at
+[`examples/telegram-bot.yaml`](examples/telegram-bot.yaml).
 
 ## 🔄 Upgrade
 
