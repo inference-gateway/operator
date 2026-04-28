@@ -6,15 +6,6 @@ metadata:
   labels:
     inference-gateway.com/managed: "true"
 ---
-# Provider URLs (non-secret) consumed by the Inference Gateway.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: inference-gateway-config
-  namespace: inference-gateway
-data:
-  DEEPSEEK_API_URL: "https://api.deepseek.com"
----
 # Provider API keys. Replace with real values before applying.
 apiVersion: v1
 kind: Secret
@@ -39,11 +30,6 @@ spec:
     - name: DeepSeek
       enabled: true
       env:
-        - name: DEEPSEEK_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: DEEPSEEK_API_URL
         - name: DEEPSEEK_API_KEY
           valueFrom:
             secretKeyRef:
@@ -87,7 +73,7 @@ spec:
   gateway:
     url: http://inference-gateway.inference-gateway.svc.cluster.local:8080
   agent:
-    model: deepseek/deepseek-chat
+    model: deepseek/deepseek-v4-flash
     systemPrompt: "You are a helpful assistant running as a Telegram bot."
   tools:
     enabled: true
