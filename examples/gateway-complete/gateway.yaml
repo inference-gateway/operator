@@ -57,11 +57,6 @@ spec:
     - name: OpenAI
       enabled: false
       env:
-        - name: OPENAI_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: OPENAPI_API_URL
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
@@ -70,11 +65,6 @@ spec:
     - name: Anthropic
       enabled: false
       env:
-        - name: ANTHROPIC_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: ANTHROPIC_API_URL
         - name: ANTHROPIC_API_KEY
           valueFrom:
             secretKeyRef:
@@ -83,11 +73,6 @@ spec:
     - name: Groq
       enabled: true
       env:
-        - name: GROQ_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: GROQ_API_URL
         - name: GROQ_API_KEY
           valueFrom:
             secretKeyRef:
@@ -96,11 +81,6 @@ spec:
     - name: Cohere
       enabled: true
       env:
-        - name: COHERE_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: COHERE_API_URL
         - name: COHERE_API_KEY
           valueFrom:
             secretKeyRef:
@@ -109,11 +89,6 @@ spec:
     - name: Cloudflare
       enabled: true
       env:
-        - name: CLOUDFLARE_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: CLOUDFLARE_API_URL
         - name: CLOUDFLARE_API_KEY
           valueFrom:
             secretKeyRef:
@@ -122,11 +97,6 @@ spec:
     - name: DeepSeek
       enabled: true
       env:
-        - name: DEEPSEEK_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: DEEPSEEK_API_URL
         - name: DEEPSEEK_API_KEY
           valueFrom:
             secretKeyRef:
@@ -135,11 +105,6 @@ spec:
     - name: Ollama
       enabled: true
       env:
-        - name: OLLAMA_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: OLLAMA_API_URL
         - name: OLLAMA_API_KEY
           valueFrom:
             secretKeyRef:
@@ -148,11 +113,6 @@ spec:
     - name: Google
       enabled: true
       env:
-        - name: GOOGLE_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: GOOGLE_API_URL
         - name: GOOGLE_API_KEY
           valueFrom:
             secretKeyRef:
@@ -163,8 +123,8 @@ spec:
       env:
         - name: CUSTOM_API_URL
           valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
+            secretKeyRef:
+              name: inference-gateway-providers-secret
               key: CUSTOM_API_URL
         - name: CUSTOM_API_KEY
           valueFrom:
@@ -234,20 +194,5 @@ stringData:
 #   DEEPSEEK_API_KEY: ""
 #   OLLAMA_API_KEY: ""
 #   GOOGLE_API_KEY: ""
+#   CUSTOM_API_URL: ""
 #   CUSTOM_API_KEY: ""
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: inference-gateway-config
-  namespace: inference-gateway
-data:
-  OPENAPI_API_URL: "https://api.openai.com/v1"
-  ANTHROPIC_API_URL: "https://api.anthropic.com/v1"
-  GROQ_API_URL: "https://api.groq.com/openai/v1"
-  COHERE_API_URL: "https://api.cohere.ai"
-  CLOUDFLARE_API_URL: "https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai"
-  DEEPSEEK_API_URL: "https://api.deepseek.com"
-  OLLAMA_API_URL: "http://ollama:11434/v1"
-  GOOGLE_API_URL: "https://generativelanguage.googleapis.com/v1"
-  CUSTOM_API_URL: "http://your-domain.example.local:8080/v1"

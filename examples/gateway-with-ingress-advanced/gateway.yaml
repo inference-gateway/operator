@@ -17,11 +17,6 @@ spec:
   providers:
     - name: OpenAI
       env:
-        - name: OPENAI_API_URL
-          valueFrom:
-            configMapKeyRef:
-              name: inference-gateway-config
-              key: OPENAPI_API_URL
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
@@ -72,11 +67,3 @@ metadata:
 type: Opaque
 stringData:
   OPENAI_API_KEY: ""
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: inference-gateway-config
-  namespace: inference-gateway
-data:
-  OPENAPI_API_URL: "https://api.openai.com/v1"
