@@ -16,9 +16,6 @@ spec:
     llm:
       baseURL: "http://inference-gateway.inference-gateway.svc.cluster.local:8080/v1"
       model: "deepseek/deepseek-v4-flash"
-      apiKeySecretRef:
-        name: inference-gateway-providers-secret
-        key: DEEPSEEK_API_KEY
   env:
     - name: GOOGLE_CALENDAR_MOCK_MODE
       value: "true"
@@ -39,6 +36,3 @@ spec:
     llm:
       baseURL: "http://inference-gateway.inference-gateway.svc.cluster.local:8080/v1"
       model: "deepseek/deepseek-v4-flash"
-      apiKeySecretRef:
-        name: inference-gateway-providers-secret
-        key: DEEPSEEK_API_KEY
