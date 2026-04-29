@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0](https://github.com/inference-gateway/operator/compare/v0.12.4...v0.13.0) (2026-04-29)
+
+### ✨ Features
+
+* Implement Orchestrator custom resource for chat platform integrations ([#43](https://github.com/inference-gateway/operator/issues/43)) ([9f1877d](https://github.com/inference-gateway/operator/commit/9f1877d009d3765bd461ead9b10abea4d82d7b18))
+
+### 📚 Documentation
+
+* Bump the operator version to latest ([cb6eb40](https://github.com/inference-gateway/operator/commit/cb6eb40376d0ca78bcf4c52e6bde5cdd0e2b3826))
+* Reference the usage of go 1.26+ ([6440ec5](https://github.com/inference-gateway/operator/commit/6440ec53ef5630627239d35df10b7b33a2b72896))
+
 ## [0.12.4](https://github.com/inference-gateway/operator/compare/v0.12.3...v0.12.4) (2026-04-26)
 
 ### 👷 CI
