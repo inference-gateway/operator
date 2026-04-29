@@ -341,14 +341,15 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 
 	It("does not mount agents configmap when service discovery is disabled", func() {
 		orch := makeOrchestratorWithDiscovery(false)
-		dep := r.buildOrchestratorDeployment(orch)
+		dep := r.buildOrchestratorDeployment(orch, "")
 		Expect(dep.Spec.Template.Spec.Volumes).To(BeEmpty())
 		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(BeEmpty())
+		Expect(dep.Spec.Template.Annotations).NotTo(HaveKey("inference-gateway.com/agents-config-hash"))
 	})
 
 	It("mounts agents configmap at /home/infer/.infer/agents.yaml when service discovery is enabled", func() {
 		orch := makeOrchestratorWithDiscovery(true)
-		dep := r.buildOrchestratorDeployment(orch)
+		dep := r.buildOrchestratorDeployment(orch, "agents: []\n")
 
 		Expect(dep.Spec.Template.Spec.Volumes).To(HaveLen(1))
 		vol := dep.Spec.Template.Spec.Volumes[0]
@@ -361,5 +362,17 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 		Expect(mounts[0].Name).To(Equal("agents-config"))
 		Expect(mounts[0].MountPath).To(Equal("/home/infer/.infer/agents.yaml"))
 		Expect(mounts[0].SubPath).To(Equal("agents.yaml"))
+	})
+
+	It("rolls the deployment when agents.yaml content changes", func() {
+		orch := makeOrchestratorWithDiscovery(true)
+		dep1 := r.buildOrchestratorDeployment(orch, "agents:\n  - name: a\n")
+		dep2 := r.buildOrchestratorDeployment(orch, "agents:\n  - name: b\n")
+
+		hash1 := dep1.Spec.Template.Annotations["inference-gateway.com/agents-config-hash"]
+		hash2 := dep2.Spec.Template.Annotations["inference-gateway.com/agents-config-hash"]
+		Expect(hash1).NotTo(BeEmpty())
+		Expect(hash2).NotTo(BeEmpty())
+		Expect(hash1).NotTo(Equal(hash2))
 	})
 })

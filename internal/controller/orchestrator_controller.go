@@ -24,6 +24,8 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"reflect"
 	"sort"
@@ -80,7 +82,7 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Reconcile the agents ConfigMap (handles both static and discovered agents).
-	discoveredAgentURLs, err := r.reconcileAgentsConfigMap(ctx, &orch)
+	discoveredAgentURLs, agentsYAML, err := r.reconcileAgentsConfigMap(ctx, &orch)
 	if err != nil {
 		if apiErrors.IsConflict(err) {
 			logger.V(1).Info("agents configmap reconciliation conflict, requeueing", "error", err)
@@ -90,7 +92,7 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	deployment, err := r.reconcileDeployment(ctx, &orch)
+	deployment, err := r.reconcileDeployment(ctx, &orch, agentsYAML)
 	if err != nil {
 		if apiErrors.IsConflict(err) {
 			logger.V(1).Info("deployment reconciliation conflict, requeueing", "error", err)
@@ -110,23 +112,26 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 // reconcileAgentsConfigMap discovers Agent CRs matching the service discovery selector,
 // builds an agents.yaml combining static and discovered agents, and writes it to a ConfigMap
-// owned by the Orchestrator. Returns the sorted list of discovered agent URLs.
+// owned by the Orchestrator. Returns the sorted list of discovered agent URLs and the
+// rendered agents.yaml content (used to stamp a hash annotation on the Deployment so the
+// pod is rolled when the content changes — required because the ConfigMap is mounted with
+// subPath, which Kubernetes does not propagate live updates for).
 //
 // Note on INFER_A2A_AGENTS: the env var is retained for backward compatibility when
 // service discovery is disabled. When service discovery is enabled the ConfigMap mount
 // is the source of truth for all agents (static + discovered), so INFER_A2A_AGENTS
 // becomes redundant; it will be removed in a future version.
-func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, orch *v1alpha1.Orchestrator) ([]string, error) {
+func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, orch *v1alpha1.Orchestrator) ([]string, string, error) {
 	logger := logf.FromContext(ctx)
 
 	if !orch.Spec.A2A.Enabled || !orch.Spec.A2A.ServiceDiscovery.Enabled {
-		return nil, nil
+		return nil, "", nil
 	}
 
 	// Discover matching Agent CRs.
 	discoveredAgents, err := r.discoverAgents(ctx, orch)
 	if err != nil {
-		return nil, fmt.Errorf("failed to discover agents: %w", err)
+		return nil, "", fmt.Errorf("failed to discover agents: %w", err)
 	}
 
 	// Derive sorted, unique URL list for status.
@@ -158,7 +163,7 @@ func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, o
 	}
 
 	if err := controllerutil.SetControllerReference(orch, cm, r.Scheme); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	found := &corev1.ConfigMap{}
@@ -166,11 +171,11 @@ func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, o
 	if err != nil && apiErrors.IsNotFound(err) {
 		logger.Info("creating agents configmap", "ConfigMap.Name", cmName)
 		if err = r.Create(ctx, cm); err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		return discoveredURLs, nil
+		return discoveredURLs, agentsYAML, nil
 	} else if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Update only when content changes to avoid spurious updates.
@@ -178,11 +183,11 @@ func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, o
 		found.Data = cm.Data
 		logger.Info("updating agents configmap", "ConfigMap.Name", cmName, "agentCount", len(discoveredAgents))
 		if err = r.Update(ctx, found); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 
-	return discoveredURLs, nil
+	return discoveredURLs, agentsYAML, nil
 }
 
 // discoverAgents lists Agent CRs in the configured namespace filtered by the label selector.
@@ -246,8 +251,10 @@ func buildAgentsYAML(staticAgents []string, discoveredAgents []v1alpha1.Agent) s
 }
 
 // reconcileDeployment ensures the Orchestrator's singleton Deployment exists and matches the spec.
-func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *v1alpha1.Orchestrator) (*appsv1.Deployment, error) {
-	deployment := r.buildOrchestratorDeployment(orch)
+// agentsYAML is the rendered ConfigMap content; its hash is stamped as a pod template annotation
+// so the Deployment rolls when the content changes (subPath mounts do not propagate updates).
+func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *v1alpha1.Orchestrator, agentsYAML string) (*appsv1.Deployment, error) {
+	deployment := r.buildOrchestratorDeployment(orch, agentsYAML)
 
 	if err := controllerutil.SetControllerReference(orch, deployment, r.Scheme); err != nil {
 		return nil, err
@@ -258,8 +265,10 @@ func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *
 
 // buildOrchestratorDeployment returns a singleton Deployment for the given Orchestrator.
 // When service discovery is enabled the agents ConfigMap is mounted at /home/infer/.infer/agents.yaml
-// so the CLI picks up the discovered agent list on each invocation without a pod restart.
-func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orchestrator) *appsv1.Deployment {
+// so the CLI picks up the discovered agent list on each invocation. The hash of agentsYAML is stamped
+// as a pod template annotation so the Deployment rolls when the discovered agent set changes —
+// Kubernetes does not propagate live updates to ConfigMap volumes that use subPath.
+func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orchestrator, agentsYAML string) *appsv1.Deployment {
 	orchLabels := map[string]string{"app": orch.Name}
 
 	container := corev1.Container{
@@ -274,6 +283,8 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orch
 	podSpec := corev1.PodSpec{
 		Containers: []corev1.Container{container},
 	}
+
+	podAnnotations := map[string]string{}
 
 	// Mount the agents ConfigMap when service discovery is enabled.
 	if orch.Spec.A2A.Enabled && orch.Spec.A2A.ServiceDiscovery.Enabled {
@@ -294,6 +305,8 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orch
 				SubPath:   "agents.yaml",
 			},
 		)
+		sum := sha256.Sum256([]byte(agentsYAML))
+		podAnnotations["inference-gateway.com/agents-config-hash"] = hex.EncodeToString(sum[:])
 	}
 
 	return &appsv1.Deployment{
@@ -309,7 +322,7 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orch
 			},
 			Selector: &metav1.LabelSelector{MatchLabels: orchLabels},
 			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{Labels: orchLabels},
+				ObjectMeta: metav1.ObjectMeta{Labels: orchLabels, Annotations: podAnnotations},
 				Spec:       podSpec,
 			},
 		},
