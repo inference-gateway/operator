@@ -46,10 +46,21 @@ var _ = Describe("Orchestrator Controller", Ordered, func() {
 	)
 
 	BeforeAll(func() {
+		By("ensuring the operator namespace exists")
+		cmd := exec.Command("kubectl", "create", "namespace", namespace)
+		if _, err := utils.Run(cmd); err != nil && !strings.Contains(err.Error(), "AlreadyExists") {
+			ExpectWithOffset(1, err).NotTo(HaveOccurred(), "failed to create operator namespace")
+		}
+
 		By("ensuring CRDs are installed")
-		cmd := exec.Command("task", "install")
+		cmd = exec.Command("task", "install")
 		_, err := utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "failed to install CRDs")
+
+		By("ensuring the operator is deployed")
+		cmd = exec.Command("task", "deploy", fmt.Sprintf("IMG=%s", projectImage))
+		_, err = utils.Run(cmd)
+		Expect(err).NotTo(HaveOccurred(), "failed to deploy the operator")
 
 		By("ensuring the test namespace exists")
 		cmd = exec.Command("kubectl", "create", "namespace", orchestratorNamespace)
