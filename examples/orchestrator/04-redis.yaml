@@ -1,0 +1,60 @@
+---
+# Redis - persistent conversation and session storage for the Orchestrator.
+# When the Orchestrator pod restarts (e.g. due to a ConfigMap-triggered roll
+# after agent discovery changes), all conversation context is preserved in Redis
+# rather than being lost with the pod's filesystem.
+#
+# AOF persistence (--appendonly yes) is enabled so Redis survives its own
+# pod restarts too. For production use, back this with a PersistentVolumeClaim.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: inference-gateway
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args:
+            - redis-server
+            - --appendonly
+            - "yes"
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: inference-gateway
+spec:
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP

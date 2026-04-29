@@ -9,6 +9,16 @@ spec:
   env:
     - name: TZ
       value: "Europe/Berlin"
+    # Store conversations in Redis so they survive pod restarts.
+    # The Redis instance is deployed by 04-redis.yaml in the same namespace.
+    - name: INFER_STORAGE_ENABLED
+      value: "true"
+    - name: INFER_STORAGE_TYPE
+      value: "redis"
+    - name: INFER_STORAGE_REDIS_HOST
+      value: "redis.inference-gateway.svc.cluster.local"
+    - name: INFER_STORAGE_REDIS_PORT
+      value: "6379"
   channels:
     maxWorkers: 5
     imageRetention: 5
