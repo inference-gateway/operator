@@ -1,0 +1,100 @@
+---
+# Calendar agent - provides Google Calendar skills (list/create/update/delete events).
+# Runs in mock mode so it works without real Google credentials.
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Agent
+metadata:
+  name: google-calendar-agent
+  namespace: agents
+spec:
+  image: ghcr.io/inference-gateway/google-calendar-agent:latest
+  timezone: "UTC"
+  port: 8080
+  host: "0.0.0.0"
+  readTimeout: "30s"
+  writeTimeout: "30s"
+  idleTimeout: "60s"
+  logging:
+    level: "info"
+    format: "json"
+  telemetry:
+    enabled: false
+  queue:
+    enabled: false
+    maxSize: 0
+    cleanupInterval: "5m"
+  tls:
+    enabled: false
+    secretRef: ""
+  agent:
+    enabled: true
+    tls:
+      enabled: false
+      secretRef: ""
+    maxConversationHistory: 10
+    maxChatCompletionIterations: 5
+    maxRetries: 3
+    apiKey:
+      secretRef: ""
+    llm:
+      model: "deepseek/deepseek-v4-flash"
+      maxTokens: 4096
+      temperature: "0.7"
+      systemPrompt: "You are a helpful assistant for managing Google Calendar events."
+  env:
+    - name: GOOGLE_CALENDAR_MOCK_MODE
+      value: "true"
+    # The agent runs its own LLM-driven loop and routes calls through the Gateway.
+    # NOTE: until the operator's Agent controller emits A2A_AGENT_CLIENT_* env vars
+    # natively from spec.agent.llm.*, set them here explicitly.
+    - name: A2A_AGENT_CLIENT_PROVIDER
+      value: "deepseek"
+    - name: A2A_AGENT_CLIENT_MODEL
+      value: "deepseek-v4-flash"
+    - name: A2A_AGENT_CLIENT_BASE_URL
+      value: "http://inference-gateway.inference-gateway.svc.cluster.local:8080/v1"
+    # The Gateway in this example doesn't enforce auth, so any non-empty value works.
+    - name: A2A_AGENT_CLIENT_API_KEY
+      value: "not-used-by-gateway-in-this-example"
+---
+# Mock agent - useful for testing the orchestrator's A2A fan-out without a real backend.
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Agent
+metadata:
+  name: mock-agent
+  namespace: agents
+spec:
+  image: ghcr.io/inference-gateway/mock-agent:latest
+  timezone: "UTC"
+  port: 8080
+  host: "0.0.0.0"
+  readTimeout: "30s"
+  writeTimeout: "30s"
+  idleTimeout: "60s"
+  logging:
+    level: "info"
+    format: "json"
+  telemetry:
+    enabled: false
+  queue:
+    enabled: false
+    maxSize: 0
+    cleanupInterval: "5m"
+  tls:
+    enabled: false
+    secretRef: ""
+  agent:
+    enabled: true
+    tls:
+      enabled: false
+      secretRef: ""
+    maxConversationHistory: 10
+    maxChatCompletionIterations: 5
+    maxRetries: 3
+    apiKey:
+      secretRef: ""
+    llm:
+      model: "deepseek/deepseek-v4-flash"
+      maxTokens: 4096
+      temperature: "0.7"
+      systemPrompt: "You are a mock agent for testing."

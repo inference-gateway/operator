@@ -1,0 +1,16 @@
+---
+# Hosts the Gateway, the Orchestrator, and provider/channel credentials.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+# Hosts the A2A worker Agents the Orchestrator delegates work to.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agents
+  labels:
+    inference-gateway.com/managed: "true"

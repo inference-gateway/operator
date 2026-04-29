@@ -378,7 +378,7 @@ channel currently supported; more channels are planned.
 
 When the Telegram channel is enabled, the Deployment is forced to a singleton
 (`replicas: 1`, `strategy: Recreate`) because Telegram allows only one active
-`getUpdates` consumer per bot token — running two replicas would cause them
+`getUpdates` consumer per bot token - running two replicas would cause them
 to terminate each other with `409 Conflict`. For high-availability today, run
 multiple `Orchestrator` resources with different tokens and disjoint
 `allowedUsers` (manual sharding); webhook mode and shared state would be
@@ -421,8 +421,9 @@ EOF
 kubectl logs -n orchestrators deploy/orchestrator-controlled-by-telegram -f
 ```
 
-A complete example including the `Secret` definitions is available at
-[`examples/orchestrator-via-telegram.yaml`](examples/orchestrator-via-telegram.yaml).
+A full end-to-end example - Gateway, two A2A worker Agents, and the Orchestrator
+- with a step-by-step walkthrough is available at
+[`examples/orchestrator/`](examples/orchestrator/).
 
 ## 🔄 Upgrade
 
@@ -748,7 +749,7 @@ kubectl delete -f https://github.com/inference-gateway/operator/releases/latest/
 
 ### Prerequisites for Development
 
-The recommended way to get a complete toolchain is via the project's [Flox](https://flox.dev) environment — `flox activate` provides Go, `task`, `kubectl`, `kubebuilder`, `kustomize`, `golangci-lint`, `k3d`, `ctlptl`, `gh`, and `prettier` at the pinned versions used by CI. See [CONTRIBUTING.md](CONTRIBUTING.md#setting-up-your-environment) for alternatives (dev container or manual install).
+The recommended way to get a complete toolchain is via the project's [Flox](https://flox.dev) environment - `flox activate` provides Go, `task`, `kubectl`, `kubebuilder`, `kustomize`, `golangci-lint`, `k3d`, `ctlptl`, `gh`, and `prettier` at the pinned versions used by CI. See [CONTRIBUTING.md](CONTRIBUTING.md#setting-up-your-environment) for alternatives (dev container or manual install).
 
 If installing manually:
 
