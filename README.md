@@ -422,7 +422,7 @@ kubectl logs -n orchestrators deploy/orchestrator-controlled-by-telegram -f
 ```
 
 A complete example including the `Secret` definitions is available at
-[`examples/orchestrator-telegram.yaml`](examples/orchestrator-telegram.yaml).
+[`examples/orchestrator-via-telegram.yaml`](examples/orchestrator-via-telegram.yaml).
 
 ## 🔄 Upgrade
 
