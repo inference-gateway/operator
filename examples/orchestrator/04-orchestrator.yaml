@@ -34,6 +34,14 @@ spec:
     schedule: true
   a2a:
     enabled: true
-    agents:
-      - http://google-calendar-agent.agents.svc.cluster.local:8080
-      - http://mock-agent.agents.svc.cluster.local:8080
+    # Static agents list (kept for backward compatibility).
+    # When serviceDiscovery is enabled, discovered agents are also added to
+    # ~/.infer/agents.yaml and take precedence on URL collision.
+    agents: []
+    serviceDiscovery:
+      enabled: true
+      # namespace defaults to the Orchestrator's own namespace when omitted.
+      namespace: agents
+      selector:
+        matchLabels:
+          orchestrator: orchestrator

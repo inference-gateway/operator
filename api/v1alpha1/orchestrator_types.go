@@ -105,12 +105,35 @@ type OrchestratorToolsSpec struct {
 	Schedule bool `json:"schedule,omitempty"`
 }
 
+// OrchestratorServiceDiscoverySpec configures automatic discovery of Agent CRs.
+type OrchestratorServiceDiscoverySpec struct {
+	// Enabled toggles automatic service discovery of Agent CRs.
+	Enabled bool `json:"enabled"`
+
+	// Namespace is the namespace to discover Agent CRs in.
+	// Defaults to the Orchestrator's own namespace when empty.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// Selector filters which Agent CRs are discovered by their labels.
+	// A nil or empty selector matches all Agents in the namespace.
+	// Supports matchLabels and matchExpressions.
+	// +optional
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+}
+
 // OrchestratorA2ASpec configures Agent-to-Agent integration.
 type OrchestratorA2ASpec struct {
 	Enabled bool `json:"enabled"`
 
 	// +optional
 	Agents []string `json:"agents,omitempty"`
+
+	// ServiceDiscovery configures automatic discovery of Agent CRs by label selector.
+	// Discovered agents are written into agents.yaml and mounted in the orchestrator pod,
+	// enabling hot-reload without pod restarts via kubelet ConfigMap sync.
+	// +optional
+	ServiceDiscovery OrchestratorServiceDiscoverySpec `json:"serviceDiscovery,omitempty"`
 }
 
 // OrchestratorStatus defines the observed state of Orchestrator.
@@ -125,12 +148,21 @@ type OrchestratorStatus struct {
 
 	// +optional
 	Ready bool `json:"ready,omitempty"`
+
+	// DiscoveredAgents is the sorted list of agent URLs found via service discovery.
+	// +optional
+	DiscoveredAgents []string `json:"discoveredAgents,omitempty"`
+
+	// DiscoveredAgentCount is the number of agents currently discovered via service discovery.
+	// +optional
+	DiscoveredAgentCount int32 `json:"discoveredAgentCount,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=orch,categories=inference-gateway
 // +kubebuilder:printcolumn:name="READY",type=boolean,JSONPath=".status.ready",description="Whether the Orchestrator Deployment is available"
+// +kubebuilder:printcolumn:name="AGENTS",type=integer,JSONPath=".status.discoveredAgentCount",description="Number of discovered agents"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 
 // Orchestrator is the Schema for the orchestrators API.

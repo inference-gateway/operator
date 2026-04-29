@@ -24,6 +24,7 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -245,5 +246,120 @@ var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 		orch.Spec.Env = &[]corev1.EnvVar{{Name: "EXTRA", Value: "yes"}}
 		envs := envByName(buildOrchestratorEnvironmentVars(orch))
 		Expect(envs["EXTRA"].Value).To(Equal("yes"))
+	})
+})
+
+var _ = Describe("buildAgentsYAML", func() {
+	It("emits empty agents list when no static or discovered agents", func() {
+		yaml := buildAgentsYAML(nil, nil)
+		Expect(yaml).To(Equal("agents:\n"))
+	})
+
+	It("emits static agents with synthetic names", func() {
+		yaml := buildAgentsYAML([]string{"http://a:8080", "http://b:9090"}, nil)
+		Expect(yaml).To(ContainSubstring("- name: static-agent-0\n"))
+		Expect(yaml).To(ContainSubstring("    url: http://a:8080\n"))
+		Expect(yaml).To(ContainSubstring("- name: static-agent-1\n"))
+		Expect(yaml).To(ContainSubstring("    url: http://b:9090\n"))
+		Expect(yaml).To(ContainSubstring("    enabled: true\n"))
+		Expect(yaml).To(ContainSubstring("    run: false\n"))
+	})
+
+	It("emits discovered agents by CR name with derived cluster URL", func() {
+		agents := []v1alpha1.Agent{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "agents"},
+				Spec:       v1alpha1.AgentSpec{Port: 8080},
+			},
+		}
+		yaml := buildAgentsYAML(nil, agents)
+		Expect(yaml).To(ContainSubstring("- name: my-agent\n"))
+		Expect(yaml).To(ContainSubstring("    url: http://my-agent.agents.svc.cluster.local:8080\n"))
+	})
+
+	It("uses default port 8080 when agent port is zero", func() {
+		agents := []v1alpha1.Agent{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "zero-port", Namespace: "ns"},
+				Spec:       v1alpha1.AgentSpec{Port: 0},
+			},
+		}
+		yaml := buildAgentsYAML(nil, agents)
+		Expect(yaml).To(ContainSubstring("url: http://zero-port.ns.svc.cluster.local:8080\n"))
+	})
+
+	It("sorts discovered agents by name for determinism", func() {
+		agents := []v1alpha1.Agent{
+			{ObjectMeta: metav1.ObjectMeta{Name: "zebra", Namespace: "ns"}, Spec: v1alpha1.AgentSpec{Port: 8080}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "ns"}, Spec: v1alpha1.AgentSpec{Port: 8080}},
+		}
+		yaml := buildAgentsYAML(nil, agents)
+		alphaPos := strings.Index(yaml, "name: alpha")
+		zebraPos := strings.Index(yaml, "name: zebra")
+		Expect(alphaPos).To(BeNumerically("<", zebraPos))
+	})
+
+	It("combines static and discovered agents", func() {
+		agents := []v1alpha1.Agent{
+			{ObjectMeta: metav1.ObjectMeta{Name: "disc", Namespace: "ns"}, Spec: v1alpha1.AgentSpec{Port: 8080}},
+		}
+		yaml := buildAgentsYAML([]string{"http://static:8080"}, agents)
+		Expect(yaml).To(ContainSubstring("name: static-agent-0"))
+		Expect(yaml).To(ContainSubstring("name: disc"))
+	})
+})
+
+var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
+	makeOrchestratorWithDiscovery := func(enabled bool) *v1alpha1.Orchestrator {
+		return &v1alpha1.Orchestrator{
+			ObjectMeta: metav1.ObjectMeta{Name: "orch", Namespace: "default"},
+			Spec: v1alpha1.OrchestratorSpec{
+				Image: "img",
+				Channels: v1alpha1.ChannelsSpec{
+					Telegram: v1alpha1.TelegramChannelSpec{
+						Enabled: true,
+						TokenSecretRef: corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
+							Key:                  "token",
+						},
+					},
+				},
+				Gateway: v1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
+				Agent:   v1alpha1.OrchestratorAgentSpec{Model: "m"},
+				A2A: v1alpha1.OrchestratorA2ASpec{
+					Enabled: true,
+					ServiceDiscovery: v1alpha1.OrchestratorServiceDiscoverySpec{
+						Enabled:   enabled,
+						Namespace: "agents",
+					},
+				},
+			},
+		}
+	}
+
+	r := &OrchestratorReconciler{}
+
+	It("does not mount agents configmap when service discovery is disabled", func() {
+		orch := makeOrchestratorWithDiscovery(false)
+		dep := r.buildOrchestratorDeployment(orch)
+		Expect(dep.Spec.Template.Spec.Volumes).To(BeEmpty())
+		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(BeEmpty())
+	})
+
+	It("mounts agents configmap at /root/.infer/agents.yaml when service discovery is enabled", func() {
+		orch := makeOrchestratorWithDiscovery(true)
+		dep := r.buildOrchestratorDeployment(orch)
+
+		Expect(dep.Spec.Template.Spec.Volumes).To(HaveLen(1))
+		vol := dep.Spec.Template.Spec.Volumes[0]
+		Expect(vol.Name).To(Equal("agents-config"))
+		Expect(vol.ConfigMap).NotTo(BeNil())
+		Expect(vol.ConfigMap.Name).To(Equal("orch-agents"))
+
+		mounts := dep.Spec.Template.Spec.Containers[0].VolumeMounts
+		Expect(mounts).To(HaveLen(1))
+		Expect(mounts[0].Name).To(Equal("agents-config"))
+		Expect(mounts[0].MountPath).To(Equal("/root/.infer/agents.yaml"))
+		Expect(mounts[0].SubPath).To(Equal("agents.yaml"))
 	})
 })
