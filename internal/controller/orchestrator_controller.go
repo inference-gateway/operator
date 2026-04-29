@@ -257,7 +257,7 @@ func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *
 }
 
 // buildOrchestratorDeployment returns a singleton Deployment for the given Orchestrator.
-// When service discovery is enabled the agents ConfigMap is mounted at /root/.infer/agents.yaml
+// When service discovery is enabled the agents ConfigMap is mounted at /home/infer/.infer/agents.yaml
 // so the CLI picks up the discovered agent list on each invocation without a pod restart.
 func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orchestrator) *appsv1.Deployment {
 	orchLabels := map[string]string{"app": orch.Name}
@@ -290,7 +290,7 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orch
 			podSpec.Containers[0].VolumeMounts,
 			corev1.VolumeMount{
 				Name:      "agents-config",
-				MountPath: "/root/.infer/agents.yaml",
+				MountPath: "/home/infer/.infer/agents.yaml",
 				SubPath:   "agents.yaml",
 			},
 		)

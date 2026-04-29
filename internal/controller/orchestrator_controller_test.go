@@ -346,7 +346,7 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(BeEmpty())
 	})
 
-	It("mounts agents configmap at /root/.infer/agents.yaml when service discovery is enabled", func() {
+	It("mounts agents configmap at /home/infer/.infer/agents.yaml when service discovery is enabled", func() {
 		orch := makeOrchestratorWithDiscovery(true)
 		dep := r.buildOrchestratorDeployment(orch)
 
@@ -359,7 +359,7 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 		mounts := dep.Spec.Template.Spec.Containers[0].VolumeMounts
 		Expect(mounts).To(HaveLen(1))
 		Expect(mounts[0].Name).To(Equal("agents-config"))
-		Expect(mounts[0].MountPath).To(Equal("/root/.infer/agents.yaml"))
+		Expect(mounts[0].MountPath).To(Equal("/home/infer/.infer/agents.yaml"))
 		Expect(mounts[0].SubPath).To(Equal("agents.yaml"))
 	})
 })
