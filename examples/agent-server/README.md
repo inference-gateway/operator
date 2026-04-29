@@ -1,6 +1,6 @@
 # Agent Server Example
 
-Deploy a **Google Calendar Agent** — an A2A (Agent-to-Agent) worker that can create, read, update, and delete Google Calendar events. In this example it runs in **demo mode** (`DEMO_MODE=true`), so no real Google credentials are needed; all calendar operations return synthetic mock data.
+Deploy a **Google Calendar Agent** — an A2A (Agent-to-Agent) worker that can create, read, update, and delete Google Calendar events. In this example it runs in **mock mode** (`GOOGLE_CALENDAR_MOCK_MODE=true`), so no real Google credentials are needed; all calendar operations return synthetic mock data.
 
 The agent exposes an A2A-compatible HTTP endpoint and can be registered with an Inference Gateway Orchestrator for LLM-driven task delegation.
 
@@ -17,7 +17,7 @@ The agent exposes an A2A-compatible HTTP endpoint and can be registered with an 
 
 ## Run
 
-1. *(Optional)* To use a real Google account instead of demo mode, set `DEMO_MODE: "false"` in `agent.yaml` and supply Google OAuth credentials via a Kubernetes Secret. Refer to the [google-calendar-agent documentation](https://github.com/inference-gateway/google-calendar-agent) for the required environment variables.
+1. *(Optional)* To use a real Google account instead of mock mode, set `GOOGLE_CALENDAR_MOCK_MODE: "false"` in `agent.yaml` and supply Google OAuth credentials via a Kubernetes Secret. Refer to the [google-calendar-agent documentation](https://github.com/inference-gateway/google-calendar-agent) for the required environment variables.
 
 2. Update the `apiKey.secretRef` in `agent.yaml` to point to a Secret that contains the API key for the LLM provider the agent should use:
 
