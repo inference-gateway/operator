@@ -115,7 +115,6 @@ var _ = Describe("Agent Controller", func() {
 		})
 	})
 
-	// Unit-level tests for buildAgentEnvironmentVars — no cluster required.
 	Context("buildAgentEnvironmentVars", func() {
 		var reconciler *AgentReconciler
 

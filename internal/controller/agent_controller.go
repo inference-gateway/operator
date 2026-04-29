@@ -248,10 +248,8 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 		corev1.EnvVar{Name: "AGENT_MAX_CONVERSATION_HISTORY", Value: strconv.Itoa(int(agent.Spec.Agent.MaxConversationHistory))},
 	)
 
-	// A2A_AGENT_CLIENT_* vars — these are the env vars that agent images actually read.
 	llm := agent.Spec.Agent.LLM
 
-	// Split "provider/model" into two separate vars.
 	if llm.Model != "" {
 		parts := strings.SplitN(llm.Model, "/", 2)
 		if len(parts) == 2 {
@@ -273,7 +271,6 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 		})
 	}
 
-	// API key via valueFrom so the secret value is never inlined.
 	if llm.APIKeySecretRef != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name: "A2A_AGENT_CLIENT_API_KEY",
