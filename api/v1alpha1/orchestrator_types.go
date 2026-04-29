@@ -130,8 +130,10 @@ type OrchestratorA2ASpec struct {
 	Agents []string `json:"agents,omitempty"`
 
 	// ServiceDiscovery configures automatic discovery of Agent CRs by label selector.
-	// Discovered agents are written into agents.yaml and mounted in the orchestrator pod,
-	// enabling hot-reload without pod restarts via kubelet ConfigMap sync.
+	// Discovered agents are written into agents.yaml and mounted in the orchestrator pod.
+	// The pod is rolled when the discovered set changes (a content hash is stamped on the
+	// pod template) because Kubernetes does not propagate live updates to ConfigMap volumes
+	// mounted with subPath.
 	// +optional
 	ServiceDiscovery OrchestratorServiceDiscoverySpec `json:"serviceDiscovery,omitempty"`
 }

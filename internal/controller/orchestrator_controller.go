@@ -224,8 +224,8 @@ func buildAgentsYAML(staticAgents []string, discoveredAgents []v1alpha1.Agent) s
 
 	// Static agents with synthetic names (kept for backward compat).
 	for i, url := range staticAgents {
-		sb.WriteString(fmt.Sprintf("  - name: static-agent-%d\n", i))
-		sb.WriteString(fmt.Sprintf("    url: %s\n", url))
+		fmt.Fprintf(&sb, "  - name: static-agent-%d\n", i)
+		fmt.Fprintf(&sb, "    url: %s\n", url)
 		sb.WriteString("    enabled: true\n")
 		sb.WriteString("    run: false\n")
 	}
@@ -241,8 +241,8 @@ func buildAgentsYAML(staticAgents []string, discoveredAgents []v1alpha1.Agent) s
 			port = 8080
 		}
 		url := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", agent.Name, agent.Namespace, port)
-		sb.WriteString(fmt.Sprintf("  - name: %s\n", agent.Name))
-		sb.WriteString(fmt.Sprintf("    url: %s\n", url))
+		fmt.Fprintf(&sb, "  - name: %s\n", agent.Name)
+		fmt.Fprintf(&sb, "    url: %s\n", url)
 		sb.WriteString("    enabled: true\n")
 		sb.WriteString("    run: false\n")
 	}
