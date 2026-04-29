@@ -57,6 +57,7 @@ rules:
       - agents
       - gateways
       - mcps
+      - orchestrators
     verbs:
       - create
       - delete
@@ -71,6 +72,7 @@ rules:
       - agents/finalizers
       - gateways/finalizers
       - mcps/finalizers
+      - orchestrators/finalizers
     verbs:
       - update
   - apiGroups:
@@ -79,6 +81,7 @@ rules:
       - agents/status
       - gateways/status
       - mcps/status
+      - orchestrators/status
     verbs:
       - get
       - patch

@@ -67,6 +67,7 @@ The operator follows cloud-native best practices and provides a unified control 
 - [📦 Installation](#-installation)
 - [✅ Verification](#-verification)
 - [🚀 Deploy Your First Gateway](#-deploy-your-first-gateway)
+- [🤖 Deploy an Orchestrator](#-deploy-an-orchestrator)
 - [🔄 Upgrade](#-upgrade)
 - [🗑️ Uninstallation](#️-uninstallation)
 - [🏗️ Supported Architectures](#️-supported-architectures)
@@ -367,6 +368,62 @@ EOF
 kubectl create secret generic openai-secret \
   --from-literal=api-key=your-openai-api-key-here
 ```
+
+## 🤖 Deploy an Orchestrator
+
+The `Orchestrator` CRD deploys the Inference Gateway CLI's `channels-manager`
+daemon: an LLM-driven loop that reads messages from a chat channel, optionally
+fans out to A2A `Agent`s and tools (incl. MCP), and replies. Telegram is the
+channel currently supported; more channels are planned.
+
+When the Telegram channel is enabled, the Deployment is forced to a singleton
+(`replicas: 1`, `strategy: Recreate`) because Telegram allows only one active
+`getUpdates` consumer per bot token - running two replicas would cause them
+to terminate each other with `409 Conflict`. For high-availability today, run
+multiple `Orchestrator` resources with different tokens and disjoint
+`allowedUsers` (manual sharding); webhook mode and shared state would be
+required for true scale-out and are out of scope.
+
+```bash
+# 1. Create the bot credentials secret
+kubectl create namespace orchestrators
+kubectl create secret generic telegram-bot-credentials -n orchestrators \
+  --from-literal=token='<TELEGRAM_BOT_TOKEN>' \
+  --from-literal=allowedUsers='111111111,222222222'
+
+# 2. Apply the Orchestrator resource
+cat <<EOF | kubectl apply -f -
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
+metadata:
+  name: orchestrator-controlled-by-telegram
+  namespace: orchestrators
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  channels:
+    telegram:
+      enabled: true
+      tokenSecretRef:
+        name: telegram-bot-credentials
+        key: token
+      allowedUsersSecretRef:
+        name: telegram-bot-credentials
+        key: allowedUsers
+      pollTimeout: 30s
+  gateway:
+    url: http://inference-gateway.inference-gateway.svc.cluster.local:8080
+  agent:
+    model: deepseek/deepseek-v4-pro
+    systemPrompt: "You are a helpful assistant running as a Telegram bot."
+EOF
+
+# 3. Watch logs (requires CLI built with INFER_LOGGING_STDOUT support)
+kubectl logs -n orchestrators deploy/orchestrator-controlled-by-telegram -f
+```
+
+A full end-to-end example - Gateway, two A2A worker Agents, and the Orchestrator
+- with a step-by-step walkthrough is available at
+[`examples/orchestrator/`](examples/orchestrator/).
 
 ## 🔄 Upgrade
 
@@ -692,7 +749,7 @@ kubectl delete -f https://github.com/inference-gateway/operator/releases/latest/
 
 ### Prerequisites for Development
 
-The recommended way to get a complete toolchain is via the project's [Flox](https://flox.dev) environment — `flox activate` provides Go, `task`, `kubectl`, `kubebuilder`, `kustomize`, `golangci-lint`, `k3d`, `ctlptl`, `gh`, and `prettier` at the pinned versions used by CI. See [CONTRIBUTING.md](CONTRIBUTING.md#setting-up-your-environment) for alternatives (dev container or manual install).
+The recommended way to get a complete toolchain is via the project's [Flox](https://flox.dev) environment - `flox activate` provides Go, `task`, `kubectl`, `kubebuilder`, `kustomize`, `golangci-lint`, `k3d`, `ctlptl`, `gh`, and `prettier` at the pinned versions used by CI. See [CONTRIBUTING.md](CONTRIBUTING.md#setting-up-your-environment) for alternatives (dev container or manual install).
 
 If installing manually:
 

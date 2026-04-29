@@ -3,4 +3,5 @@ resources:
   - core_v1alpha1_gateway.yaml
   - core_v1alpha1_agent.yaml
   - core_v1alpha1_mcp.yaml
+  - core_v1alpha1_orchestrator.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples
