@@ -198,33 +198,6 @@ spec:
           enabled: true
           path: "/health"
           interval: "30s"
-  a2a:
-    enabled: false
-    expose: false
-    timeouts:
-      client: "60s"
-    polling:
-      enabled: true
-      interval: "2s"
-      timeout: "60s"
-      maxAttempts: 30
-    serviceDiscovery:
-      enabled: false
-      namespace: "agents"
-      pollingInterval: "30s"
-    agents:
-      - name: google-calendar-agent
-        url: "http://google-calendar-agent.agents.svc.cluster.local:8080"
-        healthCheck:
-          enabled: true
-          path: "/health"
-          interval: "30s"
-      - name: email-agent
-        url: "http://email-agent.agents.svc.cluster.local:8080"
-        healthCheck:
-          enabled: true
-          path: "/health"
-          interval: "30s"
   resources:
     requests:
       cpu: "100m"

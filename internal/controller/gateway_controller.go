@@ -35,7 +35,6 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,7 +53,6 @@ import (
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/finalizers,verbs=update
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=agents,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -63,8 +61,6 @@ import (
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
 
 // GatewayReconciler reconciles a Gateway object
 type GatewayReconciler struct {
@@ -485,65 +481,6 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 				}(),
 			},
 		)
-	}
-
-	if gateway.Spec.A2A != nil && gateway.Spec.A2A.Enabled {
-		envVars = append(envVars,
-			corev1.EnvVar{
-				Name:  "A2A_ENABLE",
-				Value: fmt.Sprintf("%t", gateway.Spec.A2A.Enabled),
-			},
-			corev1.EnvVar{
-				Name:  "A2A_EXPOSE",
-				Value: fmt.Sprintf("%t", gateway.Spec.A2A.Expose),
-			},
-			corev1.EnvVar{
-				Name: "A2A_AGENTS",
-				Value: strings.Join(func() []string {
-					agents := make([]string, 0, len(gateway.Spec.A2A.Agents))
-					for _, a := range gateway.Spec.A2A.Agents {
-						agents = append(agents, a.URL)
-					}
-					return agents
-				}(), ","),
-			},
-			corev1.EnvVar{
-				Name: "A2A_CLIENT_TIMEOUT",
-				Value: func() string {
-					if gateway.Spec.A2A.Timeouts != nil {
-						return gateway.Spec.A2A.Timeouts.Client
-					}
-					return "5s"
-				}(),
-			},
-		)
-
-		if gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Enabled {
-			namespace := gateway.Spec.A2A.ServiceDiscovery.Namespace
-			if namespace == "" {
-				namespace = "default"
-			}
-
-			envVars = append(envVars,
-				corev1.EnvVar{
-					Name:  "A2A_SERVICE_DISCOVERY_ENABLE",
-					Value: fmt.Sprintf("%t", gateway.Spec.A2A.ServiceDiscovery.Enabled),
-				},
-				corev1.EnvVar{
-					Name:  "A2A_SERVICE_DISCOVERY_NAMESPACE",
-					Value: namespace,
-				},
-				corev1.EnvVar{
-					Name: "A2A_SERVICE_DISCOVERY_POLLING_INTERVAL",
-					Value: func() string {
-						if gateway.Spec.A2A.ServiceDiscovery.PollingInterval != "" {
-							return gateway.Spec.A2A.ServiceDiscovery.PollingInterval
-						}
-						return "30s"
-					}(),
-				},
-			)
-		}
 	}
 
 	providerEnvVars := []corev1.EnvVar{}
@@ -1245,7 +1182,7 @@ func (r *GatewayReconciler) buildContainerPorts(gateway *corev1alpha1.Gateway) [
 	return ports
 }
 
-// reconcileRBAC manages RBAC resources (ServiceAccount, Role, RoleBinding) for the Gateway
+// reconcileRBAC manages RBAC resources (ServiceAccount) for the Gateway
 func (r *GatewayReconciler) reconcileRBAC(ctx context.Context, gateway *corev1alpha1.Gateway) error {
 	logger := log.FromContext(ctx)
 
@@ -1264,16 +1201,6 @@ func (r *GatewayReconciler) reconcileRBAC(ctx context.Context, gateway *corev1al
 	err := r.reconcileServiceAccount(ctx, gateway, serviceAccountName)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile ServiceAccount: %w", err)
-	}
-
-	err = r.reconcileRole(ctx, gateway, serviceAccountName)
-	if err != nil {
-		return fmt.Errorf("failed to reconcile Role: %w", err)
-	}
-
-	err = r.reconcileRoleBinding(ctx, gateway, serviceAccountName)
-	if err != nil {
-		return fmt.Errorf("failed to reconcile RoleBinding: %w", err)
 	}
 
 	err = r.updateServiceAccountStatus(ctx, gateway, serviceAccountName)
@@ -1337,147 +1264,6 @@ func (r *GatewayReconciler) reconcileServiceAccount(ctx context.Context, gateway
 	return nil
 }
 
-// reconcileRole creates or updates the Role for A2A discovery permissions
-func (r *GatewayReconciler) reconcileRole(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
-	logger := log.FromContext(ctx)
-
-	agentNamespace := gateway.Namespace
-	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
-		agentNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
-	}
-
-	roleName := fmt.Sprintf("%s-agent-discovery", serviceAccountName)
-	role := &rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      roleName,
-			Namespace: agentNamespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/name":       "inference-gateway",
-				"app.kubernetes.io/instance":   gateway.Name,
-				"app.kubernetes.io/component":  "gateway-rbac",
-				"app.kubernetes.io/managed-by": "inference-gateway-operator",
-			},
-		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{"core.inference-gateway.com"},
-				Resources: []string{"agents"},
-				Verbs:     []string{"get", "list", "watch"},
-			},
-			{
-				APIGroups: []string{""},
-				Resources: []string{"services"},
-				Verbs:     []string{"get", "list", "watch"},
-			},
-		},
-	}
-
-	if agentNamespace == gateway.Namespace {
-		err := controllerutil.SetControllerReference(gateway, role, r.Scheme)
-		if err != nil {
-			return fmt.Errorf("failed to set controller reference: %w", err)
-		}
-	}
-
-	existing := &rbacv1.Role{}
-	err := r.Get(ctx, types.NamespacedName{Name: roleName, Namespace: agentNamespace}, existing)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			err = r.Create(ctx, role)
-			if err != nil {
-				logger.Error(err, "Failed to create Role", "role", roleName, "namespace", agentNamespace)
-				return fmt.Errorf("failed to create Role: %w", err)
-			}
-			logger.Info("Successfully created Role", "role", roleName, "namespace", agentNamespace)
-		} else {
-			return fmt.Errorf("failed to get Role: %w", err)
-		}
-	} else {
-		existing.Rules = role.Rules
-		existing.Labels = role.Labels
-		err = r.Update(ctx, existing)
-		if err != nil {
-			logger.Error(err, "Failed to update Role", "role", roleName, "namespace", agentNamespace)
-			return fmt.Errorf("failed to update Role: %w", err)
-		}
-		logger.V(1).Info("Successfully updated Role", "role", roleName, "namespace", agentNamespace)
-	}
-
-	return nil
-}
-
-// reconcileRoleBinding creates or updates the RoleBinding
-func (r *GatewayReconciler) reconcileRoleBinding(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
-	logger := log.FromContext(ctx)
-
-	agentNamespace := gateway.Namespace
-	if gateway.Spec.A2A != nil && gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Namespace != "" {
-		agentNamespace = gateway.Spec.A2A.ServiceDiscovery.Namespace
-	}
-
-	roleName := fmt.Sprintf("%s-agent-discovery", serviceAccountName)
-	roleBindingName := fmt.Sprintf("%s-agent-discovery", serviceAccountName)
-
-	roleBinding := &rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      roleBindingName,
-			Namespace: agentNamespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/name":       "inference-gateway",
-				"app.kubernetes.io/instance":   gateway.Name,
-				"app.kubernetes.io/component":  "gateway-rbac",
-				"app.kubernetes.io/managed-by": "inference-gateway-operator",
-			},
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Name:      serviceAccountName,
-				Namespace: gateway.Namespace,
-			},
-		},
-		RoleRef: rbacv1.RoleRef{
-			Kind:     "Role",
-			Name:     roleName,
-			APIGroup: "rbac.authorization.k8s.io",
-		},
-	}
-
-	if agentNamespace == gateway.Namespace {
-		err := controllerutil.SetControllerReference(gateway, roleBinding, r.Scheme)
-		if err != nil {
-			return fmt.Errorf("failed to set controller reference: %w", err)
-		}
-	}
-
-	existing := &rbacv1.RoleBinding{}
-	err := r.Get(ctx, types.NamespacedName{Name: roleBindingName, Namespace: agentNamespace}, existing)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			err = r.Create(ctx, roleBinding)
-			if err != nil {
-				logger.Error(err, "Failed to create RoleBinding", "roleBinding", roleBindingName, "namespace", agentNamespace)
-				return fmt.Errorf("failed to create RoleBinding: %w", err)
-			}
-			logger.Info("Successfully created RoleBinding", "roleBinding", roleBindingName, "namespace", agentNamespace)
-		} else {
-			return fmt.Errorf("failed to get RoleBinding: %w", err)
-		}
-	} else {
-		existing.Subjects = roleBinding.Subjects
-		existing.RoleRef = roleBinding.RoleRef
-		existing.Labels = roleBinding.Labels
-		err = r.Update(ctx, existing)
-		if err != nil {
-			logger.Error(err, "Failed to update RoleBinding", "roleBinding", roleBindingName, "namespace", agentNamespace)
-			return fmt.Errorf("failed to update RoleBinding: %w", err)
-		}
-		logger.V(1).Info("Successfully updated RoleBinding", "roleBinding", roleBindingName, "namespace", agentNamespace)
-	}
-
-	return nil
-}
-
 // updateServiceAccountStatus updates the Gateway status with the service account name
 func (r *GatewayReconciler) updateServiceAccountStatus(ctx context.Context, gateway *corev1alpha1.Gateway, serviceAccountName string) error {
 	const maxRetries = 3
@@ -1531,7 +1317,5 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&networkingv1.Ingress{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
 		Owns(&corev1.ServiceAccount{}).
-		Owns(&rbacv1.Role{}).
-		Owns(&rbacv1.RoleBinding{}).
 		Complete(r)
 }

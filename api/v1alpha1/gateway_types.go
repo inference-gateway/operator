@@ -69,10 +69,6 @@ type GatewaySpec struct {
 	// +optional
 	MCP *MCPServersSpec `json:"mcp,omitempty"`
 
-	// A2A (Agent-to-Agent) configuration
-	// +optional
-	A2A *A2AServersSpec `json:"a2a,omitempty"`
-
 	// Resource requirements for the gateway pods
 	// +optional
 	Resources *ResourceRequirements `json:"resources,omitempty"`
@@ -345,101 +341,6 @@ type MCPServer struct {
 	Name string `json:"name"`
 
 	// Server URL
-	// +kubebuilder:validation:Required
-	URL string `json:"url"`
-
-	// Health check configuration
-	// +optional
-	HealthCheck *HealthCheck `json:"healthCheck,omitempty"`
-}
-
-// A2AServersSpec contains Agent-to-Agent configuration
-type A2AServersSpec struct {
-	// Enable A2A integration
-	// +optional
-	// +kubebuilder:default=false
-	Enabled bool `json:"enabled,omitempty"`
-
-	// Expose A2A endpoints externally
-	// +optional
-	// +kubebuilder:default=false
-	Expose bool `json:"expose,omitempty"`
-
-	// A2A client timeouts
-	// +optional
-	Timeouts *AgentTimeouts `json:"timeouts,omitempty"`
-
-	// Polling configuration
-	// +optional
-	Polling *AgentPolling `json:"polling,omitempty"`
-
-	// Service Discovery configuration
-	// +optional
-	ServiceDiscovery *AgentServiceDiscovery `json:"serviceDiscovery,omitempty"`
-
-	// A2A agents configuration
-	// +optional
-	Agents []AgentServer `json:"agents,omitempty"`
-}
-
-// A2ATimeouts contains timeout configurations for A2A
-type AgentTimeouts struct {
-	// Client timeout
-	// +optional
-	// +kubebuilder:default="60s"
-	Client string `json:"client,omitempty"`
-}
-
-// A2APolling contains polling configuration for A2A
-type AgentPolling struct {
-	// Enable polling
-	// +optional
-	// +kubebuilder:default=true
-	Enabled bool `json:"enabled,omitempty"`
-
-	// Polling interval
-	// +optional
-	// +kubebuilder:default="2s"
-	Interval string `json:"interval,omitempty"`
-
-	// Polling timeout
-	// +optional
-	// +kubebuilder:default="60s"
-	Timeout string `json:"timeout,omitempty"`
-
-	// Maximum polling attempts
-	// +optional
-	// +kubebuilder:default=30
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=1000
-	MaxAttempts int32 `json:"maxAttempts,omitempty"`
-}
-
-// A2AServiceDiscovery contains service discovery configuration for A2A
-type AgentServiceDiscovery struct {
-	// Enable service discovery
-	// +optional
-	// +kubebuilder:default=false
-	Enabled bool `json:"enabled,omitempty"`
-
-	// Namespace to search for A2A agents
-	// +optional
-	// +kubebuilder:default="default"
-	Namespace string `json:"namespace,omitempty"`
-
-	// Polling interval for service discovery
-	// +optional
-	// +kubebuilder:default="30s"
-	PollingInterval string `json:"pollingInterval,omitempty"`
-}
-
-// A2AAgent contains A2A agent configuration
-type AgentServer struct {
-	// Agent name
-	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-
-	// Agent URL
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 
