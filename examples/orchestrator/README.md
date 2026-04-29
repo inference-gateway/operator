@@ -12,8 +12,8 @@ End-to-end deployment of an `Orchestrator` that:
    (long-poll)│  (channels-manager) │      ▲
               └─────────────────────┘      │
                        │                   │
-                       ├──▶ google-calendar-agent (A2A) ──┤
-                       └──▶ mock-agent (A2A) ─────────────┘
+                       ├──▶ google-calendar-agent (A2A)
+                       └──▶ mock-agent (A2A)
 ```
 
 ## Prerequisites
