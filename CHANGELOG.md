@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.1](https://github.com/inference-gateway/operator/compare/v0.14.0...v0.14.1) (2026-04-29)
+
+### ♻️ Improvements
+
+* **examples:** Add Redis storage backend for persistent conversations ([#53](https://github.com/inference-gateway/operator/issues/53)) ([3496ff9](https://github.com/inference-gateway/operator/commit/3496ff9dbcd859b774b660da629ae55c58b2129e))
+
 ## [0.14.0](https://github.com/inference-gateway/operator/compare/v0.13.0...v0.14.0) (2026-04-29)
 
 ### ✨ Features
