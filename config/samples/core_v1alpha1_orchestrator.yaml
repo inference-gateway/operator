@@ -1,10 +1,10 @@
 apiVersion: core.inference-gateway.com/v1alpha1
-kind: Bot
+kind: Orchestrator
 metadata:
   labels:
     app.kubernetes.io/name: operator
     app.kubernetes.io/managed-by: kustomize
-  name: bot-sample
+  name: orchestrator-sample
 spec:
   image: ghcr.io/inference-gateway/cli:latest
   channels:

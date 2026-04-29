@@ -27,22 +27,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// BotSpec defines the desired state of Bot.
+// OrchestratorSpec defines the desired state of Orchestrator.
 //
-// A Bot deploys the Inference Gateway CLI's `channels-manager` daemon as a
-// Telegram bot. The Deployment is always a singleton (replicas=1, strategy=Recreate)
-// because Telegram allows only one active getUpdates consumer per token.
-type BotSpec struct {
-	Image    string         `json:"image"`
-	Channels ChannelsSpec   `json:"channels"`
-	Gateway  BotGatewaySpec `json:"gateway"`
-	Agent    BotAgentSpec   `json:"agent"`
+// An Orchestrator deploys the Inference Gateway CLI's `channels-manager` daemon:
+// an LLM-driven loop that receives messages from a chat channel, optionally
+// fans out to A2A Agents and tools (incl. MCP), and replies. The Deployment is
+// always a singleton (replicas=1, strategy=Recreate) because Telegram allows
+// only one active getUpdates consumer per token.
+type OrchestratorSpec struct {
+	Image    string                  `json:"image"`
+	Channels ChannelsSpec            `json:"channels"`
+	Gateway  OrchestratorGatewaySpec `json:"gateway"`
+	Agent    OrchestratorAgentSpec   `json:"agent"`
 
 	// +optional
-	Tools BotToolsSpec `json:"tools,omitempty"`
+	Tools OrchestratorToolsSpec `json:"tools,omitempty"`
 
 	// +optional
-	A2A BotA2ASpec `json:"a2a,omitempty"`
+	A2A OrchestratorA2ASpec `json:"a2a,omitempty"`
 
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
@@ -79,40 +81,40 @@ type TelegramChannelSpec struct {
 	PollTimeout *metav1.Duration `json:"pollTimeout,omitempty"`
 }
 
-// BotGatewaySpec configures how the bot reaches the Inference Gateway.
-type BotGatewaySpec struct {
+// OrchestratorGatewaySpec configures how the orchestrator reaches the Inference Gateway.
+type OrchestratorGatewaySpec struct {
 	URL string `json:"url"`
 
 	// +optional
 	APIKeySecretRef *corev1.SecretKeySelector `json:"apiKeySecretRef,omitempty"`
 }
 
-// BotAgentSpec configures the LLM agent used by the bot.
-type BotAgentSpec struct {
+// OrchestratorAgentSpec configures the orchestrating LLM agent.
+type OrchestratorAgentSpec struct {
 	Model string `json:"model"`
 
 	// +optional
 	SystemPrompt string `json:"systemPrompt,omitempty"`
 }
 
-// BotToolsSpec toggles built-in CLI tools.
-type BotToolsSpec struct {
+// OrchestratorToolsSpec toggles built-in CLI tools.
+type OrchestratorToolsSpec struct {
 	Enabled bool `json:"enabled"`
 
 	// +optional
 	Schedule bool `json:"schedule,omitempty"`
 }
 
-// BotA2ASpec configures Agent-to-Agent integration.
-type BotA2ASpec struct {
+// OrchestratorA2ASpec configures Agent-to-Agent integration.
+type OrchestratorA2ASpec struct {
 	Enabled bool `json:"enabled"`
 
 	// +optional
 	Agents []string `json:"agents,omitempty"`
 }
 
-// BotStatus defines the observed state of Bot.
-type BotStatus struct {
+// OrchestratorStatus defines the observed state of Orchestrator.
+type OrchestratorStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
@@ -127,28 +129,28 @@ type BotStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:shortName=bot,categories=inference-gateway
-// +kubebuilder:printcolumn:name="READY",type=boolean,JSONPath=".status.ready",description="Whether the Bot Deployment is available"
+// +kubebuilder:resource:shortName=orch,categories=inference-gateway
+// +kubebuilder:printcolumn:name="READY",type=boolean,JSONPath=".status.ready",description="Whether the Orchestrator Deployment is available"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 
-// Bot is the Schema for the bots API.
-type Bot struct {
+// Orchestrator is the Schema for the orchestrators API.
+type Orchestrator struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   BotSpec   `json:"spec,omitempty"`
-	Status BotStatus `json:"status,omitempty"`
+	Spec   OrchestratorSpec   `json:"spec,omitempty"`
+	Status OrchestratorStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// BotList contains a list of Bot.
-type BotList struct {
+// OrchestratorList contains a list of Orchestrator.
+type OrchestratorList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Bot `json:"items"`
+	Items           []Orchestrator `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Bot{}, &BotList{})
+	SchemeBuilder.Register(&Orchestrator{}, &OrchestratorList{})
 }

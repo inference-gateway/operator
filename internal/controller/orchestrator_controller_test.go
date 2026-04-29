@@ -39,27 +39,27 @@ import (
 	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
-var _ = Describe("Bot Controller", func() {
+var _ = Describe("Orchestrator Controller", func() {
 	Context("When reconciling a resource", func() {
-		const resourceName = "test-bot"
+		const resourceName = "test-orchestrator"
 
 		ctx := context.Background()
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
 			Namespace: "default",
 		}
-		bot := &v1alpha1.Bot{}
+		orch := &v1alpha1.Orchestrator{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind Bot")
-			err := k8sClient.Get(ctx, typeNamespacedName, bot)
+			By("creating the custom resource for the Kind Orchestrator")
+			err := k8sClient.Get(ctx, typeNamespacedName, orch)
 			if err != nil && client.IgnoreNotFound(err) == nil {
-				resource := &v1alpha1.Bot{
+				resource := &v1alpha1.Orchestrator{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					Spec: v1alpha1.BotSpec{
+					Spec: v1alpha1.OrchestratorSpec{
 						Image: "ghcr.io/inference-gateway/cli:test",
 						Channels: v1alpha1.ChannelsSpec{
 							Telegram: v1alpha1.TelegramChannelSpec{
@@ -70,8 +70,8 @@ var _ = Describe("Bot Controller", func() {
 								},
 							},
 						},
-						Gateway: v1alpha1.BotGatewaySpec{URL: "http://inference-gateway:8080"},
-						Agent:   v1alpha1.BotAgentSpec{Model: "test/model"},
+						Gateway: v1alpha1.OrchestratorGatewaySpec{URL: "http://inference-gateway:8080"},
+						Agent:   v1alpha1.OrchestratorAgentSpec{Model: "test/model"},
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -79,17 +79,17 @@ var _ = Describe("Bot Controller", func() {
 		})
 
 		AfterEach(func() {
-			resource := &v1alpha1.Bot{}
+			resource := &v1alpha1.Orchestrator{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance Bot")
+			By("Cleanup the specific resource instance Orchestrator")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 
 		It("should create a singleton Recreate Deployment running channels-manager", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &BotReconciler{
+			controllerReconciler := &OrchestratorReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
@@ -115,7 +115,7 @@ var _ = Describe("Bot Controller", func() {
 	})
 })
 
-var _ = Describe("buildBotEnvironmentVars", func() {
+var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 	maxWorkers := int32(7)
 	imageRetention := int32(3)
 	requireApproval := false
@@ -134,10 +134,10 @@ var _ = Describe("buildBotEnvironmentVars", func() {
 		Key:                  "apiKey",
 	}
 
-	makeBot := func() *v1alpha1.Bot {
-		return &v1alpha1.Bot{
-			ObjectMeta: metav1.ObjectMeta{Name: "b", Namespace: "default"},
-			Spec: v1alpha1.BotSpec{
+	makeOrchestrator := func() *v1alpha1.Orchestrator {
+		return &v1alpha1.Orchestrator{
+			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "default"},
+			Spec: v1alpha1.OrchestratorSpec{
 				Image: "img",
 				Channels: v1alpha1.ChannelsSpec{
 					MaxWorkers:      &maxWorkers,
@@ -150,16 +150,16 @@ var _ = Describe("buildBotEnvironmentVars", func() {
 						PollTimeout:           &pollTimeout,
 					},
 				},
-				Gateway: v1alpha1.BotGatewaySpec{
+				Gateway: v1alpha1.OrchestratorGatewaySpec{
 					URL:             "http://gw:8080",
 					APIKeySecretRef: &apiKeyRef,
 				},
-				Agent: v1alpha1.BotAgentSpec{
+				Agent: v1alpha1.OrchestratorAgentSpec{
 					Model:        "openai/gpt-test",
 					SystemPrompt: "be helpful",
 				},
-				Tools: v1alpha1.BotToolsSpec{Enabled: true, Schedule: true},
-				A2A:   v1alpha1.BotA2ASpec{Enabled: true, Agents: []string{"a", "b"}},
+				Tools: v1alpha1.OrchestratorToolsSpec{Enabled: true, Schedule: true},
+				A2A:   v1alpha1.OrchestratorA2ASpec{Enabled: true, Agents: []string{"a", "b"}},
 			},
 		}
 	}
@@ -173,21 +173,21 @@ var _ = Describe("buildBotEnvironmentVars", func() {
 	}
 
 	It("emits hardcoded INFER_* defaults", func() {
-		envs := envByName(buildBotEnvironmentVars(makeBot()))
+		envs := envByName(buildOrchestratorEnvironmentVars(makeOrchestrator()))
 		Expect(envs["INFER_CHANNELS_ENABLED"].Value).To(Equal("true"))
 		Expect(envs["INFER_LOGGING_STDOUT"].Value).To(Equal("true"))
 		Expect(envs["INFER_GATEWAY_RUN"].Value).To(Equal("false"))
 	})
 
 	It("translates plain channel knobs", func() {
-		envs := envByName(buildBotEnvironmentVars(makeBot()))
+		envs := envByName(buildOrchestratorEnvironmentVars(makeOrchestrator()))
 		Expect(envs["INFER_CHANNELS_MAX_WORKERS"].Value).To(Equal("7"))
 		Expect(envs["INFER_CHANNELS_IMAGE_RETENTION"].Value).To(Equal("3"))
 		Expect(envs["INFER_CHANNELS_REQUIRE_APPROVAL"].Value).To(Equal("false"))
 	})
 
 	It("wires Telegram fields including secret refs and pollTimeout", func() {
-		envs := envByName(buildBotEnvironmentVars(makeBot()))
+		envs := envByName(buildOrchestratorEnvironmentVars(makeOrchestrator()))
 
 		Expect(envs["INFER_CHANNELS_TELEGRAM_ENABLED"].Value).To(Equal("true"))
 		Expect(envs["INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT"].Value).To(Equal("45"))
@@ -206,7 +206,7 @@ var _ = Describe("buildBotEnvironmentVars", func() {
 	})
 
 	It("wires gateway, agent, tools, and a2a", func() {
-		envs := envByName(buildBotEnvironmentVars(makeBot()))
+		envs := envByName(buildOrchestratorEnvironmentVars(makeOrchestrator()))
 
 		Expect(envs["INFER_GATEWAY_URL"].Value).To(Equal("http://gw:8080"))
 		apiKey := envs["INFER_GATEWAY_API_KEY"]
@@ -223,15 +223,15 @@ var _ = Describe("buildBotEnvironmentVars", func() {
 	})
 
 	It("omits optional channel fields when nil", func() {
-		bot := makeBot()
-		bot.Spec.Channels.MaxWorkers = nil
-		bot.Spec.Channels.ImageRetention = nil
-		bot.Spec.Channels.RequireApproval = nil
-		bot.Spec.Channels.Telegram.AllowedUsersSecretRef = nil
-		bot.Spec.Channels.Telegram.PollTimeout = nil
-		bot.Spec.Gateway.APIKeySecretRef = nil
+		orch := makeOrchestrator()
+		orch.Spec.Channels.MaxWorkers = nil
+		orch.Spec.Channels.ImageRetention = nil
+		orch.Spec.Channels.RequireApproval = nil
+		orch.Spec.Channels.Telegram.AllowedUsersSecretRef = nil
+		orch.Spec.Channels.Telegram.PollTimeout = nil
+		orch.Spec.Gateway.APIKeySecretRef = nil
 
-		envs := envByName(buildBotEnvironmentVars(bot))
+		envs := envByName(buildOrchestratorEnvironmentVars(orch))
 		Expect(envs).NotTo(HaveKey("INFER_CHANNELS_MAX_WORKERS"))
 		Expect(envs).NotTo(HaveKey("INFER_CHANNELS_IMAGE_RETENTION"))
 		Expect(envs).NotTo(HaveKey("INFER_CHANNELS_REQUIRE_APPROVAL"))
@@ -241,9 +241,9 @@ var _ = Describe("buildBotEnvironmentVars", func() {
 	})
 
 	It("passes through spec.env", func() {
-		bot := makeBot()
-		bot.Spec.Env = &[]corev1.EnvVar{{Name: "EXTRA", Value: "yes"}}
-		envs := envByName(buildBotEnvironmentVars(bot))
+		orch := makeOrchestrator()
+		orch.Spec.Env = &[]corev1.EnvVar{{Name: "EXTRA", Value: "yes"}}
+		envs := envByName(buildOrchestratorEnvironmentVars(orch))
 		Expect(envs["EXTRA"].Value).To(Equal("yes"))
 	})
 })

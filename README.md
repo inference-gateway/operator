@@ -67,7 +67,7 @@ The operator follows cloud-native best practices and provides a unified control 
 - [📦 Installation](#-installation)
 - [✅ Verification](#-verification)
 - [🚀 Deploy Your First Gateway](#-deploy-your-first-gateway)
-- [🤖 Deploy a Telegram Bot](#-deploy-a-telegram-bot)
+- [🤖 Deploy an Orchestrator](#-deploy-an-orchestrator)
 - [🔄 Upgrade](#-upgrade)
 - [🗑️ Uninstallation](#️-uninstallation)
 - [🏗️ Supported Architectures](#️-supported-architectures)
@@ -369,32 +369,35 @@ kubectl create secret generic openai-secret \
   --from-literal=api-key=your-openai-api-key-here
 ```
 
-## 🤖 Deploy a Telegram Bot
+## 🤖 Deploy an Orchestrator
 
-The `Bot` CRD deploys the Inference Gateway CLI's `channels-manager` daemon as a
-Telegram bot. The Deployment is always a singleton (`replicas: 1`,
-`strategy: Recreate`) because Telegram allows only one active `getUpdates`
-consumer per bot token — running two replicas would cause them to terminate
-each other with `409 Conflict`.
+The `Orchestrator` CRD deploys the Inference Gateway CLI's `channels-manager`
+daemon: an LLM-driven loop that reads messages from a chat channel, optionally
+fans out to A2A `Agent`s and tools (incl. MCP), and replies. Telegram is the
+channel currently supported; more channels are planned.
 
-For high-availability, run multiple `Bot` resources with different tokens and
-disjoint `allowedUsers` (manual sharding); webhook mode and shared state would
-be required for true scale-out and are out of scope today.
+When the Telegram channel is enabled, the Deployment is forced to a singleton
+(`replicas: 1`, `strategy: Recreate`) because Telegram allows only one active
+`getUpdates` consumer per bot token — running two replicas would cause them
+to terminate each other with `409 Conflict`. For high-availability today, run
+multiple `Orchestrator` resources with different tokens and disjoint
+`allowedUsers` (manual sharding); webhook mode and shared state would be
+required for true scale-out and are out of scope.
 
 ```bash
 # 1. Create the bot credentials secret
-kubectl create namespace bots
-kubectl create secret generic telegram-bot-credentials -n bots \
+kubectl create namespace orchestrators
+kubectl create secret generic telegram-bot-credentials -n orchestrators \
   --from-literal=token='<TELEGRAM_BOT_TOKEN>' \
   --from-literal=allowedUsers='111111111,222222222'
 
-# 2. Apply the Bot resource
+# 2. Apply the Orchestrator resource
 cat <<EOF | kubectl apply -f -
 apiVersion: core.inference-gateway.com/v1alpha1
-kind: Bot
+kind: Orchestrator
 metadata:
-  name: my-telegram-bot
-  namespace: bots
+  name: orchestrator-controlled-by-telegram
+  namespace: orchestrators
 spec:
   image: ghcr.io/inference-gateway/cli:latest
   channels:
@@ -415,11 +418,11 @@ spec:
 EOF
 
 # 3. Watch logs (requires CLI built with INFER_LOGGING_STDOUT support)
-kubectl logs -n bots deploy/my-telegram-bot -f
+kubectl logs -n orchestrators deploy/orchestrator-controlled-by-telegram -f
 ```
 
 A complete example including the `Secret` definitions is available at
-[`examples/telegram-bot.yaml`](examples/telegram-bot.yaml).
+[`examples/orchestrator-telegram.yaml`](examples/orchestrator-telegram.yaml).
 
 ## 🔄 Upgrade
 

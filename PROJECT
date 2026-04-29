@@ -41,7 +41,7 @@ resources:
   controller: true
   domain: inference-gateway.com
   group: core
-  kind: Bot
+  kind: Orchestrator
   path: github.com/inference-gateway/operator/api/v1alpha1
   version: v1alpha1
 version: "3"

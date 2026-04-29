@@ -51,9 +51,9 @@ stringData:
   allowedUsers: "REPLACE_WITH_TELEGRAM_USER_IDS"
 ---
 apiVersion: core.inference-gateway.com/v1alpha1
-kind: Bot
+kind: Orchestrator
 metadata:
-  name: my-telegram-bot
+  name: orchestrator-controlled-by-telegram
   namespace: inference-gateway
 spec:
   image: ghcr.io/inference-gateway/cli:latest

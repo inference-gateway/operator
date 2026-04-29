@@ -44,34 +44,34 @@ import (
 	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
-// BotReconciler reconciles a Bot object.
-type BotReconciler struct {
+// OrchestratorReconciler reconciles an Orchestrator object.
+type OrchestratorReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=bots,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=bots/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=bots/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=orchestrators,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=orchestrators/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=orchestrators/finalizers,verbs=update
 
-// Reconcile drives a Bot resource toward its desired state.
+// Reconcile drives an Orchestrator resource toward its desired state.
 //
 // The controller manages a singleton Deployment (replicas=1, strategy=Recreate)
 // that runs the Inference Gateway CLI's `infer channels-manager` daemon.
-// No Service is created because the bot is outbound-only (Telegram long-poll).
-func (r *BotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+// No Service is created because the orchestrator is outbound-only (Telegram long-poll).
+func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx)
 
-	var bot v1alpha1.Bot
-	if err := r.Get(ctx, req.NamespacedName, &bot); err != nil {
+	var orch v1alpha1.Orchestrator
+	if err := r.Get(ctx, req.NamespacedName, &orch); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !bot.DeletionTimestamp.IsZero() {
+	if !orch.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, nil
 	}
 
-	deployment, err := r.reconcileDeployment(ctx, &bot)
+	deployment, err := r.reconcileDeployment(ctx, &orch)
 	if err != nil {
 		if apiErrors.IsConflict(err) {
 			logger.V(1).Info("deployment reconciliation conflict, requeueing", "error", err)
@@ -81,33 +81,33 @@ func (r *BotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, err
 	}
 
-	if err := r.updateStatus(ctx, &bot, deployment); err != nil {
-		logger.Error(err, "failed to update bot status")
+	if err := r.updateStatus(ctx, &orch, deployment); err != nil {
+		logger.Error(err, "failed to update orchestrator status")
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
 }
 
-// reconcileDeployment ensures the Bot's singleton Deployment exists and matches the spec.
-func (r *BotReconciler) reconcileDeployment(ctx context.Context, bot *v1alpha1.Bot) (*appsv1.Deployment, error) {
-	deployment := r.buildBotDeployment(bot)
+// reconcileDeployment ensures the Orchestrator's singleton Deployment exists and matches the spec.
+func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *v1alpha1.Orchestrator) (*appsv1.Deployment, error) {
+	deployment := r.buildOrchestratorDeployment(orch)
 
-	if err := controllerutil.SetControllerReference(bot, deployment, r.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(orch, deployment, r.Scheme); err != nil {
 		return nil, err
 	}
 
-	return r.createOrUpdateBotDeployment(ctx, deployment)
+	return r.createOrUpdateOrchestratorDeployment(ctx, deployment)
 }
 
-// buildBotDeployment returns a singleton Deployment for the given Bot.
-func (r *BotReconciler) buildBotDeployment(bot *v1alpha1.Bot) *appsv1.Deployment {
-	labels := map[string]string{"app": bot.Name}
+// buildOrchestratorDeployment returns a singleton Deployment for the given Orchestrator.
+func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orchestrator) *appsv1.Deployment {
+	labels := map[string]string{"app": orch.Name}
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      bot.Name,
-			Namespace: bot.Namespace,
+			Name:      orch.Name,
+			Namespace: orch.Namespace,
 			Labels:    labels,
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -120,12 +120,12 @@ func (r *BotReconciler) buildBotDeployment(bot *v1alpha1.Bot) *appsv1.Deployment
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:      "bot",
-						Image:     bot.Spec.Image,
+						Name:      "orchestrator",
+						Image:     orch.Spec.Image,
 						Command:   []string{"infer"},
 						Args:      []string{"channels-manager"},
-						Env:       buildBotEnvironmentVars(bot),
-						Resources: bot.Spec.Resources,
+						Env:       buildOrchestratorEnvironmentVars(orch),
+						Resources: orch.Spec.Resources,
 					}},
 				},
 			},
@@ -133,13 +133,13 @@ func (r *BotReconciler) buildBotDeployment(bot *v1alpha1.Bot) *appsv1.Deployment
 	}
 }
 
-// buildBotEnvironmentVars translates BotSpec into INFER_* environment variables
-// per the spec ↔ CLI config mapping documented in the Bot CRD.
-func buildBotEnvironmentVars(bot *v1alpha1.Bot) []corev1.EnvVar {
+// buildOrchestratorEnvironmentVars translates OrchestratorSpec into INFER_* environment variables
+// per the spec ↔ CLI config mapping documented in the Orchestrator CRD.
+func buildOrchestratorEnvironmentVars(orch *v1alpha1.Orchestrator) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
-	if bot.Spec.Env != nil {
-		envVars = append(envVars, *bot.Spec.Env...)
+	if orch.Spec.Env != nil {
+		envVars = append(envVars, *orch.Spec.Env...)
 	}
 
 	envVars = append(envVars,
@@ -148,26 +148,26 @@ func buildBotEnvironmentVars(bot *v1alpha1.Bot) []corev1.EnvVar {
 		corev1.EnvVar{Name: "INFER_GATEWAY_RUN", Value: "false"},
 	)
 
-	if bot.Spec.Channels.MaxWorkers != nil {
+	if orch.Spec.Channels.MaxWorkers != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "INFER_CHANNELS_MAX_WORKERS",
-			Value: strconv.Itoa(int(*bot.Spec.Channels.MaxWorkers)),
+			Value: strconv.Itoa(int(*orch.Spec.Channels.MaxWorkers)),
 		})
 	}
-	if bot.Spec.Channels.ImageRetention != nil {
+	if orch.Spec.Channels.ImageRetention != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "INFER_CHANNELS_IMAGE_RETENTION",
-			Value: strconv.Itoa(int(*bot.Spec.Channels.ImageRetention)),
+			Value: strconv.Itoa(int(*orch.Spec.Channels.ImageRetention)),
 		})
 	}
-	if bot.Spec.Channels.RequireApproval != nil {
+	if orch.Spec.Channels.RequireApproval != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "INFER_CHANNELS_REQUIRE_APPROVAL",
-			Value: strconv.FormatBool(*bot.Spec.Channels.RequireApproval),
+			Value: strconv.FormatBool(*orch.Spec.Channels.RequireApproval),
 		})
 	}
 
-	tg := bot.Spec.Channels.Telegram
+	tg := orch.Spec.Channels.Telegram
 	envVars = append(envVars,
 		corev1.EnvVar{
 			Name:  "INFER_CHANNELS_TELEGRAM_ENABLED",
@@ -197,49 +197,49 @@ func buildBotEnvironmentVars(bot *v1alpha1.Bot) []corev1.EnvVar {
 
 	envVars = append(envVars, corev1.EnvVar{
 		Name:  "INFER_GATEWAY_URL",
-		Value: bot.Spec.Gateway.URL,
+		Value: orch.Spec.Gateway.URL,
 	})
-	if bot.Spec.Gateway.APIKeySecretRef != nil {
+	if orch.Spec.Gateway.APIKeySecretRef != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name: "INFER_GATEWAY_API_KEY",
 			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: bot.Spec.Gateway.APIKeySecretRef.DeepCopy(),
+				SecretKeyRef: orch.Spec.Gateway.APIKeySecretRef.DeepCopy(),
 			},
 		})
 	}
 
 	envVars = append(envVars,
-		corev1.EnvVar{Name: "INFER_AGENT_MODEL", Value: bot.Spec.Agent.Model},
-		corev1.EnvVar{Name: "INFER_AGENT_SYSTEM_PROMPT", Value: bot.Spec.Agent.SystemPrompt},
+		corev1.EnvVar{Name: "INFER_AGENT_MODEL", Value: orch.Spec.Agent.Model},
+		corev1.EnvVar{Name: "INFER_AGENT_SYSTEM_PROMPT", Value: orch.Spec.Agent.SystemPrompt},
 		corev1.EnvVar{
 			Name:  "INFER_TOOLS_ENABLED",
-			Value: strconv.FormatBool(bot.Spec.Tools.Enabled),
+			Value: strconv.FormatBool(orch.Spec.Tools.Enabled),
 		},
 		corev1.EnvVar{
 			Name:  "INFER_TOOLS_SCHEDULE_ENABLED",
-			Value: strconv.FormatBool(bot.Spec.Tools.Schedule),
+			Value: strconv.FormatBool(orch.Spec.Tools.Schedule),
 		},
 		corev1.EnvVar{
 			Name:  "INFER_A2A_ENABLED",
-			Value: strconv.FormatBool(bot.Spec.A2A.Enabled),
+			Value: strconv.FormatBool(orch.Spec.A2A.Enabled),
 		},
 		corev1.EnvVar{
 			Name:  "INFER_A2A_AGENTS",
-			Value: strings.Join(bot.Spec.A2A.Agents, ","),
+			Value: strings.Join(orch.Spec.A2A.Agents, ","),
 		},
 	)
 
 	return envVars
 }
 
-// createOrUpdateBotDeployment creates the Deployment if missing, otherwise reconciles drift.
-func (r *BotReconciler) createOrUpdateBotDeployment(ctx context.Context, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+// createOrUpdateOrchestratorDeployment creates the Deployment if missing, otherwise reconciles drift.
+func (r *OrchestratorReconciler) createOrUpdateOrchestratorDeployment(ctx context.Context, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	logger := logf.FromContext(ctx)
 
 	found := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
 	if err != nil && apiErrors.IsNotFound(err) {
-		logger.Info("creating bot deployment", "Deployment.Name", deployment.Name)
+		logger.Info("creating orchestrator deployment", "Deployment.Name", deployment.Name)
 		if err = r.Create(ctx, deployment); err != nil {
 			return nil, err
 		}
@@ -248,11 +248,11 @@ func (r *BotReconciler) createOrUpdateBotDeployment(ctx context.Context, deploym
 		return nil, err
 	}
 
-	return r.updateBotDeploymentIfNeeded(ctx, deployment, found)
+	return r.updateOrchestratorDeploymentIfNeeded(ctx, deployment, found)
 }
 
-// updateBotDeploymentIfNeeded reconciles drift on replicas, strategy, selector, and pod template.
-func (r *BotReconciler) updateBotDeploymentIfNeeded(ctx context.Context, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
+// updateOrchestratorDeploymentIfNeeded reconciles drift on replicas, strategy, selector, and pod template.
+func (r *OrchestratorReconciler) updateOrchestratorDeploymentIfNeeded(ctx context.Context, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
 	logger := logf.FromContext(ctx)
 
 	for retries := 0; retries < 3; retries++ {
@@ -303,7 +303,7 @@ func (r *BotReconciler) updateBotDeploymentIfNeeded(ctx context.Context, desired
 			return latest, nil
 		}
 
-		logger.Info("updating bot deployment", "Deployment.Name", desired.Name, "changes", changes)
+		logger.Info("updating orchestrator deployment", "Deployment.Name", desired.Name, "changes", changes)
 		if err := r.Update(ctx, latest); err != nil {
 			if apiErrors.IsConflict(err) && retries < 2 {
 				logger.Info("deployment update conflict, retrying", "retry", retries+1)
@@ -315,33 +315,33 @@ func (r *BotReconciler) updateBotDeploymentIfNeeded(ctx context.Context, desired
 		return latest, nil
 	}
 
-	return nil, fmt.Errorf("failed to update bot deployment after 3 retries due to conflicts")
+	return nil, fmt.Errorf("failed to update orchestrator deployment after 3 retries due to conflicts")
 }
 
-// updateStatus reflects Deployment availability into Bot status.
-func (r *BotReconciler) updateStatus(ctx context.Context, bot *v1alpha1.Bot, deployment *appsv1.Deployment) error {
-	patch := client.MergeFrom(bot.DeepCopy())
+// updateStatus reflects Deployment availability into Orchestrator status.
+func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *v1alpha1.Orchestrator, deployment *appsv1.Deployment) error {
+	patch := client.MergeFrom(orch.DeepCopy())
 
 	ready := deployment.Status.AvailableReplicas >= 1
-	bot.Status.Ready = ready
-	bot.Status.ObservedGeneration = bot.Generation
+	orch.Status.Ready = ready
+	orch.Status.ObservedGeneration = orch.Generation
 
 	condition := metav1.Condition{
 		Type:               "Ready",
 		Status:             metav1.ConditionFalse,
 		Reason:             "DeploymentNotAvailable",
-		Message:            "bot deployment has no available replicas yet",
-		ObservedGeneration: bot.Generation,
+		Message:            "orchestrator deployment has no available replicas yet",
+		ObservedGeneration: orch.Generation,
 		LastTransitionTime: metav1.Now(),
 	}
 	if ready {
 		condition.Status = metav1.ConditionTrue
 		condition.Reason = "DeploymentAvailable"
-		condition.Message = "bot deployment is available"
+		condition.Message = "orchestrator deployment is available"
 	}
-	setCondition(&bot.Status.Conditions, condition)
+	setCondition(&orch.Status.Conditions, condition)
 
-	return r.Status().Patch(ctx, bot, patch)
+	return r.Status().Patch(ctx, orch, patch)
 }
 
 // setCondition upserts a condition by Type, preserving LastTransitionTime when Status is unchanged.
@@ -359,11 +359,11 @@ func setCondition(conditions *[]metav1.Condition, newCond metav1.Condition) {
 	*conditions = append(*conditions, newCond)
 }
 
-// SetupWithManager registers the Bot controller with the manager.
-func (r *BotReconciler) SetupWithManager(mgr ctrl.Manager) error {
+// SetupWithManager registers the Orchestrator controller with the manager.
+func (r *OrchestratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.Bot{}).
+		For(&v1alpha1.Orchestrator{}).
 		Owns(&appsv1.Deployment{}).
-		Named("bot").
+		Named("orchestrator").
 		Complete(r)
 }

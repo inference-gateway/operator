@@ -4,22 +4,22 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: bots.core.inference-gateway.com
+  name: orchestrators.core.inference-gateway.com
 spec:
   group: core.inference-gateway.com
   names:
     categories:
     - inference-gateway
-    kind: Bot
-    listKind: BotList
-    plural: bots
+    kind: Orchestrator
+    listKind: OrchestratorList
+    plural: orchestrators
     shortNames:
-    - bot
-    singular: bot
+    - orch
+    singular: orchestrator
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Whether the Bot Deployment is available
+    - description: Whether the Orchestrator Deployment is available
       jsonPath: .status.ready
       name: READY
       type: boolean
@@ -30,7 +30,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Bot is the Schema for the bots API.
+        description: Orchestrator is the Schema for the orchestrators API.
         properties:
           apiVersion:
             description: |-
@@ -51,14 +51,16 @@ spec:
             type: object
           spec:
             description: |-
-              BotSpec defines the desired state of Bot.
+              OrchestratorSpec defines the desired state of Orchestrator.
 
-              A Bot deploys the Inference Gateway CLI's `channels-manager` daemon as a
-              Telegram bot. The Deployment is always a singleton (replicas=1, strategy=Recreate)
-              because Telegram allows only one active getUpdates consumer per token.
+              An Orchestrator deploys the Inference Gateway CLI's `channels-manager` daemon:
+              an LLM-driven loop that receives messages from a chat channel, optionally
+              fans out to A2A Agents and tools (incl. MCP), and replies. The Deployment is
+              always a singleton (replicas=1, strategy=Recreate) because Telegram allows
+              only one active getUpdates consumer per token.
             properties:
               a2a:
-                description: BotA2ASpec configures Agent-to-Agent integration.
+                description: OrchestratorA2ASpec configures Agent-to-Agent integration.
                 properties:
                   agents:
                     items:
@@ -70,7 +72,8 @@ spec:
                 - enabled
                 type: object
               agent:
-                description: BotAgentSpec configures the LLM agent used by the bot.
+                description: OrchestratorAgentSpec configures the orchestrating LLM
+                  agent.
                 properties:
                   model:
                     type: string
@@ -316,8 +319,8 @@ spec:
                   type: object
                 type: array
               gateway:
-                description: BotGatewaySpec configures how the bot reaches the Inference
-                  Gateway.
+                description: OrchestratorGatewaySpec configures how the orchestrator
+                  reaches the Inference Gateway.
                 properties:
                   apiKeySecretRef:
                     description: SecretKeySelector selects a key of a Secret.
@@ -410,7 +413,7 @@ spec:
                     type: object
                 type: object
               tools:
-                description: BotToolsSpec toggles built-in CLI tools.
+                description: OrchestratorToolsSpec toggles built-in CLI tools.
                 properties:
                   enabled:
                     type: boolean
@@ -426,7 +429,7 @@ spec:
             - image
             type: object
           status:
-            description: BotStatus defines the observed state of Bot.
+            description: OrchestratorStatus defines the observed state of Orchestrator.
             properties:
               conditions:
                 items:

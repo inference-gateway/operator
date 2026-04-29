@@ -55,9 +55,9 @@ rules:
       - core.inference-gateway.com
     resources:
       - agents
-      - bots
       - gateways
       - mcps
+      - orchestrators
     verbs:
       - create
       - delete
@@ -70,18 +70,18 @@ rules:
       - core.inference-gateway.com
     resources:
       - agents/finalizers
-      - bots/finalizers
       - gateways/finalizers
       - mcps/finalizers
+      - orchestrators/finalizers
     verbs:
       - update
   - apiGroups:
       - core.inference-gateway.com
     resources:
       - agents/status
-      - bots/status
       - gateways/status
       - mcps/status
+      - orchestrators/status
     verbs:
       - get
       - patch
