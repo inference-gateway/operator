@@ -5,13 +5,16 @@ End-to-end deployment of an `Orchestrator` that:
 - Receives messages from a chat channel (currently **Telegram**; more channels coming)
 - Reasons with an LLM via the **Inference Gateway** (DeepSeek in this example)
 - Delegates work to A2A worker **Agents** (`google-calendar-agent` in mock mode + `mock-agent`)
+- Persists conversation context in **Redis** so sessions survive pod restarts
 
 ```text
               ┌─────────────────────┐
    Telegram ◀▶│    Orchestrator     │──▶ Gateway ──▶ DeepSeek
    (long-poll)│  (channels-manager) │      ▲
               └─────────────────────┘      │
-                       │                   │
+                       │   │               │
+                       │   └──▶ Redis (conversation storage)
+                       │
                        ├──▶ google-calendar-agent (A2A)
                        └──▶ mock-agent (A2A)
 ```
@@ -64,7 +67,10 @@ kubectl delete -f .
 - `google-calendar-agent` runs in **mock mode** (`GOOGLE_CALENDAR_MOCK_MODE=true`) - calendar operations return synthetic data, no real Google credentials needed.
 - The Agents route their internal LLM calls through the **Gateway** (`A2A_AGENT_CLIENT_BASE_URL`), so DeepSeek auth is configured in one place (the Gateway's provider Secret).
 - `kubectl logs` only emits when the CLI honors `INFER_LOGGING_STDOUT=true` - supported in CLI `0.13.0` and later.
+- **Conversation persistence**: conversations are stored in Redis (`04-redis.yaml`) via `INFER_STORAGE_TYPE=redis`. When the Orchestrator pod is restarted (e.g. because a discovered agent was added or removed, which triggers a ConfigMap roll), the full conversation context for every user session is restored from Redis automatically.
+  - Redis AOF persistence (`--appendonly yes`) is enabled, so conversations also survive Redis pod restarts.
+  - For production use, back the Redis pod with a `PersistentVolumeClaim`.
 
 ## Adding more channels
 
-When additional channels (Slack, Discord, …) land in the CLI, just add another block under `channels:` in [`04-orchestrator.yaml`](04-orchestrator.yaml) - and add the corresponding credentials Secret to [`01-secrets.yaml`](01-secrets.yaml). No new directory needed.
+When additional channels (Slack, Discord, …) land in the CLI, just add another block under `channels:` in [`05-orchestrator.yaml`](05-orchestrator.yaml) - and add the corresponding credentials Secret to [`01-secrets.yaml`](01-secrets.yaml). No new directory needed.
