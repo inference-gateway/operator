@@ -6,6 +6,9 @@ metadata:
   namespace: inference-gateway
 spec:
   image: ghcr.io/inference-gateway/cli:latest
+  env:
+    - name: TZ
+      value: "Europe/Berlin"
   channels:
     maxWorkers: 5
     imageRetention: 5
