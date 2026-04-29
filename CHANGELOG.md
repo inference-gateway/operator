@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0](https://github.com/inference-gateway/operator/compare/v0.13.0...v0.14.0) (2026-04-29)
+
+### ✨ Features
+
+* **orchestrator:** Add Kubernetes service discovery of A2A Agents ([#51](https://github.com/inference-gateway/operator/issues/51)) ([c1d9c09](https://github.com/inference-gateway/operator/commit/c1d9c09642290a4c7990b198eb393c0da21f5103)), closes [#49](https://github.com/inference-gateway/operator/issues/49)
+
+### ♻️ Improvements
+
+* **agent:** Simplify Agent CRD with sane defaults and A2A_AGENT_CLIENT_* env vars ([#50](https://github.com/inference-gateway/operator/issues/50)) ([efafae9](https://github.com/inference-gateway/operator/commit/efafae90cc47c95df9f7ff3578c2fa3fd9d244b0)), closes [#44](https://github.com/inference-gateway/operator/issues/44)
+* **examples:** Reorganize examples into dedicated directories with READMEs ([#48](https://github.com/inference-gateway/operator/issues/48)) ([53a67f6](https://github.com/inference-gateway/operator/commit/53a67f60c53850b6300b3c5bc1890b412da0a0bb)), closes [#45](https://github.com/inference-gateway/operator/issues/45)
+* **gateway:** Remove deprecated A2A wiring from Gateway controller and CRD ([#47](https://github.com/inference-gateway/operator/issues/47)) ([82449a2](https://github.com/inference-gateway/operator/commit/82449a23796c0a4c68c16f7b6eda3c8ee1128ca9)), closes [#46](https://github.com/inference-gateway/operator/issues/46)
+
 ## [0.13.0](https://github.com/inference-gateway/operator/compare/v0.12.4...v0.13.0) (2026-04-29)
 
 ### ✨ Features
