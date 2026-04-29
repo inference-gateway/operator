@@ -31,6 +31,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -212,126 +213,110 @@ func (r *AgentReconciler) buildAgentDeployment(agent *v1alpha1.Agent) *appsv1.De
 	}
 }
 
-// buildAgentEnvironmentVars creates comprehensive environment variables from Agent spec
+// buildAgentEnvironmentVars creates environment variables from Agent spec.
+// LLM-related vars use the A2A_AGENT_CLIENT_* prefix that agent images actually read.
 func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
+	// User-supplied env vars take the lowest precedence (prepended so operator vars win on conflict).
 	if agent.Spec.Env != nil {
 		envVars = append(envVars, *agent.Spec.Env...)
 	}
 
+	// Server / infrastructure vars
+	envVars = append(envVars,
+		corev1.EnvVar{Name: "TIMEZONE", Value: agent.Spec.Timezone},
+		corev1.EnvVar{Name: "PORT", Value: strconv.Itoa(int(agent.Spec.Port))},
+		corev1.EnvVar{Name: "HOST", Value: agent.Spec.Host},
+		corev1.EnvVar{Name: "READ_TIMEOUT", Value: agent.Spec.ReadTimeout},
+		corev1.EnvVar{Name: "WRITE_TIMEOUT", Value: agent.Spec.WriteTimeout},
+		corev1.EnvVar{Name: "IDLE_TIMEOUT", Value: agent.Spec.IdleTimeout},
+		// Logging
+		corev1.EnvVar{Name: "LOG_LEVEL", Value: agent.Spec.Logging.Level},
+		corev1.EnvVar{Name: "LOG_FORMAT", Value: agent.Spec.Logging.Format},
+		// Telemetry
+		corev1.EnvVar{Name: "TELEMETRY_ENABLED", Value: strconv.FormatBool(agent.Spec.Telemetry.Enabled)},
+		// Queue
+		corev1.EnvVar{Name: "QUEUE_ENABLED", Value: strconv.FormatBool(agent.Spec.Queue.Enabled)},
+		corev1.EnvVar{Name: "QUEUE_MAX_SIZE", Value: strconv.Itoa(int(agent.Spec.Queue.MaxSize))},
+		corev1.EnvVar{Name: "QUEUE_CLEANUP_INTERVAL", Value: agent.Spec.Queue.CleanupInterval},
+		// TLS
+		corev1.EnvVar{Name: "TLS_ENABLED", Value: strconv.FormatBool(agent.Spec.TLS.Enabled)},
+		corev1.EnvVar{Name: "TLS_SECRET_REF", Value: agent.Spec.TLS.SecretRef},
+		// Agent loop
+		corev1.EnvVar{Name: "AGENT_ENABLED", Value: strconv.FormatBool(agent.Spec.Agent.Enabled)},
+		corev1.EnvVar{Name: "AGENT_MAX_CONVERSATION_HISTORY", Value: strconv.Itoa(int(agent.Spec.Agent.MaxConversationHistory))},
+	)
+
+	// A2A_AGENT_CLIENT_* vars — these are the env vars that agent images actually read.
+	llm := agent.Spec.Agent.LLM
+
+	// Split "provider/model" into two separate vars.
+	if llm.Model != "" {
+		parts := strings.SplitN(llm.Model, "/", 2)
+		if len(parts) == 2 {
+			envVars = append(envVars,
+				corev1.EnvVar{Name: "A2A_AGENT_CLIENT_PROVIDER", Value: parts[0]},
+				corev1.EnvVar{Name: "A2A_AGENT_CLIENT_MODEL", Value: parts[1]},
+			)
+		} else {
+			envVars = append(envVars,
+				corev1.EnvVar{Name: "A2A_AGENT_CLIENT_MODEL", Value: llm.Model},
+			)
+		}
+	}
+
+	if llm.BaseURL != "" {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "A2A_AGENT_CLIENT_BASE_URL",
+			Value: llm.BaseURL,
+		})
+	}
+
+	// API key via valueFrom so the secret value is never inlined.
+	if llm.APIKeySecretRef != nil {
+		envVars = append(envVars, corev1.EnvVar{
+			Name: "A2A_AGENT_CLIENT_API_KEY",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: llm.APIKeySecretRef.DeepCopy(),
+			},
+		})
+	}
+
+	if llm.MaxTokens != nil {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "A2A_AGENT_CLIENT_MAX_TOKENS",
+			Value: strconv.Itoa(int(*llm.MaxTokens)),
+		})
+	}
+
+	if llm.Temperature != nil {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "A2A_AGENT_CLIENT_TEMPERATURE",
+			Value: *llm.Temperature,
+		})
+	}
+
 	envVars = append(envVars,
 		corev1.EnvVar{
-			Name:  "TIMEZONE",
-			Value: agent.Spec.Timezone,
-		},
-		corev1.EnvVar{
-			Name:  "PORT",
-			Value: strconv.Itoa(int(agent.Spec.Port)),
-		},
-		corev1.EnvVar{
-			Name:  "HOST",
-			Value: agent.Spec.Host,
-		},
-		corev1.EnvVar{
-			Name:  "READ_TIMEOUT",
-			Value: agent.Spec.ReadTimeout,
-		},
-		corev1.EnvVar{
-			Name:  "WRITE_TIMEOUT",
-			Value: agent.Spec.WriteTimeout,
-		},
-		corev1.EnvVar{
-			Name:  "IDLE_TIMEOUT",
-			Value: agent.Spec.IdleTimeout,
-		},
-		// Logging configuration
-		corev1.EnvVar{
-			Name:  "LOG_LEVEL",
-			Value: agent.Spec.Logging.Level,
-		},
-		corev1.EnvVar{
-			Name:  "LOG_FORMAT",
-			Value: agent.Spec.Logging.Format,
-		},
-		// Telemetry configuration
-		corev1.EnvVar{
-			Name:  "TELEMETRY_ENABLED",
-			Value: strconv.FormatBool(agent.Spec.Telemetry.Enabled),
-		},
-		corev1.EnvVar{
-			Name:  "QUEUE_ENABLED",
-			Value: strconv.FormatBool(agent.Spec.Queue.Enabled),
-		},
-		corev1.EnvVar{
-			Name:  "QUEUE_MAX_SIZE",
-			Value: strconv.Itoa(int(agent.Spec.Queue.MaxSize)),
-		},
-		corev1.EnvVar{
-			Name:  "QUEUE_CLEANUP_INTERVAL",
-			Value: agent.Spec.Queue.CleanupInterval,
-		},
-		corev1.EnvVar{
-			Name:  "TLS_ENABLED",
-			Value: strconv.FormatBool(agent.Spec.TLS.Enabled),
-		},
-		corev1.EnvVar{
-			Name:  "TLS_SECRET_REF",
-			Value: agent.Spec.TLS.SecretRef,
-		},
-		corev1.EnvVar{
-			Name:  "AGENT_ENABLED",
-			Value: strconv.FormatBool(agent.Spec.Agent.Enabled),
-		},
-		corev1.EnvVar{
-			Name:  "AGENT_MAX_CONVERSATION_HISTORY",
-			Value: strconv.Itoa(int(agent.Spec.Agent.MaxConversationHistory)),
-		},
-		corev1.EnvVar{
-			Name:  "AGENT_MAX_CHAT_COMPLETION_ITERATIONS",
+			Name:  "A2A_AGENT_CLIENT_MAX_CHAT_COMPLETION_ITERATIONS",
 			Value: strconv.Itoa(int(agent.Spec.Agent.MaxChatCompletionIterations)),
 		},
 		corev1.EnvVar{
-			Name:  "AGENT_MAX_RETRIES",
+			Name:  "A2A_AGENT_CLIENT_MAX_RETRIES",
 			Value: strconv.Itoa(int(agent.Spec.Agent.MaxRetries)),
-		},
-		corev1.EnvVar{
-			Name:  "AGENT_API_KEY_SECRET_REF",
-			Value: agent.Spec.Agent.APIKey.SecretRef,
-		},
-		corev1.EnvVar{
-			Name:  "AGENT_LLM_MODEL",
-			Value: agent.Spec.Agent.LLM.Model,
-		},
-		corev1.EnvVar{
-			Name:  "AGENT_LLM_SYSTEM_PROMPT",
-			Value: agent.Spec.Agent.LLM.SystemPrompt,
 		},
 	)
 
-	if agent.Spec.Agent.LLM.MaxTokens != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name:  "AGENT_LLM_MAX_TOKENS",
-			Value: strconv.Itoa(int(*agent.Spec.Agent.LLM.MaxTokens)),
-		})
-	}
-
-	if agent.Spec.Agent.LLM.Temperature != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name:  "AGENT_LLM_TEMPERATURE",
-			Value: *agent.Spec.Agent.LLM.Temperature,
-		})
-	}
-
-	if agent.Spec.Agent.LLM.CustomHeaders != nil {
-		for i, header := range *agent.Spec.Agent.LLM.CustomHeaders {
+	if llm.CustomHeaders != nil {
+		for i, header := range *llm.CustomHeaders {
 			envVars = append(envVars,
 				corev1.EnvVar{
-					Name:  fmt.Sprintf("AGENT_LLM_CUSTOM_HEADER_%d_NAME", i),
+					Name:  fmt.Sprintf("A2A_AGENT_CLIENT_CUSTOM_HEADER_%d_NAME", i),
 					Value: header.Name,
 				},
 				corev1.EnvVar{
-					Name:  fmt.Sprintf("AGENT_LLM_CUSTOM_HEADER_%d_VALUE", i),
+					Name:  fmt.Sprintf("A2A_AGENT_CLIENT_CUSTOM_HEADER_%d_VALUE", i),
 					Value: header.Value,
 				},
 			)

@@ -32,60 +32,180 @@ import (
 
 // AgentSpec defines the desired state of Agent.
 type AgentSpec struct {
-	Image        string          `json:"image"`
-	Timezone     string          `json:"timezone"`
-	Port         int32           `json:"port"`
-	Host         string          `json:"host"`
-	ReadTimeout  string          `json:"readTimeout"`
-	WriteTimeout string          `json:"writeTimeout"`
-	IdleTimeout  string          `json:"idleTimeout"`
-	Logging      LoggingSpec     `json:"logging"`
-	Telemetry    TelemetrySpec   `json:"telemetry"`
-	Queue        QueueSpec       `json:"queue"`
-	TLS          TLSSpec         `json:"tls"`
-	Agent        AgentConfigSpec `json:"agent"`
+	// Image is the container image for the agent.
+	Image string `json:"image"`
 
-	// Environment variables for the provider
+	// Timezone for the agent process.
+	// +optional
+	// +kubebuilder:default="UTC"
+	Timezone string `json:"timezone,omitempty"`
+
+	// Port the agent listens on.
+	// +optional
+	// +kubebuilder:default=8080
+	Port int32 `json:"port,omitempty"`
+
+	// Host address the agent binds to.
+	// +optional
+	// +kubebuilder:default="0.0.0.0"
+	Host string `json:"host,omitempty"`
+
+	// ReadTimeout for HTTP server.
+	// +optional
+	// +kubebuilder:default="30s"
+	ReadTimeout string `json:"readTimeout,omitempty"`
+
+	// WriteTimeout for HTTP server.
+	// +optional
+	// +kubebuilder:default="30s"
+	WriteTimeout string `json:"writeTimeout,omitempty"`
+
+	// IdleTimeout for HTTP server.
+	// +optional
+	// +kubebuilder:default="60s"
+	IdleTimeout string `json:"idleTimeout,omitempty"`
+
+	// Logging configuration.
+	// +optional
+	Logging LoggingSpec `json:"logging,omitempty"`
+
+	// Telemetry configuration.
+	// +optional
+	Telemetry TelemetrySpec `json:"telemetry,omitempty"`
+
+	// Queue configuration.
+	// +optional
+	Queue QueueSpec `json:"queue,omitempty"`
+
+	// TLS configuration for the agent HTTP server.
+	// +optional
+	TLS TLSSpec `json:"tls,omitempty"`
+
+	// Agent-specific configuration (LLM, retries, etc.).
+	// +optional
+	Agent AgentConfigSpec `json:"agent,omitempty"`
+
+	// Environment variables for the agent container.
 	// +optional
 	Env *[]corev1.EnvVar `json:"env,omitempty"`
 }
 
 type LoggingSpec struct {
-	Level  string `json:"level"`
-	Format string `json:"format"`
+	// Level sets the log verbosity.
+	// +optional
+	// +kubebuilder:default="info"
+	Level string `json:"level,omitempty"`
+
+	// Format sets the log output format.
+	// +optional
+	// +kubebuilder:default="json"
+	Format string `json:"format,omitempty"`
 }
 
 type QueueSpec struct {
-	Enabled         bool   `json:"enabled"`
-	MaxSize         int32  `json:"maxSize"`
-	CleanupInterval string `json:"cleanupInterval"`
+	// Enabled toggles the task queue.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// MaxSize is the maximum number of items in the queue.
+	// Only meaningful when enabled is true.
+	// +optional
+	MaxSize int32 `json:"maxSize,omitempty"`
+
+	// CleanupInterval is how often completed items are purged from the queue.
+	// Only meaningful when enabled is true.
+	// +optional
+	CleanupInterval string `json:"cleanupInterval,omitempty"`
 }
 
 type TLSSpec struct {
-	Enabled   bool   `json:"enabled"`
-	SecretRef string `json:"secretRef"`
+	// Enabled toggles TLS.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// SecretRef is the name of the Secret holding TLS credentials.
+	// Only required when enabled is true.
+	// +optional
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 type AgentConfigSpec struct {
-	Enabled                     bool       `json:"enabled"`
-	TLS                         TLSSpec    `json:"tls"`
-	MaxConversationHistory      int32      `json:"maxConversationHistory"`
-	MaxChatCompletionIterations int32      `json:"maxChatCompletionIterations"`
-	MaxRetries                  int32      `json:"maxRetries"`
-	APIKey                      APIKeySpec `json:"apiKey"`
-	LLM                         LLMSpec    `json:"llm"`
+	// Enabled toggles the agent loop.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// TLS configuration for agent-to-agent communication.
+	// +optional
+	TLS TLSSpec `json:"tls,omitempty"`
+
+	// MaxConversationHistory is the number of messages retained in context.
+	// +optional
+	// +kubebuilder:default=10
+	MaxConversationHistory int32 `json:"maxConversationHistory,omitempty"`
+
+	// MaxChatCompletionIterations is the maximum number of LLM call iterations per request.
+	// +optional
+	// +kubebuilder:default=5
+	MaxChatCompletionIterations int32 `json:"maxChatCompletionIterations,omitempty"`
+
+	// MaxRetries is the maximum number of retries for failed LLM calls.
+	// +optional
+	// +kubebuilder:default=3
+	MaxRetries int32 `json:"maxRetries,omitempty"`
+
+	// APIKey holds a reference to the secret containing the LLM API key.
+	// Deprecated: use spec.agent.llm.apiKeySecretRef instead.
+	// +optional
+	APIKey APIKeySpec `json:"apiKey,omitempty"`
+
+	// LLM configuration for the agent's language model.
+	// +optional
+	LLM LLMSpec `json:"llm,omitempty"`
 }
 
+// APIKeySpec holds a plain-string reference to an API key secret.
+// Deprecated: use corev1.SecretKeySelector via LLMSpec.APIKeySecretRef instead.
 type APIKeySpec struct {
-	SecretRef string `json:"secretRef"`
+	// +optional
+	SecretRef string `json:"secretRef,omitempty"`
 }
 
 type LLMSpec struct {
-	Model         string        `json:"model"`
-	MaxTokens     *int32        `json:"maxTokens,omitempty"`
-	Temperature   *string       `json:"temperature,omitempty"`
+	// BaseURL is the base URL for the LLM API endpoint (e.g. the Inference Gateway URL).
+	// Emitted as A2A_AGENT_CLIENT_BASE_URL.
+	// +optional
+	BaseURL string `json:"baseURL,omitempty"`
+
+	// Model is the model identifier in "provider/model" format.
+	// The provider prefix is split out and emitted as A2A_AGENT_CLIENT_PROVIDER;
+	// the remainder is emitted as A2A_AGENT_CLIENT_MODEL.
+	// +optional
+	Model string `json:"model,omitempty"`
+
+	// MaxTokens is the maximum number of tokens to generate.
+	// Emitted as A2A_AGENT_CLIENT_MAX_TOKENS.
+	// +optional
+	// +kubebuilder:default=4096
+	MaxTokens *int32 `json:"maxTokens,omitempty"`
+
+	// Temperature controls the randomness of the LLM output.
+	// Emitted as A2A_AGENT_CLIENT_TEMPERATURE.
+	// +optional
+	// +kubebuilder:default="0.7"
+	Temperature *string `json:"temperature,omitempty"`
+
+	// CustomHeaders are additional HTTP headers sent with each LLM request.
+	// +optional
 	CustomHeaders *[]HeaderSpec `json:"customHeaders,omitempty"`
-	SystemPrompt  string        `json:"systemPrompt"`
+
+	// SystemPrompt is the system prompt for the LLM.
+	// +optional
+	SystemPrompt string `json:"systemPrompt,omitempty"`
+
+	// APIKeySecretRef references a Secret key that contains the LLM API key.
+	// Emitted as A2A_AGENT_CLIENT_API_KEY via valueFrom.secretKeyRef.
+	// +optional
+	APIKeySecretRef *corev1.SecretKeySelector `json:"apiKeySecretRef,omitempty"`
 }
 
 type HeaderSpec struct {
