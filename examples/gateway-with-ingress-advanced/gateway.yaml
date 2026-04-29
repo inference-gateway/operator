@@ -1,0 +1,82 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway-advanced
+  namespace: inference-gateway
+spec:
+  environment: production
+  image: "ghcr.io/inference-gateway/inference-gateway:latest"
+  providers:
+    - name: OpenAI
+      env:
+        - name: OPENAI_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: inference-gateway-config
+              key: OPENAPI_API_URL
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: OPENAI_API_KEY
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+      nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "https://ui.inference-gateway.local"
+    hosts:
+      - host: "api.inference-gateway.local"
+        paths:
+          - path: "/"
+            pathType: "Prefix"
+      - host: "gateway.example.com"
+        paths:
+          - path: "/v1"
+            pathType: "Prefix"
+          - path: "/health"
+            pathType: "Exact"
+    tls:
+      enabled: true
+      issuer: "letsencrypt-prod"
+      config:
+        - secretName: "api-inference-gateway-tls"
+          hosts:
+            - "api.inference-gateway.local"
+        - secretName: "gateway-example-tls"
+          hosts:
+            - "gateway.example.com"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "1000m"
+      memory: "512Mi"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inference-gateway-providers-secret
+  namespace: inference-gateway
+type: Opaque
+stringData:
+  OPENAI_API_KEY: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inference-gateway-config
+  namespace: inference-gateway
+data:
+  OPENAPI_API_URL: "https://api.openai.com/v1"
