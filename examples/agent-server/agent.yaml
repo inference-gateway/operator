@@ -13,62 +13,15 @@ metadata:
   namespace: agents
 spec:
   image: ghcr.io/inference-gateway/google-calendar-agent:latest
-  timezone: "UTC"
-  port: 8080
-  host: "0.0.0.0"
-  readTimeout: "30s"
-  writeTimeout: "30s"
-  idleTimeout: "60s"
-  logging:
-    level: "info"
-    format: "json"
-  telemetry:
-    enabled: true
-    metrics:
-      enabled: true
-      port: 9090
-  queue:
-    enabled: true
-    maxSize: 1000
-    cleanupInterval: "5m"
-  tls:
-    enabled: false
-    secretRef: ""
   agent:
-    enabled: true
-    tls:
-      enabled: true
-      secretRef: ""
-    maxConversationHistory: 10
-    maxChatCompletionIterations: 5
-    maxRetries: 3
-    apiKey:
-      secretRef: "your-api-key"
     llm:
-      model: "openai/gpt-3.5-turbo"
-      maxTokens: 4096
-      temperature: "0.7"
-      customHeaders:
-        - name: "User-Agent"
-          value: "Google Calendar Agent"
-      systemPrompt: "You are a helpful assistant for managing Google Calendar events. You can create, read, update, and delete events, and you can also list upcoming events."
+      baseURL: "http://inference-gateway.inference-gateway.svc.cluster.local:8080/v1"
+      model: "openai/gpt-4o"
+      apiKeySecretRef:
+        name: inference-gateway-providers-secret
+        key: OPENAI_API_KEY
   env:
     - name: GOOGLE_CALENDAR_MOCK_MODE
-      valueFrom:
-        configMapKeyRef:
-          name: google-calendar-agent-config
-          key: GOOGLE_CALENDAR_MOCK_MODE
+      value: "true"
     - name: A2A_AGENT_URL
-      valueFrom:
-        configMapKeyRef:
-          name: google-calendar-agent-config
-          key: A2A_AGENT_URL
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: google-calendar-agent-config
-  namespace: agents
-data:
-  GOOGLE_CALENDAR_MOCK_MODE: "true"
-  A2A_AGENT_URL: "http://google-calendar-agent.agents.svc.cluster.local:8080"
+      value: "http://google-calendar-agent.agents.svc.cluster.local:8080"

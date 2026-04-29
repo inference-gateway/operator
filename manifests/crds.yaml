@@ -64,19 +64,56 @@ spec:
             description: AgentSpec defines the desired state of Agent.
             properties:
               agent:
+                description: Agent-specific configuration (LLM, retries, etc.).
                 properties:
                   apiKey:
+                    description: |-
+                      APIKey holds a reference to the secret containing the LLM API key.
+                      Deprecated: use spec.agent.llm.apiKeySecretRef instead.
                     properties:
                       secretRef:
                         type: string
-                    required:
-                    - secretRef
                     type: object
                   enabled:
+                    description: Enabled toggles the agent loop.
                     type: boolean
                   llm:
+                    description: LLM configuration for the agent's language model.
                     properties:
+                      apiKeySecretRef:
+                        description: |-
+                          APIKeySecretRef references a Secret key that contains the LLM API key.
+                          Emitted as A2A_AGENT_CLIENT_API_KEY via valueFrom.secretKeyRef.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      baseURL:
+                        description: |-
+                          BaseURL is the base URL for the LLM API endpoint (e.g. the Inference Gateway URL).
+                          Emitted as A2A_AGENT_CLIENT_BASE_URL.
+                        type: string
                       customHeaders:
+                        description: CustomHeaders are additional HTTP headers sent
+                          with each LLM request.
                         items:
                           properties:
                             name:
@@ -89,48 +126,61 @@ spec:
                           type: object
                         type: array
                       maxTokens:
+                        default: 4096
+                        description: |-
+                          MaxTokens is the maximum number of tokens to generate.
+                          Emitted as A2A_AGENT_CLIENT_MAX_TOKENS.
                         format: int32
                         type: integer
                       model:
+                        description: |-
+                          Model is the model identifier in "provider/model" format.
+                          The provider prefix is split out and emitted as A2A_AGENT_CLIENT_PROVIDER;
+                          the remainder is emitted as A2A_AGENT_CLIENT_MODEL.
                         type: string
                       systemPrompt:
+                        description: SystemPrompt is the system prompt for the LLM.
                         type: string
                       temperature:
+                        default: "0.7"
+                        description: |-
+                          Temperature controls the randomness of the LLM output.
+                          Emitted as A2A_AGENT_CLIENT_TEMPERATURE.
                         type: string
-                    required:
-                    - model
-                    - systemPrompt
                     type: object
                   maxChatCompletionIterations:
+                    default: 5
+                    description: MaxChatCompletionIterations is the maximum number
+                      of LLM call iterations per request.
                     format: int32
                     type: integer
                   maxConversationHistory:
+                    default: 10
+                    description: MaxConversationHistory is the number of messages
+                      retained in context.
                     format: int32
                     type: integer
                   maxRetries:
+                    default: 3
+                    description: MaxRetries is the maximum number of retries for failed
+                      LLM calls.
                     format: int32
                     type: integer
                   tls:
+                    description: TLS configuration for agent-to-agent communication.
                     properties:
                       enabled:
+                        description: Enabled toggles TLS.
                         type: boolean
                       secretRef:
+                        description: |-
+                          SecretRef is the name of the Secret holding TLS credentials.
+                          Only required when enabled is true.
                         type: string
-                    required:
-                    - enabled
-                    - secretRef
                     type: object
-                required:
-                - apiKey
-                - enabled
-                - llm
-                - maxChatCompletionIterations
-                - maxConversationHistory
-                - maxRetries
-                - tls
                 type: object
               env:
-                description: Environment variables for the provider
+                description: Environment variables for the agent container.
                 items:
                   description: EnvVar represents an environment variable present in
                     a Container.
@@ -287,42 +337,57 @@ spec:
                   type: object
                 type: array
               host:
+                default: 0.0.0.0
+                description: Host address the agent binds to.
                 type: string
               idleTimeout:
+                default: 60s
+                description: IdleTimeout for HTTP server.
                 type: string
               image:
+                description: Image is the container image for the agent.
                 type: string
               logging:
+                description: Logging configuration.
                 properties:
                   format:
+                    default: json
+                    description: Format sets the log output format.
                     type: string
                   level:
+                    default: info
+                    description: Level sets the log verbosity.
                     type: string
-                required:
-                - format
-                - level
                 type: object
               port:
+                default: 8080
+                description: Port the agent listens on.
                 format: int32
                 type: integer
               queue:
+                description: Queue configuration.
                 properties:
                   cleanupInterval:
+                    description: |-
+                      CleanupInterval is how often completed items are purged from the queue.
+                      Only meaningful when enabled is true.
                     type: string
                   enabled:
+                    description: Enabled toggles the task queue.
                     type: boolean
                   maxSize:
+                    description: |-
+                      MaxSize is the maximum number of items in the queue.
+                      Only meaningful when enabled is true.
                     format: int32
                     type: integer
-                required:
-                - cleanupInterval
-                - enabled
-                - maxSize
                 type: object
               readTimeout:
+                default: 30s
+                description: ReadTimeout for HTTP server.
                 type: string
               telemetry:
-                description: TelemetrySpec contains telemetry and observability configuration
+                description: Telemetry configuration.
                 properties:
                   enabled:
                     default: false
@@ -348,32 +413,27 @@ spec:
                     type: object
                 type: object
               timezone:
+                default: UTC
+                description: Timezone for the agent process.
                 type: string
               tls:
+                description: TLS configuration for the agent HTTP server.
                 properties:
                   enabled:
+                    description: Enabled toggles TLS.
                     type: boolean
                   secretRef:
+                    description: |-
+                      SecretRef is the name of the Secret holding TLS credentials.
+                      Only required when enabled is true.
                     type: string
-                required:
-                - enabled
-                - secretRef
                 type: object
               writeTimeout:
+                default: 30s
+                description: WriteTimeout for HTTP server.
                 type: string
             required:
-            - agent
-            - host
-            - idleTimeout
             - image
-            - logging
-            - port
-            - queue
-            - readTimeout
-            - telemetry
-            - timezone
-            - tls
-            - writeTimeout
             type: object
           status:
             description: AgentStatus defines the observed state of Agent.
