@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.2](https://github.com/inference-gateway/operator/compare/v0.14.1...v0.14.2) (2026-05-07)
+
+### 🐛 Bug Fixes
+
+* **ci:** Update golangci-lint installation script and version to v2.12.2 ([4386e83](https://github.com/inference-gateway/operator/commit/4386e83a4164d3b0c420dfbabcb665269bfc9131))
+* **workflow:** Update Claude Code action to v1.0.114 and refine system prompt ([fb13700](https://github.com/inference-gateway/operator/commit/fb13700d59162702d053794c8a3fd60c155344d0))
+
+### 👷 CI
+
+* Bump actions/create-github-app-token to latest ([ee5d483](https://github.com/inference-gateway/operator/commit/ee5d4835e4cd2f4128328be2fd04573793b4e6b8))
+* **deps:** Bump golangci-lint to latest ([c3ad612](https://github.com/inference-gateway/operator/commit/c3ad612bbf271255303be56a52773507c2f81a3c))
+
 ## [0.14.1](https://github.com/inference-gateway/operator/compare/v0.14.0...v0.14.1) (2026-04-29)
 
 ### ♻️ Improvements
