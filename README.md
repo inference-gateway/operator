@@ -749,7 +749,7 @@ kubectl delete -f https://github.com/inference-gateway/operator/releases/latest/
 
 ### Prerequisites for Development
 
-The recommended way to get a complete toolchain is via the project's [Flox](https://flox.dev) environment - `flox activate` provides Go, `task`, `kubectl`, `kubebuilder`, `kustomize`, `golangci-lint`, `k3d`, `ctlptl`, `gh`, and `prettier` at the pinned versions used by CI. See [CONTRIBUTING.md](CONTRIBUTING.md#setting-up-your-environment) for alternatives (dev container or manual install).
+The recommended way to get a complete toolchain is via the project's [Flox](https://flox.dev) environment - `flox activate` provides Go, `task`, `kubectl`, `kubebuilder`, `kustomize`, `golangci-lint`, `k3d`, `ctlptl`, `gh`, and `prettier` at the pinned versions used by CI. See [CONTRIBUTING.md](CONTRIBUTING.md#setting-up-your-environment) for alternatives (flox environment or manual install).
 
 If installing manually:
 

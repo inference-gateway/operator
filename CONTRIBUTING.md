@@ -40,7 +40,7 @@ This project is developed using a containerized development environment with the
 - **Git** (latest version) - Built from source and available on the `PATH`
 - **Go** and common Go utilities - Pre-installed and available on the `PATH`, with the Go language extension for Go development
 - **Node.js, npm, and ESLint** - Pre-installed and available on the `PATH` for JavaScript development
-- **Docker CLI** - Pre-installed and available on the `PATH` for running and managing containers using a dedicated Docker daemon within the dev container
+- **Flox** - Pre-installed dependecies for local development
 
 ### Setting Up Your Environment
 
@@ -60,13 +60,7 @@ This project is developed using a containerized development environment with the
      # golangci-lint, k3d, ctlptl, gh, prettier, and other tools on your PATH:
      flox activate
      ```
-   - Option B: Use the provided dev container configuration
-     ```sh
-     # If using VS Code with the Remote - Containers extension
-     # Simply open the folder in VS Code and click "Reopen in Container"
-     # when prompted
-     ```
-   - Option C: Set up your local environment with the required dependencies
+   - Option B: Set up your local environment with the required dependencies
      ```sh
      # Ensure you have Go 1.26+, Docker 29.4+, and kubectl 1.35+ installed
      ```
