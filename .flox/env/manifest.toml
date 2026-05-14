@@ -25,6 +25,7 @@ kustomize.pkg-path = "kustomize"
 kustomize.version = "5.8.1"
 prettier.pkg-path = "prettier"
 prettier.version = "3.6.2"
+infer.flake = "github:inference-gateway/cli/v0.109.6"
 
 [hook]
 on-activate = """
