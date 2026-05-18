@@ -88,6 +88,10 @@ type AgentSpec struct {
 	// Environment variables for the agent container.
 	// +optional
 	Env *[]corev1.EnvVar `json:"env,omitempty"`
+
+	// Resources are the compute resource requirements for the agent container.
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 }
 
 type LoggingSpec struct {

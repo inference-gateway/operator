@@ -28,6 +28,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -330,6 +331,103 @@ var _ = Describe("Agent Controller", func() {
 			custom := findEnvVar(envVars, "MY_CUSTOM_VAR")
 			Expect(custom).NotTo(BeNil())
 			Expect(custom.Value).To(Equal("custom-value"))
+		})
+	})
+
+	Context("buildAgentDeployment resources", func() {
+		var reconciler *AgentReconciler
+
+		BeforeEach(func() {
+			reconciler = &AgentReconciler{}
+		})
+
+		It("does not set container resources when spec.resources is unset", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "agent-no-resources",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.AgentSpec{
+					Image: "test-image:latest",
+					Port:  8080,
+				},
+			}
+
+			deployment := reconciler.buildAgentDeployment(agent)
+			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+			container := deployment.Spec.Template.Spec.Containers[0]
+			Expect(container.Resources.Requests).To(BeNil())
+			Expect(container.Resources.Limits).To(BeNil())
+		})
+
+		It("propagates spec.resources requests and limits to the agent container", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "agent-with-resources",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.AgentSpec{
+					Image: "test-image:latest",
+					Port:  8080,
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("128Mi"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("500m"),
+							corev1.ResourceMemory: resource.MustParse("512Mi"),
+						},
+					},
+				},
+			}
+
+			deployment := reconciler.buildAgentDeployment(agent)
+			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+			container := deployment.Spec.Template.Spec.Containers[0]
+
+			Expect(container.Resources.Requests).NotTo(BeNil())
+			cpuReq := container.Resources.Requests[corev1.ResourceCPU]
+			Expect(cpuReq.String()).To(Equal("100m"))
+			memReq := container.Resources.Requests[corev1.ResourceMemory]
+			Expect(memReq.String()).To(Equal("128Mi"))
+
+			Expect(container.Resources.Limits).NotTo(BeNil())
+			cpuLim := container.Resources.Limits[corev1.ResourceCPU]
+			Expect(cpuLim.String()).To(Equal("500m"))
+			memLim := container.Resources.Limits[corev1.ResourceMemory]
+			Expect(memLim.String()).To(Equal("512Mi"))
+		})
+
+		It("propagates only requests when limits are unset", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "agent-requests-only",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.AgentSpec{
+					Image: "test-image:latest",
+					Port:  8080,
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("250m"),
+							corev1.ResourceMemory: resource.MustParse("256Mi"),
+						},
+					},
+				},
+			}
+
+			deployment := reconciler.buildAgentDeployment(agent)
+			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+			container := deployment.Spec.Template.Spec.Containers[0]
+
+			Expect(container.Resources.Requests).NotTo(BeNil())
+			cpuReq := container.Resources.Requests[corev1.ResourceCPU]
+			Expect(cpuReq.String()).To(Equal("250m"))
+			memReq := container.Resources.Requests[corev1.ResourceMemory]
+			Expect(memReq.String()).To(Equal("256Mi"))
+
+			Expect(container.Resources.Limits).To(BeNil())
 		})
 	})
 })

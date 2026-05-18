@@ -200,9 +200,10 @@ func (r *AgentReconciler) buildAgentDeployment(agent *v1alpha1.Agent) *appsv1.De
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Env:   env,
-						Name:  "agent",
-						Image: agent.Spec.Image,
+						Env:       env,
+						Name:      "agent",
+						Image:     agent.Spec.Image,
+						Resources: agent.Spec.Resources,
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: port,
 						}},
