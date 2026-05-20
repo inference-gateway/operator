@@ -268,6 +268,7 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 
 	port := defaultPort
 	command := []string{defaultCommand}
+	var args []string
 
 	envVars := []corev1.EnvVar{
 		{
@@ -291,6 +292,10 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 
 		if len(mcp.Spec.Server.Command) > 0 {
 			command = mcp.Spec.Server.Command
+		}
+
+		if len(mcp.Spec.Server.Args) > 0 {
+			args = mcp.Spec.Server.Args
 		}
 
 		if mcp.Spec.Server.TLS != nil && mcp.Spec.Server.TLS.Enabled && mcp.Spec.Server.TLS.SecretName != "" {
@@ -344,6 +349,7 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 							VolumeMounts: volumeMounts,
 							Env:          envVars,
 							Command:      command,
+							Args:         args,
 						},
 					},
 					Volumes: volumes,
