@@ -30,8 +30,10 @@ jobs:
           cache: true
 
       - name: Install go-task
-        run: |
-          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+        uses: arduino/setup-task@v2.0.0
+        with:
+          version: 3.48.0
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install controller-gen and kustomize
         run: |

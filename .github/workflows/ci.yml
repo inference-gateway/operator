@@ -36,12 +36,16 @@ jobs:
           cache: true
 
       - name: Install task
-        run: |
-          curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin ${{ env.TASK_VERSION }}
+        uses: arduino/setup-task@v2.0.0
+        with:
+          version: ${{ env.TASK_VERSION }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install golangci-lint
-        run: |
-          curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" ${{ env.GOLANGCI_LINT_VERSION }}
+        uses: golangci/golangci-lint-action@v9.2.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --help
 
       - name: Run linter
         run: task lint
@@ -65,16 +69,20 @@ jobs:
           node-version: 24
 
       - name: Install task
-        run: |
-          curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin ${{ env.TASK_VERSION }}
+        uses: arduino/setup-task@v2.0.0
+        with:
+          version: ${{ env.TASK_VERSION }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install prettier
         run: |
           npm install -g prettier@3.6.2
 
       - name: Install golangci-lint
-        run: |
-          curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" ${{ env.GOLANGCI_LINT_VERSION }}
+        uses: golangci/golangci-lint-action@v9.2.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --help
 
       - name: Install Controllergen
         run: |
@@ -145,8 +153,10 @@ jobs:
           npm install -g prettier@3.6.2
 
       - name: Install task
-        run: |
-          curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin ${{ env.TASK_VERSION }}
+        uses: arduino/setup-task@v2.0.0
+        with:
+          version: ${{ env.TASK_VERSION }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Controllergen
         run: |
