@@ -1014,8 +1014,8 @@ spec:
 				})
 			})
 
-			It("should recreate ingress if deleted manually", func() {
-				gwName := "ingress-e2e-recreate"
+			It("should recreate HTTPRoute if deleted manually", func() {
+				gwName := "routing-e2e-recreate"
 				gwNs := testNamespace
 				gatewayYAML := fmt.Sprintf(`
 apiVersion: core.inference-gateway.com/v1alpha1
@@ -1026,12 +1026,16 @@ metadata:
 spec:
   environment: development
   image: ghcr.io/inference-gateway/inference-gateway:latest
-  ingress:
+  routing:
     enabled: true
-    host: e2e-recreate.local
+    gateway:
+      gatewayClassName: envoy
+    httpRoute:
+      hostnames:
+        - e2e-recreate.local
 `, gwName, gwNs)
 
-				gatewayFile := filepath.Join(os.TempDir(), "ingress-e2e-recreate.yaml")
+				gatewayFile := filepath.Join(os.TempDir(), "routing-e2e-recreate.yaml")
 				err := os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)
 				Expect(err).NotTo(HaveOccurred(), "Failed to write Gateway YAML file")
 
@@ -1039,32 +1043,45 @@ spec:
 				_, err = utils.Run(cmd)
 				Expect(err).NotTo(HaveOccurred(), "Failed to create Gateway CR")
 
-				By("waiting for the ingress to be created")
-				verifyIngress := func() bool {
-					cmd := exec.Command("kubectl", "get", "ingress", gwName, "-n", gwNs, "-o", "jsonpath={.spec.rules[0].host}")
+				By("waiting for the HTTPRoute to be created")
+				verifyHTTPRoute := func() bool {
+					cmd := exec.Command("kubectl", "get", "httproute", gwName, "-n", gwNs, "-o", "jsonpath={.spec.hostnames[0]}")
 					output, err := utils.Run(cmd)
 					return err == nil && strings.TrimSpace(output) == "e2e-recreate.local"
 				}
-				Eventually(verifyIngress, 2*time.Minute, 2*time.Second).Should(BeTrue())
+				Eventually(verifyHTTPRoute, 2*time.Minute, 2*time.Second).Should(BeTrue())
 
-				By("deleting the ingress manually")
-				cmd = exec.Command("kubectl", "delete", "ingress", gwName, "-n", gwNs)
+				By("deleting the HTTPRoute manually")
+				cmd = exec.Command("kubectl", "delete", "httproute", gwName, "-n", gwNs)
 				_, err = utils.Run(cmd)
-				Expect(err).NotTo(HaveOccurred(), "Failed to delete ingress")
+				Expect(err).NotTo(HaveOccurred(), "Failed to delete HTTPRoute")
 
-				By("waiting for the ingress to be recreated")
-				Eventually(verifyIngress, 2*time.Minute, 2*time.Second).Should(BeTrue())
+				By("waiting for the HTTPRoute to be recreated")
+				Eventually(verifyHTTPRoute, 2*time.Minute, 2*time.Second).Should(BeTrue())
+
+				By("deleting the operator-owned Gateway manually")
+				cmd = exec.Command("kubectl", "delete", "gateway.gateway.networking.k8s.io", gwName, "-n", gwNs)
+				_, err = utils.Run(cmd)
+				Expect(err).NotTo(HaveOccurred(), "Failed to delete Gateway")
+
+				By("waiting for the operator-owned Gateway to be recreated")
+				verifyGateway := func() bool {
+					cmd := exec.Command("kubectl", "get", "gateway.gateway.networking.k8s.io", gwName, "-n", gwNs, "-o", "jsonpath={.spec.gatewayClassName}")
+					output, err := utils.Run(cmd)
+					return err == nil && strings.TrimSpace(output) == "envoy"
+				}
+				Eventually(verifyGateway, 2*time.Minute, 2*time.Second).Should(BeTrue())
 
 				By("cleaning up the gateway")
-				cmd = exec.Command("kubectl", "delete", "gateway", gwName, "-n", gwNs, "--ignore-not-found=true")
+				cmd = exec.Command("kubectl", "delete", "gateway.core.inference-gateway.com", gwName, "-n", gwNs, "--ignore-not-found=true")
 				_, _ = utils.Run(cmd)
 			})
 
-			It("should update ingress when host is changed in Gateway", func() {
-				gwName := "ingress-e2e-update"
+			It("should update HTTPRoute when hostname is changed in Gateway", func() {
+				gwName := "routing-e2e-update"
 				gwNs := testNamespace
-				initialHost := "ingress-update.local"
-				updatedHost := "ingress-updated.local"
+				initialHost := "routing-update.local"
+				updatedHost := "routing-updated.local"
 				gatewayYAML := fmt.Sprintf(`
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: Gateway
@@ -1074,12 +1091,16 @@ metadata:
 spec:
   environment: development
   image: ghcr.io/inference-gateway/inference-gateway:latest
-  ingress:
+  routing:
     enabled: true
-    host: %s
+    gateway:
+      gatewayClassName: envoy
+    httpRoute:
+      hostnames:
+        - %s
 `, gwName, gwNs, initialHost)
 
-				gatewayFile := filepath.Join(os.TempDir(), "ingress-e2e-update.yaml")
+				gatewayFile := filepath.Join(os.TempDir(), "routing-e2e-update.yaml")
 				err := os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)
 				Expect(err).NotTo(HaveOccurred(), "Failed to write Gateway YAML file")
 
@@ -1087,25 +1108,99 @@ spec:
 				_, err = utils.Run(cmd)
 				Expect(err).NotTo(HaveOccurred(), "Failed to create Gateway CR")
 
-				By("waiting for the ingress to be created with the initial host")
-				verifyIngressHost := func(expectedHost string) bool {
-					cmd := exec.Command("kubectl", "get", "ingress", gwName, "-n", gwNs, "-o", "jsonpath={.spec.rules[0].host}")
+				By("waiting for the HTTPRoute to be created with the initial hostname")
+				verifyHTTPRouteHost := func(expectedHost string) bool {
+					cmd := exec.Command("kubectl", "get", "httproute", gwName, "-n", gwNs, "-o", "jsonpath={.spec.hostnames[0]}")
 					output, err := utils.Run(cmd)
 					return err == nil && strings.TrimSpace(output) == expectedHost
 				}
-				Eventually(func() bool { return verifyIngressHost(initialHost) }, 2*time.Minute, 2*time.Second).Should(BeTrue())
+				Eventually(func() bool { return verifyHTTPRouteHost(initialHost) }, 2*time.Minute, 2*time.Second).Should(BeTrue())
 
-				By("patching the Gateway to update the host")
-				patch := fmt.Sprintf(`{"spec":{"ingress":{"enabled":true,"host":"%s"}}}`, updatedHost)
-				cmd = exec.Command("kubectl", "patch", "gateway", gwName, "-n", gwNs, "--type=merge", "-p", patch)
+				By("patching the Gateway to update the hostname")
+				patch := fmt.Sprintf(`{"spec":{"routing":{"enabled":true,"gateway":{"gatewayClassName":"envoy"},"httpRoute":{"hostnames":["%s"]}}}}`, updatedHost)
+				cmd = exec.Command("kubectl", "patch", "gateway.core.inference-gateway.com", gwName, "-n", gwNs, "--type=merge", "-p", patch)
 				_, err = utils.Run(cmd)
-				Expect(err).NotTo(HaveOccurred(), "Failed to patch Gateway ingress host")
+				Expect(err).NotTo(HaveOccurred(), "Failed to patch Gateway routing hostname")
 
-				By("waiting for the ingress to be updated with the new host")
-				Eventually(func() bool { return verifyIngressHost(updatedHost) }, 2*time.Minute, 2*time.Second).Should(BeTrue())
+				By("waiting for the HTTPRoute to be updated with the new hostname")
+				Eventually(func() bool { return verifyHTTPRouteHost(updatedHost) }, 2*time.Minute, 2*time.Second).Should(BeTrue())
 
 				By("cleaning up the gateway")
-				cmd = exec.Command("kubectl", "delete", "gateway", gwName, "-n", gwNs, "--ignore-not-found=true")
+				cmd = exec.Command("kubectl", "delete", "gateway.core.inference-gateway.com", gwName, "-n", gwNs, "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			It("should attach HTTPRoute to a shared Gateway when parentRefs is set", func() {
+				gwName := "routing-e2e-advanced"
+				gwNs := testNamespace
+				sharedGwName := "shared-e2e-gateway"
+
+				By("pre-creating a shared upstream Gateway")
+				sharedGatewayYAML := fmt.Sprintf(`
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  gatewayClassName: envoy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+`, sharedGwName, gwNs)
+				sharedFile := filepath.Join(os.TempDir(), "shared-gateway.yaml")
+				Expect(os.WriteFile(sharedFile, []byte(sharedGatewayYAML), 0644)).To(Succeed())
+				cmd := exec.Command("kubectl", "apply", "-f", sharedFile)
+				_, err := utils.Run(cmd)
+				Expect(err).NotTo(HaveOccurred(), "Failed to create shared Gateway")
+
+				By("creating a Gateway CR in advanced mode (parentRefs set)")
+				gatewayYAML := fmt.Sprintf(`
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  environment: development
+  image: ghcr.io/inference-gateway/inference-gateway:latest
+  routing:
+    enabled: true
+    gateway:
+      parentRefs:
+        - name: %s
+    httpRoute:
+      hostnames:
+        - routing-advanced.local
+`, gwName, gwNs, sharedGwName)
+				gatewayFile := filepath.Join(os.TempDir(), "routing-e2e-advanced.yaml")
+				Expect(os.WriteFile(gatewayFile, []byte(gatewayYAML), 0644)).To(Succeed())
+				cmd = exec.Command("kubectl", "apply", "-f", gatewayFile)
+				_, err = utils.Run(cmd)
+				Expect(err).NotTo(HaveOccurred(), "Failed to create Gateway CR")
+
+				By("verifying the HTTPRoute is created with the supplied parentRefs")
+				Eventually(func() bool {
+					cmd := exec.Command("kubectl", "get", "httproute", gwName, "-n", gwNs, "-o", "jsonpath={.spec.parentRefs[0].name}")
+					output, err := utils.Run(cmd)
+					return err == nil && strings.TrimSpace(output) == sharedGwName
+				}, 2*time.Minute, 2*time.Second).Should(BeTrue())
+
+				By("verifying NO operator-owned Gateway is created (advanced mode)")
+				Consistently(func() bool {
+					cmd := exec.Command("kubectl", "get", "gateway.gateway.networking.k8s.io", gwName, "-n", gwNs)
+					_, err := utils.Run(cmd)
+					return err != nil
+				}, 10*time.Second, 2*time.Second).Should(BeTrue())
+
+				By("cleaning up")
+				cmd = exec.Command("kubectl", "delete", "gateway.core.inference-gateway.com", gwName, "-n", gwNs, "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+				cmd = exec.Command("kubectl", "delete", "gateway.gateway.networking.k8s.io", sharedGwName, "-n", gwNs, "--ignore-not-found=true")
 				_, _ = utils.Run(cmd)
 			})
 		})

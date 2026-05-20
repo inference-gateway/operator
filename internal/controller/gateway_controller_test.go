@@ -32,11 +32,11 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
@@ -409,7 +409,7 @@ var _ = Describe("Gateway controller", func() {
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 		})
 
-		DescribeTable("Ingress reconciliation",
+		DescribeTable("Routing reconciliation in default mode",
 			func(name, host string, tlsEnabled bool) {
 				ctx := context.Background()
 				gwName := name
@@ -426,38 +426,198 @@ var _ = Describe("Gateway controller", func() {
 					Spec: corev1alpha1.GatewaySpec{
 						Environment: "development",
 						Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-						Ingress: &corev1alpha1.IngressSpec{
+						Routing: &corev1alpha1.RoutingSpec{
 							Enabled: true,
-							Host:    host,
-							TLS: &corev1alpha1.IngressTLSConfig{
-								Enabled: tlsEnabled,
+							Gateway: &corev1alpha1.RoutingGatewaySpec{
+								GatewayClassName: "envoy",
+								TLS: &corev1alpha1.RoutingTLSSpec{
+									Enabled: tlsEnabled,
+								},
+							},
+							HTTPRoute: &corev1alpha1.RoutingHTTPRouteSpec{
+								Hostnames: []gwapiv1.Hostname{gwapiv1.Hostname(host)},
 							},
 						},
 					},
 				}
 				Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
 
-				ingressName := types.NamespacedName{Name: gwName, Namespace: gwNs}
-				createdIngress := &networkingv1.Ingress{}
+				key := types.NamespacedName{Name: gwName, Namespace: gwNs}
+
+				createdGateway := &gwapiv1.Gateway{}
 				Eventually(func() bool {
-					return k8sClient.Get(ctx, ingressName, createdIngress) == nil
+					return k8sClient.Get(ctx, key, createdGateway) == nil
 				}, timeout, interval).Should(BeTrue())
-				Expect(createdIngress.Spec.Rules).ToNot(BeEmpty())
-				Expect(createdIngress.Spec.Rules[0].Host).To(Equal(host))
+				Expect(createdGateway.Spec.GatewayClassName).To(Equal(gwapiv1.ObjectName("envoy")))
+				Expect(createdGateway.Spec.Listeners).ToNot(BeEmpty())
 				if tlsEnabled {
-					Expect(createdIngress.Spec.TLS).ToNot(BeEmpty())
+					Expect(createdGateway.Spec.Listeners[0].Protocol).To(Equal(gwapiv1.HTTPSProtocolType))
+					Expect(createdGateway.Spec.Listeners[0].Port).To(Equal(gwapiv1.PortNumber(443)))
+					Expect(createdGateway.Spec.Listeners[0].TLS).ToNot(BeNil())
+					Expect(createdGateway.Spec.Listeners[0].TLS.CertificateRefs).ToNot(BeEmpty())
+					Expect(string(createdGateway.Spec.Listeners[0].TLS.CertificateRefs[0].Name)).To(ContainSubstring(gwName))
+				} else {
+					Expect(createdGateway.Spec.Listeners[0].Protocol).To(Equal(gwapiv1.HTTPProtocolType))
+					Expect(createdGateway.Spec.Listeners[0].Port).To(Equal(gwapiv1.PortNumber(80)))
 				}
 
-				if len(createdIngress.Spec.TLS) > 0 {
-					Expect(createdIngress.Spec.TLS[0].Hosts).To(ContainElement(host))
-					Expect(createdIngress.Spec.TLS[0].SecretName).To(ContainSubstring(gwName))
-				}
+				createdRoute := &gwapiv1.HTTPRoute{}
+				Eventually(func() bool {
+					return k8sClient.Get(ctx, key, createdRoute) == nil
+				}, timeout, interval).Should(BeTrue())
+				Expect(createdRoute.Spec.Hostnames).To(ContainElement(gwapiv1.Hostname(host)))
+				Expect(createdRoute.Spec.ParentRefs).To(HaveLen(1))
+				Expect(createdRoute.Spec.ParentRefs[0].Name).To(Equal(gwapiv1.ObjectName(gwName)))
+				Expect(createdRoute.Spec.Rules).To(HaveLen(1))
+				Expect(createdRoute.Spec.Rules[0].BackendRefs).To(HaveLen(1))
+				Expect(createdRoute.Spec.Rules[0].BackendRefs[0].Name).To(Equal(gwapiv1.ObjectName(gwName)))
 
 				Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 			},
-			Entry("should create ingress without TLS", "ingress-no-tls", "test-no-tls.local", false),
-			Entry("should create ingress with TLS", "ingress-with-tls", "test-with-tls.local", true),
+			Entry("should create Gateway+HTTPRoute without TLS", "routing-no-tls", "test-no-tls.local", false),
+			Entry("should create Gateway+HTTPRoute with TLS", "routing-with-tls", "test-with-tls.local", true),
 		)
+
+		It("Should add cert-manager.io/cluster-issuer annotation when TLS Issuer is set", func() {
+			ctx := context.Background()
+			gwName := "routing-issuer"
+			gateway := &corev1alpha1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.inference-gateway.com/v1alpha1",
+					Kind:       "Gateway",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gwName,
+					Namespace: GatewayNamespace,
+				},
+				Spec: corev1alpha1.GatewaySpec{
+					Environment: "development",
+					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
+					Routing: &corev1alpha1.RoutingSpec{
+						Enabled: true,
+						Gateway: &corev1alpha1.RoutingGatewaySpec{
+							GatewayClassName: "envoy",
+							TLS: &corev1alpha1.RoutingTLSSpec{
+								Enabled: true,
+								Issuer:  "letsencrypt-prod",
+							},
+						},
+						HTTPRoute: &corev1alpha1.RoutingHTTPRouteSpec{
+							Hostnames: []gwapiv1.Hostname{"issuer.example.com"},
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+
+			createdGateway := &gwapiv1.Gateway{}
+			Eventually(func() string {
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: gwName, Namespace: GatewayNamespace}, createdGateway); err != nil {
+					return ""
+				}
+				return createdGateway.Annotations["cert-manager.io/cluster-issuer"]
+			}, timeout, interval).Should(Equal("letsencrypt-prod"))
+
+			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
+		})
+
+		It("Should skip Gateway creation in advanced mode (parentRefs set)", func() {
+			ctx := context.Background()
+			gwName := "routing-advanced"
+			parentName := gwapiv1.ObjectName("shared-gw")
+			parentNs := gwapiv1.Namespace("shared")
+			gateway := &corev1alpha1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.inference-gateway.com/v1alpha1",
+					Kind:       "Gateway",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gwName,
+					Namespace: GatewayNamespace,
+				},
+				Spec: corev1alpha1.GatewaySpec{
+					Environment: "development",
+					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
+					Routing: &corev1alpha1.RoutingSpec{
+						Enabled: true,
+						Gateway: &corev1alpha1.RoutingGatewaySpec{
+							ParentRefs: []gwapiv1.ParentReference{
+								{Name: parentName, Namespace: &parentNs},
+							},
+						},
+						HTTPRoute: &corev1alpha1.RoutingHTTPRouteSpec{
+							Hostnames: []gwapiv1.Hostname{"advanced.example.com"},
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+
+			key := types.NamespacedName{Name: gwName, Namespace: GatewayNamespace}
+
+			createdRoute := &gwapiv1.HTTPRoute{}
+			Eventually(func() bool {
+				return k8sClient.Get(ctx, key, createdRoute) == nil
+			}, timeout, interval).Should(BeTrue())
+			Expect(createdRoute.Spec.ParentRefs).To(HaveLen(1))
+			Expect(createdRoute.Spec.ParentRefs[0].Name).To(Equal(parentName))
+			Expect(createdRoute.Spec.ParentRefs[0].Namespace).ToNot(BeNil())
+			Expect(*createdRoute.Spec.ParentRefs[0].Namespace).To(Equal(parentNs))
+
+			Consistently(func() bool {
+				err := k8sClient.Get(ctx, key, &gwapiv1.Gateway{})
+				return err != nil
+			}, time.Second*2, interval).Should(BeTrue())
+
+			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
+		})
+
+		It("Should delete owned Gateway and HTTPRoute when routing is disabled", func() {
+			ctx := context.Background()
+			gwName := "routing-disable"
+			gateway := &corev1alpha1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.inference-gateway.com/v1alpha1",
+					Kind:       "Gateway",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gwName,
+					Namespace: GatewayNamespace,
+				},
+				Spec: corev1alpha1.GatewaySpec{
+					Environment: "development",
+					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
+					Routing: &corev1alpha1.RoutingSpec{
+						Enabled: true,
+						HTTPRoute: &corev1alpha1.RoutingHTTPRouteSpec{
+							Hostnames: []gwapiv1.Hostname{"disable.example.com"},
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+
+			key := types.NamespacedName{Name: gwName, Namespace: GatewayNamespace}
+			Eventually(func() bool {
+				return k8sClient.Get(ctx, key, &gwapiv1.HTTPRoute{}) == nil
+			}, timeout, interval).Should(BeTrue())
+
+			updated := &corev1alpha1.Gateway{}
+			Expect(k8sClient.Get(ctx, key, updated)).To(Succeed())
+			updated.Spec.Routing.Enabled = false
+			Expect(k8sClient.Update(ctx, updated)).To(Succeed())
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, key, &gwapiv1.HTTPRoute{})
+				return err != nil
+			}, timeout, interval).Should(BeTrue())
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, key, &gwapiv1.Gateway{})
+				return err != nil
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
+		})
 
 		DescribeTable("Should create a deployment and configmap with correct telemetry configuration",
 			func(gatewayName, environment string, telemetryEnabled bool, expectedEnvVars []corev1.EnvVar) {
