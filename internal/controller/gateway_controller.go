@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -44,6 +45,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	handler "sigs.k8s.io/controller-runtime/pkg/handler"
 	log "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -53,6 +55,7 @@ import (
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=mcps,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -191,23 +194,52 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 
 		host, scheme := getHostAndScheme(latest)
 		newURL := fmt.Sprintf("%s://%s", scheme, host)
-		if latest.Status.URL == newURL || newURL == "" {
+
+		var mcpURLs []string
+		if latest.Spec.MCP != nil && latest.Spec.MCP.Enabled {
+			mcpURLs = r.assembleMCPServerURLs(ctx, latest)
+		}
+
+		urlChanged := newURL != "" && latest.Status.URL != newURL
+		mcpChanged := !stringSlicesEqual(latest.Status.MCPServers, mcpURLs) ||
+			latest.Status.MCPServerCount != int32(len(mcpURLs))
+		if !urlChanged && !mcpChanged {
 			return nil
 		}
 
-		latest.Status.URL = newURL
+		if urlChanged {
+			latest.Status.URL = newURL
+		}
+		if mcpChanged {
+			latest.Status.MCPServers = mcpURLs
+			latest.Status.MCPServerCount = int32(len(mcpURLs))
+		}
+
 		if err := r.Status().Update(ctx, latest); err != nil {
 			if errors.IsConflict(err) {
 				lastErr = err
 				continue
 			}
-			logger.Error(err, "failed to update gateway url in status")
+			logger.Error(err, "failed to update gateway status")
 			return err
 		}
-		logger.V(1).Info("updated gateway url in status", "gateway", latest.Name, "url", newURL)
+		logger.V(1).Info("updated gateway status", "gateway", latest.Name, "url", newURL, "mcpServerCount", len(mcpURLs))
 		return nil
 	}
 	return lastErr
+}
+
+// stringSlicesEqual reports whether a and b have identical, in-order contents.
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway *corev1alpha1.Gateway) error {
@@ -438,14 +470,8 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 				Value: fmt.Sprintf("%t", gateway.Spec.MCP.Expose),
 			},
 			corev1.EnvVar{
-				Name: "MCP_SERVERS",
-				Value: strings.Join(func() []string {
-					servers := make([]string, 0, len(gateway.Spec.MCP.Servers))
-					for _, s := range gateway.Spec.MCP.Servers {
-						servers = append(servers, s.URL)
-					}
-					return servers
-				}(), ","),
+				Name:  "MCP_SERVERS",
+				Value: strings.Join(r.assembleMCPServerURLs(ctx, gateway), ","),
 			},
 			corev1.EnvVar{
 				Name: "MCP_CLIENT_TIMEOUT",
@@ -1367,5 +1393,147 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&gwapiv1.HTTPRoute{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
 		Owns(&corev1.ServiceAccount{}).
+		Watches(
+			&corev1alpha1.MCP{},
+			handler.EnqueueRequestsFromMapFunc(r.mcpToGatewayRequests),
+		).
 		Complete(r)
+}
+
+// assembleMCPServerURLs returns the union of static spec.mcp.servers[].url entries
+// and URLs of MCP CRs discovered via spec.mcp.serviceDiscovery, deduped on URL and
+// sorted for determinism. Discovery errors are logged and ignored so a transient
+// API failure does not blank out the static list.
+func (r *GatewayReconciler) assembleMCPServerURLs(ctx context.Context, gateway *corev1alpha1.Gateway) []string {
+	logger := log.FromContext(ctx)
+	seen := map[string]struct{}{}
+	urls := make([]string, 0, len(gateway.Spec.MCP.Servers))
+
+	for _, s := range gateway.Spec.MCP.Servers {
+		if s.URL == "" {
+			continue
+		}
+		if _, ok := seen[s.URL]; ok {
+			continue
+		}
+		seen[s.URL] = struct{}{}
+		urls = append(urls, s.URL)
+	}
+
+	if gateway.Spec.MCP.ServiceDiscovery != nil && gateway.Spec.MCP.ServiceDiscovery.Enabled {
+		discovered, err := r.discoverMCPs(ctx, gateway)
+		if err != nil {
+			logger.Error(err, "failed to discover MCPs; using static MCP_SERVERS only")
+		}
+		for _, mcp := range discovered {
+			url := gatewayMCPURL(&mcp)
+			if url == "" {
+				continue
+			}
+			if _, ok := seen[url]; ok {
+				continue
+			}
+			seen[url] = struct{}{}
+			urls = append(urls, url)
+		}
+	}
+
+	sort.Strings(urls)
+	return urls
+}
+
+// discoverMCPs lists MCP CRs in the configured namespace filtered by the label selector.
+func (r *GatewayReconciler) discoverMCPs(ctx context.Context, gateway *corev1alpha1.Gateway) ([]corev1alpha1.MCP, error) {
+	sd := gateway.Spec.MCP.ServiceDiscovery
+	ns := sd.Namespace
+	if ns == "" {
+		ns = gateway.Namespace
+	}
+
+	listOpts := []client.ListOption{client.InNamespace(ns)}
+
+	if sd.Selector != nil {
+		selector, err := metav1.LabelSelectorAsSelector(sd.Selector)
+		if err != nil {
+			return nil, fmt.Errorf("invalid label selector: %w", err)
+		}
+		listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: selector})
+	}
+
+	var mcpList corev1alpha1.MCPList
+	if err := r.List(ctx, &mcpList, listOpts...); err != nil {
+		return nil, err
+	}
+
+	return mcpList.Items, nil
+}
+
+// gatewayMCPURL returns the URL for an MCP CR. It prefers Status.URL (already TLS-aware,
+// populated by the MCP controller) and falls back to a deterministic construction when
+// status has not been populated yet.
+func gatewayMCPURL(mcp *corev1alpha1.MCP) string {
+	if mcp.Status.URL != "" {
+		return mcp.Status.URL
+	}
+	scheme := "http"
+	var port int32 = 8080
+	if mcp.Spec.Server != nil {
+		if mcp.Spec.Server.Port != 0 {
+			port = mcp.Spec.Server.Port
+		}
+		if mcp.Spec.Server.TLS != nil && mcp.Spec.Server.TLS.Enabled {
+			scheme = "https"
+		}
+	}
+	return fmt.Sprintf("%s://%s-service.%s.svc.cluster.local:%d", scheme, mcp.Name, mcp.Namespace, port)
+}
+
+// mcpToGatewayRequests maps an MCP event to the set of Gateway reconcile requests
+// whose MCP service discovery configuration selects that MCP.
+func (r *GatewayReconciler) mcpToGatewayRequests(ctx context.Context, obj client.Object) []ctrl.Request {
+	mcp, ok := obj.(*corev1alpha1.MCP)
+	if !ok {
+		return nil
+	}
+
+	var gwList corev1alpha1.GatewayList
+	if err := r.List(ctx, &gwList); err != nil {
+		return nil
+	}
+
+	var requests []ctrl.Request
+	for _, gateway := range gwList.Items {
+		if gateway.Spec.MCP == nil || !gateway.Spec.MCP.Enabled {
+			continue
+		}
+		if gateway.Spec.MCP.ServiceDiscovery == nil || !gateway.Spec.MCP.ServiceDiscovery.Enabled {
+			continue
+		}
+
+		ns := gateway.Spec.MCP.ServiceDiscovery.Namespace
+		if ns == "" {
+			ns = gateway.Namespace
+		}
+		if ns != mcp.Namespace {
+			continue
+		}
+
+		if gateway.Spec.MCP.ServiceDiscovery.Selector != nil {
+			selector, err := metav1.LabelSelectorAsSelector(gateway.Spec.MCP.ServiceDiscovery.Selector)
+			if err != nil {
+				continue
+			}
+			if !selector.Matches(labels.Set(mcp.Labels)) {
+				continue
+			}
+		}
+
+		requests = append(requests, ctrl.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      gateway.Name,
+				Namespace: gateway.Namespace,
+			},
+		})
+	}
+	return requests
 }

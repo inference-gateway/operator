@@ -303,9 +303,33 @@ type MCPServersSpec struct {
 	// +optional
 	Timeouts *MCPTimeouts `json:"timeouts,omitempty"`
 
-	// MCP servers configuration
+	// MCP servers configuration. Static entries are unioned with any servers
+	// discovered via ServiceDiscovery when both are configured.
 	// +optional
 	Servers []MCPServer `json:"servers,omitempty"`
+
+	// ServiceDiscovery configures automatic discovery of MCP CRs by label selector.
+	// Discovered MCP URLs are appended to the static Servers list, deduped on URL,
+	// sorted for determinism, and exposed to the gateway pod via the MCP_SERVERS env var.
+	// +optional
+	ServiceDiscovery *MCPServiceDiscoverySpec `json:"serviceDiscovery,omitempty"`
+}
+
+// MCPServiceDiscoverySpec configures automatic discovery of MCP CRs by label selector.
+type MCPServiceDiscoverySpec struct {
+	// Enabled toggles automatic discovery of MCP CRs.
+	Enabled bool `json:"enabled"`
+
+	// Namespace is the namespace to discover MCP CRs in.
+	// Defaults to the Gateway's own namespace when empty.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// Selector filters which MCP CRs are discovered by their labels.
+	// A nil or empty selector matches all MCP CRs in the namespace.
+	// Supports matchLabels and matchExpressions.
+	// +optional
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
 // MCPTimeouts contains timeout configurations for MCP
@@ -523,6 +547,17 @@ type GatewayStatus struct {
 	// ServiceAccountName is the name of the created service account
 	// +optional
 	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+
+	// MCPServers is the sorted list of MCP server URLs (static + discovered)
+	// that the gateway pod is configured with. Mirrors the value of MCP_SERVERS
+	// passed to the container.
+	// +optional
+	MCPServers []string `json:"mcpServers,omitempty"`
+
+	// MCPServerCount is the number of MCP servers (static + discovered) currently
+	// wired into the gateway pod. Not omitempty so the column always renders as
+	// a number (0 when MCP is disabled or no servers configured).
+	MCPServerCount int32 `json:"mcpServerCount"`
 }
 
 // GatewayCondition represents a condition of a Gateway deployment
@@ -553,6 +588,7 @@ type GatewayCondition struct {
 // +kubebuilder:printcolumn:name="URL",type=string,JSONPath=".status.url",description="Kubernetes service DNS address"
 // +kubebuilder:printcolumn:name="Port",type=integer,JSONPath=".spec.server.port",description="Gateway port"
 // +kubebuilder:printcolumn:name="Providers",type=string,JSONPath=".status.providerSummary",description="Configured providers"
+// +kubebuilder:printcolumn:name="MCPS",type=integer,JSONPath=".status.mcpServerCount",description="Number of MCP servers connected (static + discovered)"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

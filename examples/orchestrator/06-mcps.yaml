@@ -1,0 +1,44 @@
+---
+# Two instances of the official Anthropic reference MCP server
+# (`@modelcontextprotocol/server-everything`, published as `mcp/everything`).
+#
+# The image defaults to stdio, but ships an SSE entrypoint at `dist/sse.js`
+# listening on port 3001 — that's what we invoke here. `mcp/everything` is the
+# only official reference image with a built-in HTTP listener; the others
+# (`mcp/time`, `mcp/memory`, `mcp/fetch`, …) are stdio-only and would need a
+# wrapper like `supergateway` to run as Kubernetes Services.
+#
+# The label `mcp-group: group1` tags each MCP into a group; any Orchestrator
+# (or Gateway) whose mcp.serviceDiscovery.selector matches that label will
+# discover it and write it into ~/.infer/mcp.yaml inside the orchestrator pod.
+#
+# In-cluster SSE endpoints per MCP CR:
+#   http://mcp-everything-a-service.mcp.svc.cluster.local:3001/sse
+#   http://mcp-everything-b-service.mcp.svc.cluster.local:3001/sse
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: MCP
+metadata:
+  name: mcp-everything-a
+  namespace: mcp
+  labels:
+    mcp-group: group1
+spec:
+  image: mcp/everything:latest
+  server:
+    port: 3001
+    command: ["node"]
+    args: ["dist/sse.js"]
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: MCP
+metadata:
+  name: mcp-everything-b
+  namespace: mcp
+  labels:
+    mcp-group: group1
+spec:
+  image: mcp/everything:latest
+  server:
+    port: 3001
+    command: ["node"]
+    args: ["dist/sse.js"]

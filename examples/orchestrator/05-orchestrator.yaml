@@ -54,4 +54,17 @@ spec:
       namespace: agents
       selector:
         matchLabels:
-          orchestrator: orchestrator
+          agent-group: group1
+  mcp:
+    enabled: true
+    # Static MCP servers list (kept for parity with a2a.agents).
+    servers: []
+    # serviceDiscovery picks up MCP CRs labeled `mcp-group: group1` in the `mcp`
+    # namespace and writes them into ~/.infer/mcp.yaml inside the orchestrator
+    # pod. The pod is rolled when the discovered set changes.
+    serviceDiscovery:
+      enabled: true
+      namespace: mcp
+      selector:
+        matchLabels:
+          mcp-group: group1

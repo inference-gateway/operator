@@ -140,6 +140,9 @@ spec:
       tlsHandshake: "5s"
       responseHeader: "5s"
       request: "10s"
+    # Static servers are merged (union, deduped by URL) with any MCP CRs discovered
+    # via serviceDiscovery. Static entries are best for externally-hosted MCPs that
+    # don't have a corresponding MCP CR in the cluster.
     servers:
       - name: filesystem-server
         url: "http://mcp-filesystem.mcp.svc.cluster.local:8080"
@@ -153,6 +156,15 @@ spec:
           enabled: true
           path: "/health"
           interval: "30s"
+    # serviceDiscovery picks up MCP CRs labeled `mcp-group: group1` in the `mcp`
+    # namespace. Their URLs are appended to MCP_SERVERS on the gateway pod,
+    # deduped on URL and sorted for determinism.
+    serviceDiscovery:
+      enabled: false
+      namespace: mcp
+      selector:
+        matchLabels:
+          mcp-group: group1
   resources:
     requests:
       cpu: "100m"

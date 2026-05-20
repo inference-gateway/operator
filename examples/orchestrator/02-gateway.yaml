@@ -18,3 +18,14 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: DEEPSEEK_API_KEY
+  mcp:
+    enabled: true
+    # Discover MCP CRs labeled `mcp-group: group1` in the `mcp` namespace.
+    # Their URLs are appended to MCP_SERVERS on the gateway pod and reflected
+    # in status.mcpServers / status.mcpServerCount (the MCPS column).
+    serviceDiscovery:
+      enabled: true
+      namespace: mcp
+      selector:
+        matchLabels:
+          mcp-group: group1
