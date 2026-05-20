@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0](https://github.com/inference-gateway/operator/compare/v0.14.2...v0.15.0) (2026-05-20)
+
+### ✨ Features
+
+* **agent:** Support resource requests/limits on Agent CRD ([#59](https://github.com/inference-gateway/operator/issues/59)) ([fbc9b12](https://github.com/inference-gateway/operator/commit/fbc9b12e955d470cc160eeb2ddd46cad2f664064)), closes [#58](https://github.com/inference-gateway/operator/issues/58)
+
+### ♻️ Improvements
+
+* Remove devcontainer environment ([f03d7f9](https://github.com/inference-gateway/operator/commit/f03d7f947db271d9425f2926086aac7a9c2b7ef2))
+* Remove old copilot-instructions.md file ([9c9c28e](https://github.com/inference-gateway/operator/commit/9c9c28e60b3eabe8c6feea78424a0fe66a5627fc))
+
+### 👷 CI
+
+* **dependabot:** Add dependabot to help with dependecies upgrades ([6a714ab](https://github.com/inference-gateway/operator/commit/6a714ab6ce39af29875ac060c50b521ed92b6917))
+* **deps:** Bump the github-actions group with 3 updates ([#55](https://github.com/inference-gateway/operator/issues/55)) ([7f3f8f1](https://github.com/inference-gateway/operator/commit/7f3f8f160572b523da3d0cd63a936a34b7460978))
+* **deps:** Update workflow actions to use official GitHub actions for task and golangci-lint installation ([239816c](https://github.com/inference-gateway/operator/commit/239816c44c02314c10079da916d10aa3cb7d7121))
+* Enable display report for Claude Code action ([88448df](https://github.com/inference-gateway/operator/commit/88448df867688e7eb4319136fb973f789bfef14f))
+
+### 🔧 Miscellaneous
+
+* Add CODEOWNERS ([636f738](https://github.com/inference-gateway/operator/commit/636f7389ac9a1225833fc9f6c7bf2198f698c12a))
+* Add flox lock file ([1928cab](https://github.com/inference-gateway/operator/commit/1928cab3b66c90f2802d4bdc2622587cd95fa750))
+* **deps:** Bump dev dependecies to latest ([26dcd23](https://github.com/inference-gateway/operator/commit/26dcd23f9231314ca15d2e8c46524dd17d586be0))
+* **deps:** Bump golang to version 1.26.2 ([8a64a4f](https://github.com/inference-gateway/operator/commit/8a64a4f715f54f0950639f7f3336695d6201e91c))
+* **dev-deps:** Add infer to flox environment ([05ca18a](https://github.com/inference-gateway/operator/commit/05ca18a676350af2faf594abcc880ce0d4b5808e))
+* Fix TASK_VERSION format in CI workflow ([4dfd466](https://github.com/inference-gateway/operator/commit/4dfd4661433e7a1fc2c1d6c2393e7a380fce4529))
+* Remove outdated issue templates for bug reports, feature requests, and refactor requests ([dcab50a](https://github.com/inference-gateway/operator/commit/dcab50a54a96c9d19deb150dca7a484d5681e745))
+
+### 🔨 Miscellaneous
+
+* **deps:** Bump anthropics/claude-code-action ([#57](https://github.com/inference-gateway/operator/issues/57)) ([08c0aa0](https://github.com/inference-gateway/operator/commit/08c0aa04bd4ef9a22df9c1dbf4b35dee2ae8ee01))
+* **deps:** Bump the gomod group with 2 updates ([#56](https://github.com/inference-gateway/operator/issues/56)) ([2ca47a2](https://github.com/inference-gateway/operator/commit/2ca47a23f21922f1fca93caf9a183c41043f41a8))
+* **deps:** Bump the gomod group with 6 updates ([#54](https://github.com/inference-gateway/operator/issues/54)) ([5b76864](https://github.com/inference-gateway/operator/commit/5b76864dc8dfc777c5ea42be477e0ce444fe4a03))
+
 ## [0.14.2](https://github.com/inference-gateway/operator/compare/v0.14.1...v0.14.2) (2026-05-07)
 
 ### 🐛 Bug Fixes

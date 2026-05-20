@@ -20,6 +20,7 @@ vars:
   GATEWAY_API_VERSION: v1.2.1
   ENVOY_GATEWAY_VERSION: v1.2.0
   GOLANGCI_LINT_VERSION: v2.11.4
+  CERT_MANAGER_VERSION: v1.20.2
   KUBECTL: kubectl
   KUSTOMIZE: kustomize
   CONTROLLER_GEN: "{{.ROOT_DIR}}/bin/controller-gen"
@@ -39,7 +40,6 @@ tasks:
     cmds:
       - task --list
 
-  # Development tasks
   precommit:activate:
     desc: Activate pre-commit hooks
     cmds:
@@ -52,7 +52,8 @@ tasks:
 
   manifests:
     desc: Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects and installation manifests
-    deps: [ensure-controller-gen]
+    deps:
+      - ensure-controller-gen
     cmds:
       - '{{.CONTROLLER_GEN}} rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases'
       - "prettier --write config/**/*.yaml"
@@ -62,7 +63,8 @@ tasks:
 
   generate:
     desc: Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations
-    deps: [ensure-controller-gen]
+    deps:
+      - ensure-controller-gen
     cmds:
       - '{{.CONTROLLER_GEN}} object:headerFile="hack/boilerplate.go.txt" paths="./..."'
 
@@ -118,7 +120,6 @@ tasks:
           kubectl -n cert-manager wait --for=condition=Available --timeout=60s deployment/cert-manager-cainjector
           task cert-manager:clusterissuer
         fi
-      - task: gateway-api:install
       - task: envoy-gateway:install
       - kubectl -n envoy-gateway-system wait --for=condition=Available --timeout=120s deployment/envoy-gateway
 
@@ -131,7 +132,7 @@ tasks:
         helm upgrade --install cert-manager jetstack/cert-manager \
           --create-namespace \
           --namespace cert-manager \
-          --version 1.18.1 \
+          --version {{.CERT_MANAGER_VERSION}} \
           --set crds.enabled=true
 
   cert-manager:clusterissuer:
@@ -154,7 +155,8 @@ tasks:
 
   envoy-gateway:install:
     desc: Install Envoy Gateway and a default `envoy` GatewayClass
-    deps: [gateway-api:install]
+    deps:
+      - gateway-api:install
     cmds:
       - |
         helm upgrade --install envoy-gateway \
@@ -173,17 +175,10 @@ tasks:
           controllerName: gateway.envoyproxy.io/gatewayclass-controller
         EOF
 
-  fetch-gateway-api-crds:
-    desc: Download Gateway API standard CRDs locally for envtest (CRDs live under test/crds/gateway-api)
-    cmds:
-      - mkdir -p test/crds/gateway-api
-      - curl -sSL -o test/crds/gateway-api/standard-install.yaml https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
-    status:
-      - test -f test/crds/gateway-api/standard-install.yaml
-
   test:
     desc: Run tests
-    deps: [ensure-k8s-envtest, fetch-gateway-api-crds]
+    deps:
+      - ensure-k8s-envtest
     cmds:
       - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path)" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
 
@@ -247,16 +242,23 @@ tasks:
     cmds:
       - "{{.GOLANGCI_LINT}} config verify"
 
-  # Build tasks
   build:
     desc: Build manager binary
-    deps: [manifests, generate, fmt, vet]
+    deps:
+      - manifests
+      - generate
+      - fmt
+      - vet
     cmds:
       - go build -o bin/manager cmd/main.go
 
   run:
     desc: Run a controller from your host
-    deps: [manifests, generate, fmt, vet]
+    deps:
+      - manifests
+      - generate
+      - fmt
+      - vet
     cmds:
       - go run ./cmd/main.go
 
@@ -265,7 +267,6 @@ tasks:
     cmds:
       - "{{.CONTAINER_TOOL}} build -t {{.IMG}} ."
 
-  # Deployment tasks
   install:
     desc: Install CRDs into the K8s cluster specified in ~/.kube/config
     cmds:
@@ -278,7 +279,8 @@ tasks:
 
   deploy:
     desc: Deploy controller to the K8s cluster specified in ~/.kube/config
-    deps: [docker-build]
+    deps:
+      - docker-build
     cmds:
       - k3d image import {{.IMG}} -c dev
       - "{{.KUSTOMIZE}} build config/environments/dev | {{.KUBECTL}} apply -f -"
@@ -288,7 +290,6 @@ tasks:
     cmds:
       - "{{.KUSTOMIZE}} build config/environments/dev | {{.KUBECTL}} delete --ignore-not-found={{.IGNORE_NOT_FOUND}} -f -"
 
-  # Dependency installation tasks
   ensure-bin-dir:
     desc: Create bin directory if it doesn't exist (for manager binary)
     cmds:
@@ -298,7 +299,8 @@ tasks:
 
   ensure-controller-gen:
     desc: Install controller-gen into ./bin if missing
-    deps: [ensure-bin-dir]
+    deps:
+      - ensure-bin-dir
     cmds:
       - GOBIN={{.LOCALBIN}} go install sigs.k8s.io/controller-tools/cmd/controller-gen@{{.CONTROLLER_TOOLS_VERSION}}
     status:
@@ -307,7 +309,8 @@ tasks:
 
   ensure-setup-envtest:
     desc: Install setup-envtest into ./bin if missing
-    deps: [ensure-bin-dir]
+    deps:
+      - ensure-bin-dir
     cmds:
       - GOBIN={{.LOCALBIN}} go install sigs.k8s.io/controller-runtime/tools/setup-envtest@{{.ENVTEST_VERSION}}
     status:
@@ -315,7 +318,8 @@ tasks:
 
   ensure-k8s-envtest:
     desc: Ensure Kubernetes test binaries are available
-    deps: [ensure-setup-envtest]
+    deps:
+      - ensure-setup-envtest
     cmds:
       - |
         echo "Setting up envtest binaries for Kubernetes version {{.ENVTEST_K8S_VERSION}}..."
@@ -324,7 +328,6 @@ tasks:
           exit 1
         }
 
-  # Release tasks
   release-dry-run:
     desc: "Run a dry-run of both semantic-release and goreleaser"
     cmds:
@@ -336,8 +339,10 @@ tasks:
   manifests-for-namespace:
     desc: "Generate manifests for a custom namespace (usage: task manifests-for-namespace NAMESPACE=my-namespace)"
     requires:
-      vars: [NAMESPACE]
-    deps: [manifests]
+      vars:
+        - NAMESPACE
+    deps:
+      - manifests
     cmds:
       - echo "Generating manifests for namespace {{.NAMESPACE}}"
       - mkdir -p manifests/{{.NAMESPACE}}
