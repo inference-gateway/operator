@@ -1,6 +1,6 @@
 module github.com/inference-gateway/operator
 
-go 1.26.1
+go 1.26.2
 
 godebug default=go1.26
 
