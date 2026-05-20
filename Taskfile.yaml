@@ -156,13 +156,12 @@ tasks:
     desc: Install Envoy Gateway and a default `envoy` GatewayClass
     deps: [gateway-api:install]
     cmds:
-      - helm repo add eg https://eg-helm.envoyproxy.io
-      - helm repo update
       - |
-        helm upgrade --install envoy-gateway eg/gateway-helm \
+        helm upgrade --install envoy-gateway \
+          oci://docker.io/envoyproxy/gateway-helm \
+          --version {{.ENVOY_GATEWAY_VERSION}} \
           --namespace envoy-gateway-system \
-          --create-namespace \
-          --version {{.ENVOY_GATEWAY_VERSION}}
+          --create-namespace
       - kubectl -n envoy-gateway-system wait --for=condition=Available --timeout=120s deployment/envoy-gateway
       - |
         kubectl apply -f - <<'EOF'
