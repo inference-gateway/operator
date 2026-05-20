@@ -22,14 +22,17 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: OPENAI_API_KEY
-  ingress:
+  routing:
     enabled: true
-    host: "api.inference-gateway.local"
+    gateway:
+      gatewayClassName: envoy
+    httpRoute:
+      hostnames:
+        - "api.inference-gateway.local"
     # Defaults applied automatically by the operator:
-    #   className: "nginx"   (auto-detected from the cluster)
-    #   path: "/"  pathType: "Prefix"
-    #   TLS enabled with auto-generated secret name
-    #   cert-manager issuer: selfsigned-issuer (development) / letsencrypt-prod (production)
+    #   Default rule: PathPrefix "/" -> the gateway Service
+    #   In default mode, the operator also creates a gateway.networking.k8s.io/v1.Gateway
+    #   with a single HTTP/80 listener matched to the hostname above.
   resources:
     requests:
       cpu: "100m"

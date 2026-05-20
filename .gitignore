@@ -20,6 +20,9 @@ go.work
 # Kubernetes Generated files - skip generated files, except for vendored files
 !vendor/**/zz_generated.*
 
+# Gateway API CRDs fetched on-demand for envtest by `task fetch-gateway-api-crds`
+test/crds/gateway-api/
+
 # editor and IDE paraphernalia
 .idea
 .vscode

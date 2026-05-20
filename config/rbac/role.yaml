@@ -87,9 +87,10 @@ rules:
       - patch
       - update
   - apiGroups:
-      - networking.k8s.io
+      - gateway.networking.k8s.io
     resources:
-      - ingresses
+      - gateways
+      - httproutes
     verbs:
       - create
       - delete
@@ -98,3 +99,10 @@ rules:
       - patch
       - update
       - watch
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gateways/status
+      - httproutes/status
+    verbs:
+      - get

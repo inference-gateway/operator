@@ -1,0 +1,86 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+# Default-mode example: the operator creates and owns both the upstream Gateway
+# and the HTTPRoute. TLS is terminated at the Gateway listener (Gateway API
+# terminates TLS at the listener, not the route).
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway-advanced
+  namespace: inference-gateway
+spec:
+  environment: production
+  image: "ghcr.io/inference-gateway/inference-gateway:latest"
+  providers:
+    - name: OpenAI
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: OPENAI_API_KEY
+  routing:
+    enabled: true
+    gateway:
+      gatewayClassName: envoy
+      tls:
+        enabled: true
+        issuer: "letsencrypt-prod"
+        # secretName auto-generates to "<gateway-name>-tls" if omitted
+    httpRoute:
+      hostnames:
+        - "api.inference-gateway.local"
+        - "gateway.example.com"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "1000m"
+      memory: "512Mi"
+---
+# Advanced-mode example: a platform team owns a shared upstream Gateway and the
+# operator only creates the HTTPRoute attached to it via parentRefs. This is the
+# Gateway API "infrastructure provider vs. application developer" split.
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway-shared
+  namespace: inference-gateway
+spec:
+  environment: production
+  image: "ghcr.io/inference-gateway/inference-gateway:latest"
+  providers:
+    - name: OpenAI
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: OPENAI_API_KEY
+  routing:
+    enabled: true
+    gateway:
+      # ParentRefs being set switches the operator into advanced mode:
+      # it will NOT create a Gateway, only the HTTPRoute pointing at this one.
+      parentRefs:
+        - name: shared-platform-gateway
+          namespace: platform-system
+    httpRoute:
+      hostnames:
+        - "shared.example.com"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inference-gateway-providers-secret
+  namespace: inference-gateway
+type: Opaque
+stringData:
+  OPENAI_API_KEY: ""

@@ -34,7 +34,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	errors "k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,6 +45,7 @@ import (
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	log "sigs.k8s.io/controller-runtime/pkg/log"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
@@ -56,7 +56,10 @@ import (
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways/status,verbs=get
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/status,verbs=get
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
@@ -105,9 +108,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	err = r.reconcileIngress(ctx, gateway)
+	err = r.reconcileRouting(ctx, gateway)
 	if err != nil {
-		logger.Error(err, "Failed to reconcile Ingress")
+		logger.Error(err, "Failed to reconcile routing")
 		return ctrl.Result{}, err
 	}
 
@@ -147,20 +150,20 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 	}
 
 	getHostAndScheme := func(gw *corev1alpha1.Gateway) (string, string) {
-		ingressSpec := gw.Spec.Ingress
+		routing := gw.Spec.Routing
 		var host, scheme string
 
-		if ingressSpec != nil && ingressSpec.Enabled {
-			ingress := &networkingv1.Ingress{}
-			err := r.Get(ctx, types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}, ingress)
-			if err != nil || len(ingress.Spec.Rules) == 0 {
-				logger.V(1).Info("ingress not found or has no rules, falling back to service fqdn", "gateway", gw.Name)
+		if routing != nil && routing.Enabled {
+			httpRoute := &gwapiv1.HTTPRoute{}
+			err := r.Get(ctx, types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}, httpRoute)
+			if err != nil || len(httpRoute.Spec.Hostnames) == 0 {
+				logger.V(1).Info("HTTPRoute not found or has no hostnames, falling back to service fqdn", "gateway", gw.Name)
 				host = fmt.Sprintf("%s.%s.svc.cluster.local", gw.Name, gw.Namespace)
 			} else {
-				host = ingress.Spec.Rules[0].Host
+				host = string(httpRoute.Spec.Hostnames[0])
 			}
 			switch {
-			case ingressSpec.TLS != nil && ingressSpec.TLS.Enabled:
+			case tlsEnabled(gw):
 				scheme = "https"
 			default:
 				scheme = "http"
@@ -730,266 +733,312 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 	return nil
 }
 
-// reconcileIngress ensures the Ingress exists with the correct configuration
-func (r *GatewayReconciler) reconcileIngress(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+// reconcileRouting orchestrates creation and deletion of the upstream
+// Gateway and HTTPRoute resources implementing north-south routing.
+// gateway here is the project CR; gw* helpers below construct upstream
+// gateway.networking.k8s.io types.
+func (r *GatewayReconciler) reconcileRouting(ctx context.Context, gateway *corev1alpha1.Gateway) error {
 	logger := log.FromContext(ctx)
-	logger.V(1).Info("Reconciling Ingress", "Gateway.Name", gateway.Name, "Gateway.Namespace", gateway.Namespace)
+	logger.V(1).Info("Reconciling routing", "Gateway.Name", gateway.Name, "Gateway.Namespace", gateway.Namespace)
 
-	if gateway.Spec.Ingress == nil || !gateway.Spec.Ingress.Enabled {
-		ingress := &networkingv1.Ingress{}
-		err := r.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}, ingress)
-		if err == nil {
-			logger.Info("Deleting Ingress (ingress disabled)", "Ingress.Name", ingress.Name)
-			return r.Delete(ctx, ingress)
-		} else if !errors.IsNotFound(err) {
-			return err
-		}
-		return nil
+	if gateway.Spec.Routing == nil || !gateway.Spec.Routing.Enabled {
+		return r.deleteOwnedRouting(ctx, gateway)
 	}
 
-	ingress := r.buildIngress(gateway)
-	if err := controllerutil.SetControllerReference(gateway, ingress, r.Scheme); err != nil {
+	if err := r.reconcileUpstreamGateway(ctx, gateway); err != nil {
 		return err
 	}
 
-	found := &networkingv1.Ingress{}
-	err := r.Get(ctx, types.NamespacedName{Name: ingress.Name, Namespace: ingress.Namespace}, found)
+	return r.reconcileHTTPRoute(ctx, gateway)
+}
 
-	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating Ingress", "Ingress.Name", ingress.Name)
-		if err = r.Create(ctx, ingress); err != nil {
-			return err
+// deleteOwnedRouting removes any operator-owned Gateway/HTTPRoute when
+// routing is disabled or the CR is being torn down.
+func (r *GatewayReconciler) deleteOwnedRouting(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+	logger := log.FromContext(ctx)
+	key := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
+
+	httpRoute := &gwapiv1.HTTPRoute{}
+	err := r.Get(ctx, key, httpRoute)
+	switch {
+	case err == nil:
+		logger.Info("Deleting HTTPRoute (routing disabled)", "HTTPRoute.Name", httpRoute.Name)
+		if delErr := r.Delete(ctx, httpRoute); delErr != nil && !errors.IsNotFound(delErr) {
+			return delErr
 		}
-	} else if err != nil {
+	case !errors.IsNotFound(err):
 		return err
-	} else {
-		if !reflect.DeepEqual(found.Spec, ingress.Spec) || !reflect.DeepEqual(found.Annotations, ingress.Annotations) {
-			found.Spec = ingress.Spec
-			found.Annotations = ingress.Annotations
-			logger.Info("Updating Ingress", "Ingress.Name", ingress.Name)
-			if err = r.Update(ctx, found); err != nil {
-				return err
-			}
+	}
+
+	gw := &gwapiv1.Gateway{}
+	err = r.Get(ctx, key, gw)
+	switch {
+	case err == nil:
+		logger.Info("Deleting Gateway (routing disabled)", "Gateway.Name", gw.Name)
+		if delErr := r.Delete(ctx, gw); delErr != nil && !errors.IsNotFound(delErr) {
+			return delErr
 		}
+	case !errors.IsNotFound(err):
+		return err
 	}
 
 	return nil
 }
 
-// buildIngress creates an Ingress resource based on Gateway spec
-func (r *GatewayReconciler) buildIngress(gateway *corev1alpha1.Gateway) *networkingv1.Ingress {
-	ingressSpec := gateway.Spec.Ingress
+// reconcileUpstreamGateway creates or updates the operator-owned
+// upstream Gateway. Skipped in advanced mode (when ParentRefs is set).
+func (r *GatewayReconciler) reconcileUpstreamGateway(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+	logger := log.FromContext(ctx)
 
-	var servicePort int32
-	if gateway.Spec.Service != nil && gateway.Spec.Service.Port > 0 {
-		servicePort = gateway.Spec.Service.Port
-	} else if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
-		servicePort = gateway.Spec.Server.Port
-	} else if (gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled) ||
-		(ingressSpec != nil && ingressSpec.TLS != nil && ingressSpec.TLS.Enabled) {
-		servicePort = 8443
-	} else {
-		servicePort = 8080
+	if isAdvancedRoutingMode(gateway) {
+		gw := &gwapiv1.Gateway{}
+		err := r.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}, gw)
+		switch {
+		case err == nil:
+			logger.Info("Deleting operator-owned Gateway (advanced mode uses parentRefs)", "Gateway.Name", gw.Name)
+			if delErr := r.Delete(ctx, gw); delErr != nil && !errors.IsNotFound(delErr) {
+				return delErr
+			}
+		case !errors.IsNotFound(err):
+			return err
+		}
+		return nil
 	}
 
-	ingress := &networkingv1.Ingress{
+	desired := r.buildUpstreamGateway(gateway)
+	if err := controllerutil.SetControllerReference(gateway, desired, r.Scheme); err != nil {
+		return err
+	}
+
+	found := &gwapiv1.Gateway{}
+	err := r.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, found)
+	switch {
+	case errors.IsNotFound(err):
+		logger.Info("Creating Gateway", "Gateway.Name", desired.Name)
+		return r.Create(ctx, desired)
+	case err != nil:
+		return err
+	}
+
+	if !reflect.DeepEqual(found.Spec, desired.Spec) || !reflect.DeepEqual(found.Annotations, desired.Annotations) {
+		found.Spec = desired.Spec
+		found.Annotations = desired.Annotations
+		logger.Info("Updating Gateway", "Gateway.Name", desired.Name)
+		return r.Update(ctx, found)
+	}
+
+	return nil
+}
+
+// reconcileHTTPRoute creates or updates the operator-owned HTTPRoute.
+func (r *GatewayReconciler) reconcileHTTPRoute(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+	logger := log.FromContext(ctx)
+
+	desired := r.buildHTTPRoute(gateway)
+	if err := controllerutil.SetControllerReference(gateway, desired, r.Scheme); err != nil {
+		return err
+	}
+
+	found := &gwapiv1.HTTPRoute{}
+	err := r.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, found)
+	switch {
+	case errors.IsNotFound(err):
+		logger.Info("Creating HTTPRoute", "HTTPRoute.Name", desired.Name)
+		return r.Create(ctx, desired)
+	case err != nil:
+		return err
+	}
+
+	if !reflect.DeepEqual(found.Spec, desired.Spec) {
+		found.Spec = desired.Spec
+		logger.Info("Updating HTTPRoute", "HTTPRoute.Name", desired.Name)
+		return r.Update(ctx, found)
+	}
+
+	return nil
+}
+
+// buildUpstreamGateway constructs the gateway.networking.k8s.io Gateway
+// resource the operator owns in default mode.
+func (r *GatewayReconciler) buildUpstreamGateway(gateway *corev1alpha1.Gateway) *gwapiv1.Gateway {
+	routing := gateway.Spec.Routing
+	gwSpec := routing.Gateway
+
+	className := gwapiv1.ObjectName("envoy")
+	if gwSpec != nil && gwSpec.GatewayClassName != "" {
+		className = gwapiv1.ObjectName(gwSpec.GatewayClassName)
+	}
+
+	listeners := []gwapiv1.Listener{buildDefaultListener(gateway)}
+
+	annotations := map[string]string{}
+	if gwSpec != nil && gwSpec.TLS != nil && gwSpec.TLS.Issuer != "" {
+		annotations["cert-manager.io/cluster-issuer"] = gwSpec.TLS.Issuer
+	}
+
+	return &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gateway.Name,
 			Namespace: gateway.Namespace,
 			Labels: map[string]string{
 				"app": gateway.Name,
 			},
-			Annotations: r.buildIngressAnnotations(gateway),
+			Annotations: annotations,
 		},
-		Spec: networkingv1.IngressSpec{
-			IngressClassName: r.getIngressClassName(ingressSpec),
-			Rules:            r.buildIngressRules(gateway, servicePort),
-			TLS:              r.buildIngressTLS(gateway),
+		Spec: gwapiv1.GatewaySpec{
+			GatewayClassName: className,
+			Listeners:        listeners,
 		},
 	}
-
-	return ingress
 }
 
-// buildIngressAnnotations builds annotations for the ingress
-func (r *GatewayReconciler) buildIngressAnnotations(gateway *corev1alpha1.Gateway) map[string]string {
-	annotations := make(map[string]string)
-	ingressSpec := gateway.Spec.Ingress
+// buildDefaultListener synthesizes the default listener (HTTP/80 or
+// HTTPS/443 depending on TLS.Enabled) from RoutingHTTPRouteSpec.Hostnames.
+func buildDefaultListener(gateway *corev1alpha1.Gateway) gwapiv1.Listener {
+	tls := tlsSpec(gateway)
+	httpRoute := gateway.Spec.Routing.HTTPRoute
 
-	if ingressSpec.Annotations != nil {
-		for k, v := range ingressSpec.Annotations {
-			annotations[k] = v
+	var hostname *gwapiv1.Hostname
+	if httpRoute != nil && len(httpRoute.Hostnames) > 0 {
+		h := httpRoute.Hostnames[0]
+		hostname = &h
+	}
+
+	if tls != nil && tls.Enabled {
+		secretName := gwapiv1.ObjectName(tlsSecretName(gateway))
+		return gwapiv1.Listener{
+			Name:     "https",
+			Protocol: gwapiv1.HTTPSProtocolType,
+			Port:     gwapiv1.PortNumber(443),
+			Hostname: hostname,
+			TLS: &gwapiv1.GatewayTLSConfig{
+				CertificateRefs: []gwapiv1.SecretObjectReference{
+					{Name: secretName},
+				},
+			},
 		}
 	}
 
-	if ingressSpec.TLS != nil && ingressSpec.TLS.Issuer != "" {
-		annotations["cert-manager.io/cluster-issuer"] = ingressSpec.TLS.Issuer
+	return gwapiv1.Listener{
+		Name:     "http",
+		Protocol: gwapiv1.HTTPProtocolType,
+		Port:     gwapiv1.PortNumber(80),
+		Hostname: hostname,
 	}
-
-	className := r.getIngressClassName(ingressSpec)
-	if className != nil && *className != "nginx" {
-		return annotations
-	}
-
-	// Currently supporting only NGINX Ingress Controller, to be extended later
-	if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && !gateway.Spec.Server.TLS.Enabled {
-		if _, exists := annotations["nginx.ingress.kubernetes.io/ssl-redirect"]; !exists {
-			annotations["nginx.ingress.kubernetes.io/ssl-redirect"] = "true"
-		}
-		if _, exists := annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"]; !exists {
-			annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = "true"
-		}
-		if _, exists := annotations["nginx.ingress.kubernetes.io/backend-protocol"]; !exists {
-			annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTP"
-		}
-	} else if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
-		if _, exists := annotations["nginx.ingress.kubernetes.io/backend-protocol"]; !exists {
-			annotations["nginx.ingress.kubernetes.io/backend-protocol"] = "HTTPS"
-		}
-	}
-
-	return annotations
 }
 
-// getIngressClassName returns the ingress class name
-func (r *GatewayReconciler) getIngressClassName(ingressSpec *corev1alpha1.IngressSpec) *string {
-	if ingressSpec.ClassName != "" {
-		return &ingressSpec.ClassName
+// buildHTTPRoute constructs the operator-owned HTTPRoute. ParentRefs come
+// from Routing.Gateway.ParentRefs (advanced) or default to the
+// operator-managed Gateway in the same namespace.
+func (r *GatewayReconciler) buildHTTPRoute(gateway *corev1alpha1.Gateway) *gwapiv1.HTTPRoute {
+	routing := gateway.Spec.Routing
+	httpRouteSpec := routing.HTTPRoute
+
+	parentRefs := defaultParentRefs(gateway)
+	if isAdvancedRoutingMode(gateway) {
+		parentRefs = routing.Gateway.ParentRefs
 	}
 
-	defaultClass := "nginx"
-	return &defaultClass
+	rules := defaultHTTPRouteRules(gateway)
+
+	var hostnames []gwapiv1.Hostname
+	if httpRouteSpec != nil {
+		hostnames = httpRouteSpec.Hostnames
+	}
+
+	return &gwapiv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gateway.Name,
+			Namespace: gateway.Namespace,
+			Labels: map[string]string{
+				"app": gateway.Name,
+			},
+		},
+		Spec: gwapiv1.HTTPRouteSpec{
+			CommonRouteSpec: gwapiv1.CommonRouteSpec{
+				ParentRefs: parentRefs,
+			},
+			Hostnames: hostnames,
+			Rules:     rules,
+		},
+	}
 }
 
-// buildIngressRules builds the ingress rules
-func (r *GatewayReconciler) buildIngressRules(gateway *corev1alpha1.Gateway, servicePort int32) []networkingv1.IngressRule {
-	ingressSpec := gateway.Spec.Ingress
-	var rules []networkingv1.IngressRule
+func defaultParentRefs(gateway *corev1alpha1.Gateway) []gwapiv1.ParentReference {
+	return []gwapiv1.ParentReference{
+		{Name: gwapiv1.ObjectName(gateway.Name)},
+	}
+}
 
-	if ingressSpec.Host != "" {
-		rule := networkingv1.IngressRule{
-			Host: ingressSpec.Host,
-			IngressRuleValue: networkingv1.IngressRuleValue{
-				HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: []networkingv1.HTTPIngressPath{
-						{
-							Path:     "/",
-							PathType: (*networkingv1.PathType)(stringPtr("Prefix")),
-							Backend: networkingv1.IngressBackend{
-								Service: &networkingv1.IngressServiceBackend{
-									Name: gateway.Name,
-									Port: networkingv1.ServiceBackendPort{
-										Number: servicePort,
-									},
-								},
-							},
+func defaultHTTPRouteRules(gateway *corev1alpha1.Gateway) []gwapiv1.HTTPRouteRule {
+	pathPrefix := gwapiv1.PathMatchPathPrefix
+	rootPath := "/"
+	port := gwapiv1.PortNumber(gatewayServicePort(gateway))
+
+	return []gwapiv1.HTTPRouteRule{
+		{
+			Matches: []gwapiv1.HTTPRouteMatch{
+				{
+					Path: &gwapiv1.HTTPPathMatch{
+						Type:  &pathPrefix,
+						Value: &rootPath,
+					},
+				},
+			},
+			BackendRefs: []gwapiv1.HTTPBackendRef{
+				{
+					BackendRef: gwapiv1.BackendRef{
+						BackendObjectReference: gwapiv1.BackendObjectReference{
+							Name: gwapiv1.ObjectName(gateway.Name),
+							Port: &port,
 						},
 					},
 				},
 			},
-		}
-		rules = append(rules, rule)
-	} else if len(ingressSpec.Hosts) > 0 {
-		for _, host := range ingressSpec.Hosts {
-			paths := host.Paths
-			if len(paths) == 0 {
-				paths = []corev1alpha1.IngressPath{
-					{
-						Path:     "/",
-						PathType: "Prefix",
-					},
-				}
-			}
-
-			var httpPaths []networkingv1.HTTPIngressPath
-			for _, path := range paths {
-				pathType := path.PathType
-				if pathType == "" {
-					pathType = "Prefix"
-				}
-				httpPaths = append(httpPaths, networkingv1.HTTPIngressPath{
-					Path:     path.Path,
-					PathType: (*networkingv1.PathType)(&pathType),
-					Backend: networkingv1.IngressBackend{
-						Service: &networkingv1.IngressServiceBackend{
-							Name: gateway.Name,
-							Port: networkingv1.ServiceBackendPort{
-								Number: servicePort,
-							},
-						},
-					},
-				})
-			}
-
-			rule := networkingv1.IngressRule{
-				Host: host.Host,
-				IngressRuleValue: networkingv1.IngressRuleValue{
-					HTTP: &networkingv1.HTTPIngressRuleValue{
-						Paths: httpPaths,
-					},
-				},
-			}
-			rules = append(rules, rule)
-		}
+		},
 	}
-
-	return rules
 }
 
-// buildIngressTLS builds the TLS configuration for ingress
-func (r *GatewayReconciler) buildIngressTLS(gateway *corev1alpha1.Gateway) []networkingv1.IngressTLS {
-	ingressSpec := gateway.Spec.Ingress
-	tlsConfigs := make([]networkingv1.IngressTLS, 0, 1)
-
-	if ingressSpec.TLS == nil {
-		return tlsConfigs
+// gatewayServicePort returns the port the upstream HTTPRoute backend
+// targets on the gateway Service.
+func gatewayServicePort(gateway *corev1alpha1.Gateway) int32 {
+	switch {
+	case gateway.Spec.Service != nil && gateway.Spec.Service.Port > 0:
+		return gateway.Spec.Service.Port
+	case gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0:
+		return gateway.Spec.Server.Port
+	case (gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled) ||
+		tlsEnabled(gateway):
+		return 8443
+	default:
+		return 8080
 	}
-
-	if ingressSpec.TLS.Enabled {
-		secretName := ingressSpec.TLS.SecretName
-		if secretName == "" {
-			host := ingressSpec.Host
-			if host == "" && len(ingressSpec.Hosts) > 0 {
-				host = ingressSpec.Hosts[0].Host
-			}
-			if host != "" {
-				secretName = fmt.Sprintf("%s-tls", gateway.Name)
-			}
-		}
-
-		if secretName != "" {
-			var hosts []string
-			if ingressSpec.Host != "" {
-				hosts = append(hosts, ingressSpec.Host)
-			} else {
-				for _, host := range ingressSpec.Hosts {
-					hosts = append(hosts, host.Host)
-				}
-			}
-
-			if len(hosts) > 0 {
-				tlsConfig := networkingv1.IngressTLS{
-					SecretName: secretName,
-					Hosts:      hosts,
-				}
-				tlsConfigs = append(tlsConfigs, tlsConfig)
-			}
-		}
-	}
-
-	for _, tlsConfig := range ingressSpec.TLS.Config {
-		tlsConfigs = append(tlsConfigs, networkingv1.IngressTLS{
-			SecretName: tlsConfig.SecretName,
-			Hosts:      tlsConfig.Hosts,
-		})
-	}
-
-	return tlsConfigs
 }
 
-// stringPtr returns a pointer to the given string
-func stringPtr(s string) *string {
-	return &s
+func tlsSpec(gateway *corev1alpha1.Gateway) *corev1alpha1.RoutingTLSSpec {
+	if gateway.Spec.Routing == nil || gateway.Spec.Routing.Gateway == nil {
+		return nil
+	}
+	return gateway.Spec.Routing.Gateway.TLS
+}
+
+func tlsEnabled(gateway *corev1alpha1.Gateway) bool {
+	t := tlsSpec(gateway)
+	return t != nil && t.Enabled
+}
+
+func tlsSecretName(gateway *corev1alpha1.Gateway) string {
+	t := tlsSpec(gateway)
+	if t != nil && t.SecretName != "" {
+		return t.SecretName
+	}
+	return fmt.Sprintf("%s-tls", gateway.Name)
+}
+
+func isAdvancedRoutingMode(gateway *corev1alpha1.Gateway) bool {
+	return gateway.Spec.Routing != nil &&
+		gateway.Spec.Routing.Gateway != nil &&
+		len(gateway.Spec.Routing.Gateway.ParentRefs) > 0
 }
 
 // shouldWatchNamespace checks if the operator should watch resources in the given namespace
@@ -1314,7 +1363,8 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&corev1alpha1.Gateway{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
-		Owns(&networkingv1.Ingress{}).
+		Owns(&gwapiv1.Gateway{}).
+		Owns(&gwapiv1.HTTPRoute{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
 		Owns(&corev1.ServiceAccount{}).
 		Complete(r)

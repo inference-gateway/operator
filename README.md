@@ -36,7 +36,7 @@ This Kubernetes operator extends the Kubernetes API to create, configure and man
 - **Model Context Protocol (MCP)**: Integration with MCP servers for extended AI capabilities
 - **Agent-to-Agent (A2A)**: Support for distributed agent communication and orchestration
 - **Observability**: Built-in metrics, tracing, and health monitoring
-- **Network Configuration**: Service and Ingress management with TLS support
+- **Network Configuration**: Service and Gateway API routing (Gateway + HTTPRoute) with listener-level TLS
 
 The operator follows cloud-native best practices and provides a unified control plane for managing both the gateway infrastructure and its associated AI workloads.
 
@@ -143,8 +143,8 @@ Support for multiple AI/ML providers with flexible configuration:
 ### Networking
 
 - **Service**: Kubernetes Service configuration (ClusterIP, NodePort, LoadBalancer)
-- **Ingress**: HTTP(S) ingress with TLS support and custom annotations
-- **TLS**: Certificate management integration
+- **Routing**: Kubernetes Gateway API (`gateway.networking.k8s.io/v1`) — operator-managed `Gateway` + `HTTPRoute`, or attach to a platform-team-managed shared `Gateway` via `parentRefs`
+- **TLS**: Listener-level TLS termination via cert-manager (Gateway API integration)
 
 ## 🚀 Quick Start
 
@@ -530,18 +530,17 @@ spec:
       cpu: "2000m"
       memory: "2Gi"
 
-  ingress:
+  routing:
     enabled: true
-    className: "nginx"
-    hosts:
-      - host: "ai-gateway.company.com"
-        paths:
-          - path: "/"
-            pathType: Prefix
-    tls:
-      - secretName: ai-gateway-tls
-        hosts:
-          - "ai-gateway.company.com"
+    gateway:
+      gatewayClassName: envoy
+      tls:
+        enabled: true
+        issuer: letsencrypt-prod
+        secretName: ai-gateway-tls
+    httpRoute:
+      hostnames:
+        - "ai-gateway.company.com"
 ```
 
 #### A2A Service Discovery Configuration

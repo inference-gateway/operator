@@ -27,6 +27,7 @@ import (
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 // GatewaySpec defines the desired state of Gateway.
@@ -77,9 +78,10 @@ type GatewaySpec struct {
 	// +optional
 	Service *ServiceSpec `json:"service,omitempty"`
 
-	// Ingress configuration
+	// Routing configures north-south traffic using the Kubernetes Gateway
+	// API (gateway.networking.k8s.io). Successor to the removed Ingress field.
 	// +optional
-	Ingress *IngressSpec `json:"ingress,omitempty"`
+	Routing *RoutingSpec `json:"routing,omitempty"`
 
 	// HPA (Horizontal Pod Autoscaler) configuration
 	// +optional
@@ -409,90 +411,76 @@ type ServiceSpec struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// IngressSpec contains ingress configuration
-type IngressSpec struct {
-	// Enable ingress
+// RoutingSpec configures north-south traffic using the Kubernetes Gateway
+// API. It is the v1alpha1 successor to the (removed) Ingress field.
+//
+// NOTE: The "Gateway" referenced under RoutingSpec is the upstream
+// gateway.networking.k8s.io/v1.Gateway listener resource - NOT this CRD's
+// own Gateway type.
+type RoutingSpec struct {
+	// Enable routing (operator-managed Gateway and/or HTTPRoute creation).
 	// +optional
 	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 
-	// Simple host configuration (alternative to hosts array)
-	// When specified, this will be used as the primary host with automatic TLS and path configuration
+	// Gateway configures the upstream Gateway API Gateway resource.
+	// If ParentRefs is set, the operator does NOT create a Gateway; it
+	// only creates an HTTPRoute attached to the referenced parents.
 	// +optional
-	Host string `json:"host,omitempty"`
+	Gateway *RoutingGatewaySpec `json:"gateway,omitempty"`
 
-	// Ingress class name
+	// HTTPRoute configures the HTTPRoute resource the operator creates
+	// to bind incoming traffic to the gateway Service.
 	// +optional
-	ClassName string `json:"className,omitempty"`
-
-	// Ingress annotations
-	// +optional
-	Annotations map[string]string `json:"annotations,omitempty"`
-
-	// Ingress hosts configuration (advanced usage)
-	// Use 'host' field for simple single-host configuration
-	// +optional
-	Hosts []IngressHost `json:"hosts,omitempty"`
-
-	// TLS configuration
-	// +optional
-	TLS *IngressTLSConfig `json:"tls,omitempty"`
+	HTTPRoute *RoutingHTTPRouteSpec `json:"httpRoute,omitempty"`
 }
 
-// IngressTLSConfig contains simplified TLS configuration
-type IngressTLSConfig struct {
-	// Enable TLS for ingress
+// RoutingGatewaySpec configures the upstream Gateway API Gateway resource
+// (gateway.networking.k8s.io/v1.Gateway), not this CRD's Gateway type.
+type RoutingGatewaySpec struct {
+	// GatewayClassName selects the GatewayClass implementing the Gateway.
+	// Ignored when ParentRefs is set.
 	// +optional
-	// +kubebuilder:default=true
+	// +kubebuilder:default="envoy"
+	GatewayClassName string `json:"gatewayClassName,omitempty"`
+
+	// ParentRefs, when non-empty, switches the operator into advanced
+	// mode: it does NOT create a Gateway and the HTTPRoute attaches to
+	// these parents (typically a platform-team-managed shared Gateway).
+	// +optional
+	ParentRefs []gwapiv1.ParentReference `json:"parentRefs,omitempty"`
+
+	// TLS terminates at the Gateway listener, not the HTTPRoute.
+	// No effect in advanced mode (the shared Gateway owner controls TLS).
+	// +optional
+	TLS *RoutingTLSSpec `json:"tls,omitempty"`
+}
+
+// RoutingTLSSpec configures listener-level TLS termination.
+type RoutingTLSSpec struct {
+	// Enable TLS on the default listener.
+	// +optional
+	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 
-	// Certificate issuer for cert-manager (automatically sets annotation)
+	// Issuer is a cert-manager ClusterIssuer name. When set, the
+	// cert-manager.io/cluster-issuer annotation is added to the Gateway.
 	// Examples: "letsencrypt-prod", "letsencrypt-staging", "selfsigned-issuer"
 	// +optional
 	Issuer string `json:"issuer,omitempty"`
 
-	// Secret name for TLS certificate (auto-generated if not specified)
+	// SecretName is the Secret referenced by the listener certificateRefs.
+	// Auto-generated as "<gateway-name>-tls" if empty.
 	// +optional
 	SecretName string `json:"secretName,omitempty"`
-
-	// Advanced TLS configuration (alternative to simple config above)
-	// +optional
-	Config []IngressTLS `json:"config,omitempty"`
 }
 
-// IngressHost contains ingress host configuration
-type IngressHost struct {
-	// Host name
-	// +kubebuilder:validation:Required
-	Host string `json:"host"`
-
-	// Paths configuration
+// RoutingHTTPRouteSpec configures the HTTPRoute the operator owns.
+type RoutingHTTPRouteSpec struct {
+	// Hostnames the HTTPRoute matches. In default mode they also become
+	// the hostnames of the operator-managed Gateway listener.
 	// +optional
-	Paths []IngressPath `json:"paths,omitempty"`
-}
-
-// IngressPath contains ingress path configuration
-type IngressPath struct {
-	// Path
-	// +kubebuilder:validation:Required
-	Path string `json:"path"`
-
-	// Path type
-	// +optional
-	// +kubebuilder:default="Prefix"
-	// +kubebuilder:validation:Enum=Exact;Prefix;ImplementationSpecific
-	PathType string `json:"pathType,omitempty"`
-}
-
-// IngressTLS contains ingress TLS configuration
-type IngressTLS struct {
-	// Secret name containing TLS certificate
-	// +kubebuilder:validation:Required
-	SecretName string `json:"secretName"`
-
-	// Hosts covered by the certificate
-	// +optional
-	Hosts []string `json:"hosts,omitempty"`
+	Hostnames []gwapiv1.Hostname `json:"hostnames,omitempty"`
 }
 
 // GatewayStatus defines the observed state of Gateway.

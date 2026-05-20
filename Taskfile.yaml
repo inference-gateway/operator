@@ -17,6 +17,8 @@ vars:
   CONTROLLER_TOOLS_VERSION: v0.20.1
   ENVTEST_VERSION: "release-0.23"
   ENVTEST_K8S_VERSION: "1.35"
+  GATEWAY_API_VERSION: v1.2.1
+  ENVOY_GATEWAY_VERSION: v1.2.0
   GOLANGCI_LINT_VERSION: v2.11.4
   KUBECTL: kubectl
   KUSTOMIZE: kustomize
@@ -116,8 +118,9 @@ tasks:
           kubectl -n cert-manager wait --for=condition=Available --timeout=60s deployment/cert-manager-cainjector
           task cert-manager:clusterissuer
         fi
-      - task: nginx-ingress:install
-      - kubectl -n ingress-nginx wait --for=condition=Available --timeout=60s deployment/ingress-nginx-controller
+      - task: gateway-api:install
+      - task: envoy-gateway:install
+      - kubectl -n envoy-gateway-system wait --for=condition=Available --timeout=120s deployment/envoy-gateway
 
   cert-manager:install:
     desc: Install cert-manager in the cluster
@@ -144,21 +147,44 @@ tasks:
           selfSigned: {}
         EOF
 
-  nginx-ingress:install:
-    desc: Install NGINX Ingress Controller in the cluster
+  gateway-api:install:
+    desc: Install Kubernetes Gateway API standard CRDs (Gateway, HTTPRoute, etc.)
     cmds:
-      - helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+      - kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
+
+  envoy-gateway:install:
+    desc: Install Envoy Gateway and a default `envoy` GatewayClass
+    deps: [gateway-api:install]
+    cmds:
+      - helm repo add eg https://eg-helm.envoyproxy.io
       - helm repo update
       - |
-        helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-          --namespace ingress-nginx \
-          --version 4.12.3 \
+        helm upgrade --install envoy-gateway eg/gateway-helm \
+          --namespace envoy-gateway-system \
           --create-namespace \
-          --set controller.publishService.enabled=true
+          --version {{.ENVOY_GATEWAY_VERSION}}
+      - kubectl -n envoy-gateway-system wait --for=condition=Available --timeout=120s deployment/envoy-gateway
+      - |
+        kubectl apply -f - <<'EOF'
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: GatewayClass
+        metadata:
+          name: envoy
+        spec:
+          controllerName: gateway.envoyproxy.io/gatewayclass-controller
+        EOF
+
+  fetch-gateway-api-crds:
+    desc: Download Gateway API standard CRDs locally for envtest (CRDs live under test/crds/gateway-api)
+    cmds:
+      - mkdir -p test/crds/gateway-api
+      - curl -sSL -o test/crds/gateway-api/standard-install.yaml https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
+    status:
+      - test -f test/crds/gateway-api/standard-install.yaml
 
   test:
     desc: Run tests
-    deps: [ensure-k8s-envtest]
+    deps: [ensure-k8s-envtest, fetch-gateway-api-crds]
     cmds:
       - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path)" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
 
