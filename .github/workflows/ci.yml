@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TASK_VERSION: "v3.48.0"
+  TASK_VERSION: "3.48.0"
   GOLANGCI_LINT_VERSION: "v2.12.2"
   CONTROLLER_GEN_VERSION: "v0.20.1"
   KUSTOMIZE_VERSION: "v5.8.1"
