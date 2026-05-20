@@ -2,7 +2,7 @@ module github.com/inference-gateway/operator
 
 go 1.26.2
 
-godebug default=go1.26
+godebug default=go1.26.2
 
 require (
 	github.com/onsi/ginkgo/v2 v2.29.0

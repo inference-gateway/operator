@@ -62,7 +62,7 @@ This project is developed using a containerized development environment with the
      ```
    - Option B: Set up your local environment with the required dependencies
      ```sh
-     # Ensure you have Go 1.26+, Docker 29.4+, and kubectl 1.35+ installed
+     # Ensure you have Go 1.26.2+, Docker 29.4+, and kubectl 1.35+ installed
      ```
 
 3. **Install development dependencies**:
