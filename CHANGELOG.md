@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.0](https://github.com/inference-gateway/operator/compare/v0.15.0...v0.16.0) (2026-05-21)
+
+### ✨ Features
+
+* **mcp:** Add label-selector service discovery for MCP servers ([#62](https://github.com/inference-gateway/operator/issues/62)) ([e5eddda](https://github.com/inference-gateway/operator/commit/e5eddda01ca9343e1b43b7b0d5ef412675c346b7))
+
+### ♻️ Improvements
+
+* **examples:** Replace broken MCP image with in-tree Go server ([#65](https://github.com/inference-gateway/operator/issues/65)) ([60bedd0](https://github.com/inference-gateway/operator/commit/60bedd01ee9427a764d5ccfebccc32b385d44f4d)), closes [#63](https://github.com/inference-gateway/operator/issues/63)
+* **gateway:** Migrate routing from Ingress to Gateway API ([#60](https://github.com/inference-gateway/operator/issues/60)) ([2fcaa0c](https://github.com/inference-gateway/operator/commit/2fcaa0c356eb8e0c2cd649796fc5075329a6530b))
+
+### 🔧 Miscellaneous
+
+* **deps:** Use explicit go version ([0f6db1c](https://github.com/inference-gateway/operator/commit/0f6db1c3b49226ab6f298fba6dd90562b088e115))
+* **examples-deps:** Bump the go_modules group across 1 directory with 3 updates ([#66](https://github.com/inference-gateway/operator/issues/66)) ([e2a4d3d](https://github.com/inference-gateway/operator/commit/e2a4d3dafe38a5531ceccc1f212f2a5fd4e7e38c))
+* **examples-deps:** Bump the go_modules group across 1 directory with 3 updates ([#68](https://github.com/inference-gateway/operator/issues/68)) ([017fd99](https://github.com/inference-gateway/operator/commit/017fd99c7f18fecc7a91a3523abd7ca389ad1ac5))
+* **examples-deps:** Bump the go_modules group across 1 directory with 7 updates ([#64](https://github.com/inference-gateway/operator/issues/64)) ([6aeb13d](https://github.com/inference-gateway/operator/commit/6aeb13d8b70f50c4dede908459e0696f1fd5e48f))
+* **examples-deps:** Bump the go_modules group across 1 directory with 7 updates ([#67](https://github.com/inference-gateway/operator/issues/67)) ([7889588](https://github.com/inference-gateway/operator/commit/788958808e433859f9d131ac9feee94eec77934d))
+* Update k3s image version and add Envoy Gateway installation tasks ([a61aa2a](https://github.com/inference-gateway/operator/commit/a61aa2acb2737468d77bf2ea269947e481f28110))
+
 ## [0.15.0](https://github.com/inference-gateway/operator/compare/v0.14.2...v0.15.0) (2026-05-20)
 
 ### ✨ Features
