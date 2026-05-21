@@ -40,14 +40,16 @@ End-to-end deployment of an `Orchestrator` that:
 
    ```bash
    kubectl get pods -n inference-gateway -w
+   kubectl get pods -n orchestrator -w
    kubectl get pods -n agents -w
+   kubectl get pods -n mcp -w
    ```
 
 4. Tail Orchestrator logs (the bot starts polling Telegram once `READY=true`):
 
    ```bash
-   kubectl get orchestrator -n inference-gateway
-   kubectl logs -n inference-gateway deploy/orchestrator -f
+   kubectl get orchestrator -n orchestrator
+   kubectl logs -n orchestrator deploy/orchestrator -f
    ```
 
 5. Send messages to your Telegram bot. Try:

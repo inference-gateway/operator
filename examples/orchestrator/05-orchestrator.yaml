@@ -3,7 +3,7 @@ apiVersion: core.inference-gateway.com/v1alpha1
 kind: Orchestrator
 metadata:
   name: orchestrator
-  namespace: inference-gateway
+  namespace: orchestrator
 spec:
   image: ghcr.io/inference-gateway/cli:latest
   env:
@@ -16,7 +16,7 @@ spec:
     - name: INFER_STORAGE_TYPE
       value: "redis"
     - name: INFER_STORAGE_REDIS_HOST
-      value: "redis.inference-gateway.svc.cluster.local"
+      value: "redis.orchestrator.svc.cluster.local"
     - name: INFER_STORAGE_REDIS_PORT
       value: "6379"
   channels:

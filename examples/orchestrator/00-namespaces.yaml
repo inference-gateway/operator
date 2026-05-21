@@ -1,9 +1,18 @@
 ---
-# Hosts the Gateway, the Orchestrator, and provider/channel credentials.
+# Hosts the Gateway and its provider credentials.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+# Hosts the Orchestrator, its Redis-backed conversation store, and its
+# channel (e.g. Telegram) credentials.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orchestrator
   labels:
     inference-gateway.com/managed: "true"
 ---

@@ -1,44 +1,46 @@
 ---
-# Two instances of the official Anthropic reference MCP server
-# (`@modelcontextprotocol/server-everything`, published as `mcp/everything`).
+# Two instances of `mcp-server-time` - a minimal MCP server written in Go using
+# the same `metoro-io/mcp-golang` library that the inference-gateway uses on
+# its client side. This eliminates any cross-implementation capability
+# mismatches and gives us a known-good end-to-end test of MCP discovery.
 #
-# The image defaults to stdio, but ships an SSE entrypoint at `dist/sse.js`
-# listening on port 3001 — that's what we invoke here. `mcp/everything` is the
-# only official reference image with a built-in HTTP listener; the others
-# (`mcp/time`, `mcp/memory`, `mcp/fetch`, …) are stdio-only and would need a
-# wrapper like `supergateway` to run as Kubernetes Services.
+# Build & import (one-time) before applying this file:
+#   cd mcp-server-time
+#   docker build -t mcp-server-time:dev .
+#   k3d image import mcp-server-time:dev --cluster dev
 #
 # The label `mcp-group: group1` tags each MCP into a group; any Orchestrator
-# (or Gateway) whose mcp.serviceDiscovery.selector matches that label will
-# discover it and write it into ~/.infer/mcp.yaml inside the orchestrator pod.
+# (or Gateway) whose `mcp.serviceDiscovery.selector` matches that label will
+# discover it and write it into `~/.infer/mcp.yaml` inside the orchestrator pod
+# (or into `MCP_SERVERS` on the gateway pod).
 #
-# In-cluster SSE endpoints per MCP CR:
-#   http://mcp-everything-a-service.mcp.svc.cluster.local:3001/sse
-#   http://mcp-everything-b-service.mcp.svc.cluster.local:3001/sse
+# In-cluster Streamable HTTP endpoints (the operator appends `spec.server.path`,
+# defaulting to `/mcp`, to the constructed service URL):
+#   http://mcp-time-a-service.mcp.svc.cluster.local:8080/mcp
+#   http://mcp-time-b-service.mcp.svc.cluster.local:8080/mcp
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: MCP
 metadata:
-  name: mcp-everything-a
+  name: mcp-time-a
   namespace: mcp
   labels:
     mcp-group: group1
 spec:
-  image: mcp/everything:latest
+  image: mcp-server-time:dev
   server:
-    port: 3001
-    command: ["node"]
-    args: ["dist/sse.js"]
+    port: 8080
+    # path defaults to "/mcp" - explicit here for clarity.
+    path: "/mcp"
 ---
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: MCP
 metadata:
-  name: mcp-everything-b
+  name: mcp-time-b
   namespace: mcp
   labels:
     mcp-group: group1
 spec:
-  image: mcp/everything:latest
+  image: mcp-server-time:dev
   server:
-    port: 3001
-    command: ["node"]
-    args: ["dist/sse.js"]
+    port: 8080
+    path: "/mcp"
