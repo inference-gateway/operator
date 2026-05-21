@@ -104,27 +104,79 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		logger.Info("created service", "name", svcName)
 	}
 
-	card, err := fetchAgentCard(svc)
-	if err != nil {
-		logger.Info("failed to fetch agent card", "error", err.Error())
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	card, fetchErr := fetchAgentCard(&agent, svc)
+	if fetchErr != nil {
+		logger.Info("failed to fetch agent card, will retry", "error", fetchErr.Error())
+		if statusErr := r.patchStatusNotReady(ctx, &agent, fetchErr); statusErr != nil {
+			logger.Error(statusErr, "unable to update agent status with fetch failure")
+		}
+		return ctrl.Result{RequeueAfter: agentCardRetryInterval}, nil
 	}
 	card.SkillsNames = card.Skills.SkillsNames()
 
-	patch := client.MergeFrom(agent.DeepCopy())
-	agent.Status.Card = *card
-	if err := r.Status().Patch(ctx, &agent, patch); err != nil {
-		logger.Error(err, "unable to update agent status.card")
-		return ctrl.Result{}, err
+	if statusErr := r.patchStatusReady(ctx, &agent, card); statusErr != nil {
+		logger.Error(statusErr, "unable to update agent status.card")
+		return ctrl.Result{}, statusErr
 	}
 	logger.Info("updated agent status.card", "version", card.Version)
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: agentCardRefreshInterval}, nil
+}
+
+// patchStatusReady writes the Agent status with the fetched card and a Ready=True condition.
+// Uses Status().Update rather than a merge patch so that false-valued bool fields (e.g.
+// capabilities.pushNotifications) actually land on the API object: a JSON merge patch
+// would diff the in-memory base (zero-valued bools marshal as false) against the modified
+// object (same false), produce an empty diff for those fields, and leave them absent from
+// the stored status — meaning printer columns sourced from them render blank.
+func (r *AgentReconciler) patchStatusReady(ctx context.Context, agent *v1alpha1.Agent, card *v1alpha1.Card) error {
+	agent.Status.Card = *card
+	agent.Status.Ready = true
+	agent.Status.ObservedGeneration = agent.Generation
+	setReadyCondition(&agent.Status.Conditions, metav1.ConditionTrue, "CardFetched", "agent card retrieved successfully")
+	return r.Status().Update(ctx, agent)
+}
+
+// patchStatusNotReady writes the Agent status with a Ready=False condition explaining
+// why the card could not be fetched. The previously cached card (if any) is preserved.
+func (r *AgentReconciler) patchStatusNotReady(ctx context.Context, agent *v1alpha1.Agent, fetchErr error) error {
+	agent.Status.Ready = false
+	agent.Status.ObservedGeneration = agent.Generation
+	setReadyCondition(&agent.Status.Conditions, metav1.ConditionFalse, "CardFetchFailed", fetchErr.Error())
+	return r.Status().Update(ctx, agent)
+}
+
+// setReadyCondition upserts a "Ready" condition on the slice.
+func setReadyCondition(conditions *[]metav1.Condition, status metav1.ConditionStatus, reason, message string) {
+	now := metav1.Now()
+	for i := range *conditions {
+		if (*conditions)[i].Type != "Ready" {
+			continue
+		}
+		if (*conditions)[i].Status != status {
+			(*conditions)[i].LastTransitionTime = now
+		}
+		(*conditions)[i].Status = status
+		(*conditions)[i].Reason = reason
+		(*conditions)[i].Message = message
+		return
+	}
+	*conditions = append(*conditions, metav1.Condition{
+		Type:               "Ready",
+		Status:             status,
+		Reason:             reason,
+		Message:            message,
+		LastTransitionTime: now,
+	})
 }
 
 // buildAgentService returns a Service for the given Agent resource.
 func buildAgentService(agent *v1alpha1.Agent) *corev1.Service {
 	labels := map[string]string{
 		"app": agent.Name,
+	}
+	port := agent.Spec.Port
+	if port <= 0 {
+		port = defaultAgentPort
 	}
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -136,24 +188,108 @@ func buildAgentService(agent *v1alpha1.Agent) *corev1.Service {
 			Selector: labels,
 			Ports: []corev1.ServicePort{{
 				Name:       "http",
-				Port:       agent.Spec.Port,
-				TargetPort: intstrFromInt(int(agent.Spec.Port)),
+				Port:       port,
+				TargetPort: intstrFromInt(int(port)),
 			}},
 		},
 	}
 }
 
-// fetchAgentCard retrieves the agent card from the given base URL and unmarshals it into an AgentCard.
-func fetchAgentCard(svc *corev1.Service) (*v1alpha1.Card, error) {
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get("http://" + svc.Name + "." + svc.Namespace + ".svc.cluster.local:8080" + "/.well-known/agent.json")
+// agentCardPaths are the well-known paths probed in order to retrieve the agent card.
+// The first entry is the current A2A protocol path; the second is the legacy fallback.
+var agentCardPaths = []string{
+	"/.well-known/agent-card.json",
+	"/.well-known/agent.json",
+}
+
+const (
+	// agentCardFetchTimeout bounds a single agent card HTTP request.
+	agentCardFetchTimeout = 5 * time.Second
+
+	// agentCardRetryInterval is how soon to retry after a failed card fetch.
+	agentCardRetryInterval = 5 * time.Second
+
+	// agentCardRefreshInterval is how often a successfully fetched card is re-validated.
+	agentCardRefreshInterval = 30 * time.Second
+
+	// defaultAgentPort is the port used when an agent's spec.port is unset.
+	defaultAgentPort = int32(8080)
+)
+
+// agentAdvertisedURL returns the URL the agent should report in its agent-card.
+// spec.card.url wins when set, otherwise it's the in-cluster Service URL.
+func agentAdvertisedURL(agent *v1alpha1.Agent) string {
+	if agent.Spec.Card.URL != "" {
+		return agent.Spec.Card.URL
+	}
+	port := agent.Spec.Port
+	if port <= 0 {
+		port = defaultAgentPort
+	}
+	return fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", agent.Name, agent.Namespace, port)
+}
+
+// agentCardPort returns the port to query for the agent's well-known card, preferring
+// the agent spec but falling back to the service port, then the package default.
+func agentCardPort(agent *v1alpha1.Agent, svc *corev1.Service) int32 {
+	if agent != nil && agent.Spec.Port > 0 {
+		return agent.Spec.Port
+	}
+	if svc != nil {
+		for _, p := range svc.Spec.Ports {
+			if p.Port > 0 {
+				return p.Port
+			}
+		}
+	}
+	return defaultAgentPort
+}
+
+// agentCardURLs returns the ordered list of URLs to probe for the agent card.
+// Exposed as a separate function so unit tests can verify URL construction.
+func agentCardURLs(agent *v1alpha1.Agent, svc *corev1.Service) []string {
+	if svc == nil {
+		return nil
+	}
+	port := agentCardPort(agent, svc)
+	base := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", svc.Name, svc.Namespace, port)
+	urls := make([]string, 0, len(agentCardPaths))
+	for _, path := range agentCardPaths {
+		urls = append(urls, base+path)
+	}
+	return urls
+}
+
+// fetchAgentCard retrieves the agent card by probing the well-known paths on the
+// agent's service. It tries the current A2A path first and falls back to the
+// legacy path. A non-2xx response on a probe is treated as a miss for that path.
+func fetchAgentCard(agent *v1alpha1.Agent, svc *corev1.Service) (*v1alpha1.Card, error) {
+	if svc == nil {
+		return nil, errors.New("service is nil")
+	}
+	httpClient := &http.Client{Timeout: agentCardFetchTimeout}
+
+	var lastErr error
+	for _, url := range agentCardURLs(agent, svc) {
+		card, err := getAgentCard(httpClient, url)
+		if err == nil {
+			return card, nil
+		}
+		lastErr = fmt.Errorf("%s: %w", url, err)
+	}
+	return nil, lastErr
+}
+
+// getAgentCard performs a single HTTP GET and JSON-decodes the response into a Card.
+func getAgentCard(httpClient *http.Client, url string) (*v1alpha1.Card, error) {
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, errors.New("unexpected status: " + resp.Status)
 	}
 	var card v1alpha1.Card
@@ -182,7 +318,7 @@ func (r *AgentReconciler) buildAgentDeployment(agent *v1alpha1.Agent) *appsv1.De
 
 	env := r.buildAgentEnvironmentVars(agent)
 
-	port := int32(8080)
+	port := defaultAgentPort
 	if agent.Spec.Port > 0 {
 		port = agent.Spec.Port
 	}
@@ -229,6 +365,11 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 		corev1.EnvVar{Name: "TIMEZONE", Value: agent.Spec.Timezone},
 		corev1.EnvVar{Name: "PORT", Value: strconv.Itoa(int(agent.Spec.Port))},
 		corev1.EnvVar{Name: "HOST", Value: agent.Spec.Host},
+		// A2A_AGENT_URL is what the agent reports as its own URL in /.well-known/agent-card.json.
+		// The agent can't derive this itself, so the operator supplies a URL: spec.card.url
+		// takes precedence (for agents fronted by an Ingress/Gateway), falling back to the
+		// in-cluster Service URL.
+		corev1.EnvVar{Name: "A2A_AGENT_URL", Value: agentAdvertisedURL(agent)},
 		corev1.EnvVar{Name: "READ_TIMEOUT", Value: agent.Spec.ReadTimeout},
 		corev1.EnvVar{Name: "WRITE_TIMEOUT", Value: agent.Spec.WriteTimeout},
 		corev1.EnvVar{Name: "IDLE_TIMEOUT", Value: agent.Spec.IdleTimeout},

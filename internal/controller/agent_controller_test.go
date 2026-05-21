@@ -24,6 +24,8 @@ package controller
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -399,6 +401,41 @@ var _ = Describe("Agent Controller", func() {
 			Expect(memLim.String()).To(Equal("512Mi"))
 		})
 
+		It("uses defaultAgentPort when spec.port is unset", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "agent-default-port",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.AgentSpec{
+					Image: "test-image:latest",
+				},
+			}
+
+			svc := buildAgentService(agent)
+			Expect(svc.Spec.Ports).To(HaveLen(1))
+			Expect(svc.Spec.Ports[0].Port).To(Equal(defaultAgentPort))
+			Expect(svc.Spec.Ports[0].TargetPort.IntVal).To(Equal(defaultAgentPort))
+		})
+
+		It("uses agent.spec.port for the service when set", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "agent-custom-port",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.AgentSpec{
+					Image: "test-image:latest",
+					Port:  9090,
+				},
+			}
+
+			svc := buildAgentService(agent)
+			Expect(svc.Spec.Ports).To(HaveLen(1))
+			Expect(svc.Spec.Ports[0].Port).To(Equal(int32(9090)))
+			Expect(svc.Spec.Ports[0].TargetPort.IntVal).To(Equal(int32(9090)))
+		})
+
 		It("propagates only requests when limits are unset", func() {
 			agent := &v1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{
@@ -428,6 +465,197 @@ var _ = Describe("Agent Controller", func() {
 			Expect(memReq.String()).To(Equal("256Mi"))
 
 			Expect(container.Resources.Limits).To(BeNil())
+		})
+	})
+
+	Context("agentCardPort", func() {
+		It("returns agent.spec.port when set", func() {
+			agent := &v1alpha1.Agent{Spec: v1alpha1.AgentSpec{Port: 9091}}
+			svc := &corev1.Service{Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{Port: 1234}},
+			}}
+			Expect(agentCardPort(agent, svc)).To(Equal(int32(9091)))
+		})
+
+		It("falls back to the service port when agent.spec.port is unset", func() {
+			agent := &v1alpha1.Agent{}
+			svc := &corev1.Service{Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{Port: 1234}},
+			}}
+			Expect(agentCardPort(agent, svc)).To(Equal(int32(1234)))
+		})
+
+		It("falls back to defaultAgentPort when neither is set", func() {
+			Expect(agentCardPort(&v1alpha1.Agent{}, &corev1.Service{})).To(Equal(defaultAgentPort))
+		})
+	})
+
+	Context("agentCardURLs", func() {
+		It("returns nil when service is nil", func() {
+			Expect(agentCardURLs(&v1alpha1.Agent{}, nil)).To(BeNil())
+		})
+
+		It("returns the agent-card.json path before the legacy agent.json path", func() {
+			agent := &v1alpha1.Agent{Spec: v1alpha1.AgentSpec{Port: 8080}}
+			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-agent",
+				Namespace: "agents",
+			}}
+
+			urls := agentCardURLs(agent, svc)
+			Expect(urls).To(HaveLen(2))
+			Expect(urls[0]).To(Equal("http://my-agent.agents.svc.cluster.local:8080/.well-known/agent-card.json"))
+			Expect(urls[1]).To(Equal("http://my-agent.agents.svc.cluster.local:8080/.well-known/agent.json"))
+		})
+
+		It("honors a non-default agent.spec.port in the URL", func() {
+			agent := &v1alpha1.Agent{Spec: v1alpha1.AgentSpec{Port: 9090}}
+			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+				Name:      "alpha",
+				Namespace: "beta",
+			}}
+
+			urls := agentCardURLs(agent, svc)
+			Expect(urls).To(HaveLen(2))
+			Expect(urls[0]).To(Equal("http://alpha.beta.svc.cluster.local:9090/.well-known/agent-card.json"))
+			Expect(urls[1]).To(Equal("http://alpha.beta.svc.cluster.local:9090/.well-known/agent.json"))
+		})
+	})
+
+	Context("agentAdvertisedURL", func() {
+		It("returns the in-cluster Service URL when spec.card.url is unset", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "agents"},
+				Spec:       v1alpha1.AgentSpec{Port: 8080},
+			}
+			Expect(agentAdvertisedURL(agent)).To(Equal("http://my-agent.agents.svc.cluster.local:8080"))
+		})
+
+		It("uses defaultAgentPort when port is unset", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "ns"},
+			}
+			Expect(agentAdvertisedURL(agent)).To(Equal("http://a.ns.svc.cluster.local:8080"))
+		})
+
+		It("returns spec.card.url when set, ignoring derived URL", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "agents"},
+				Spec: v1alpha1.AgentSpec{
+					Port: 8080,
+					Card: v1alpha1.CardSpec{URL: "https://agent.example.com"},
+				},
+			}
+			Expect(agentAdvertisedURL(agent)).To(Equal("https://agent.example.com"))
+		})
+	})
+
+	Context("getAgentCard", func() {
+		It("decodes a valid agent card JSON response", func() {
+			body := `{
+				"name": "test-agent",
+				"version": "1.2.3",
+				"description": "desc",
+				"url": "http://test-agent.agents.svc.cluster.local:8080",
+				"defaultInputModes": ["text"],
+				"defaultOutputModes": ["text"],
+				"capabilities": {
+					"streaming": true,
+					"pushNotifications": false,
+					"stateTransitionHistory": true
+				},
+				"skills": []
+			}`
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(body))
+			}))
+			defer server.Close()
+
+			card, err := getAgentCard(&http.Client{Timeout: 2 * time.Second}, server.URL)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(card).NotTo(BeNil())
+			Expect(card.Version).To(Equal("1.2.3"))
+			Expect(card.URL).To(Equal("http://test-agent.agents.svc.cluster.local:8080"))
+			Expect(card.Capabilities.Streaming).To(BeTrue())
+			Expect(card.Capabilities.PushNotifications).To(BeFalse())
+			Expect(card.Capabilities.StateTransitionHistory).To(BeTrue())
+		})
+
+		It("returns an error on non-2xx responses", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+			}))
+			defer server.Close()
+
+			_, err := getAgentCard(&http.Client{Timeout: 2 * time.Second}, server.URL)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unexpected status"))
+		})
+
+		It("returns an error on malformed JSON", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(`{not-json`))
+			}))
+			defer server.Close()
+
+			_, err := getAgentCard(&http.Client{Timeout: 2 * time.Second}, server.URL)
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Context("setReadyCondition", func() {
+		It("appends a Ready condition when none exists", func() {
+			var conditions []metav1.Condition
+			setReadyCondition(&conditions, metav1.ConditionTrue, "Ok", "all good")
+
+			Expect(conditions).To(HaveLen(1))
+			Expect(conditions[0].Type).To(Equal("Ready"))
+			Expect(conditions[0].Status).To(Equal(metav1.ConditionTrue))
+			Expect(conditions[0].Reason).To(Equal("Ok"))
+			Expect(conditions[0].Message).To(Equal("all good"))
+			Expect(conditions[0].LastTransitionTime.IsZero()).To(BeFalse())
+		})
+
+		It("updates the existing Ready condition without appending duplicates", func() {
+			old := metav1.NewTime(time.Now().Add(-time.Hour))
+			conditions := []metav1.Condition{{
+				Type:               "Ready",
+				Status:             metav1.ConditionTrue,
+				Reason:             "Ok",
+				Message:            "all good",
+				LastTransitionTime: old,
+			}}
+
+			setReadyCondition(&conditions, metav1.ConditionFalse, "Boom", "broken")
+			Expect(conditions).To(HaveLen(1))
+			Expect(conditions[0].Status).To(Equal(metav1.ConditionFalse))
+			Expect(conditions[0].Reason).To(Equal("Boom"))
+			Expect(conditions[0].Message).To(Equal("broken"))
+			Expect(conditions[0].LastTransitionTime.After(old.Time)).To(BeTrue(), "transition time should advance on status change")
+		})
+
+		It("does not bump LastTransitionTime when status is unchanged", func() {
+			old := metav1.NewTime(time.Now().Add(-time.Hour))
+			conditions := []metav1.Condition{{
+				Type:               "Ready",
+				Status:             metav1.ConditionTrue,
+				Reason:             "Ok",
+				Message:            "all good",
+				LastTransitionTime: old,
+			}}
+
+			setReadyCondition(&conditions, metav1.ConditionTrue, "Ok2", "still good")
+			Expect(conditions[0].LastTransitionTime.Time.Equal(old.Time)).To(BeTrue())
+			Expect(conditions[0].Reason).To(Equal("Ok2"))
+			Expect(conditions[0].Message).To(Equal("still good"))
+		})
+	})
+
+	Context("fetchAgentCard fallback behavior", func() {
+		It("returns an error when service is nil", func() {
+			_, err := fetchAgentCard(&v1alpha1.Agent{}, nil)
+			Expect(err).To(HaveOccurred())
 		})
 	})
 })

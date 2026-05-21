@@ -35,6 +35,10 @@ type AgentSpec struct {
 	// Image is the container image for the agent.
 	Image string `json:"image"`
 
+	// Card configures what the agent reports in its /.well-known/agent-card.json.
+	// +optional
+	Card CardSpec `json:"card,omitempty"`
+
 	// Timezone for the agent process.
 	// +optional
 	// +kubebuilder:default="UTC"
@@ -217,14 +221,28 @@ type HeaderSpec struct {
 	Value string `json:"value"`
 }
 
+// CardSpec configures the agent-card fields the operator overrides on the running agent.
+type CardSpec struct {
+	// URL is the externally-advertised URL the agent reports in its agent-card.
+	// When unset, the operator defaults to the in-cluster Service URL
+	// (http://<name>.<namespace>.svc.cluster.local:<port>). Set this when the
+	// agent is fronted by an Ingress/Gateway and should advertise that hostname instead.
+	// +optional
+	URL string `json:"url,omitempty"`
+}
+
 type Skill struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Examples    []string `json:"examples"`
-	InputModes  []string `json:"inputModes"`
-	OutputModes []string `json:"outputModes"`
-	Tags        []string `json:"tags"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// +optional
+	Examples []string `json:"examples,omitempty"`
+	// +optional
+	InputModes []string `json:"inputModes,omitempty"`
+	// +optional
+	OutputModes []string `json:"outputModes,omitempty"`
+	// +optional
+	Tags []string `json:"tags,omitempty"`
 }
 
 type SkillsList []Skill
@@ -269,27 +287,35 @@ func joinComma(items []string) string {
 }
 
 type Card struct {
-	Name               string   `json:"name"`
-	Version            string   `json:"version"`
-	Description        string   `json:"description"`
-	URL                string   `json:"url"`
-	DefaultInputModes  []string `json:"defaultInputModes"`
-	DefaultOutputModes []string `json:"defaultOutputModes"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	// +optional
+	URL string `json:"url,omitempty"`
+	// +optional
+	DefaultInputModes []string `json:"defaultInputModes,omitempty"`
+	// +optional
+	DefaultOutputModes []string `json:"defaultOutputModes,omitempty"`
 
 	// DocumentationURL is an optional field that provides a URL to the documentation for the Agent.
 	// +optional
 	DocumentationURL string `json:"documentationUrl,omitempty"`
 
-	Capabilities CapabilitiesSpec `json:"capabilities"`
-	Skills       SkillsList       `json:"skills"`
+	// +optional
+	Capabilities CapabilitiesSpec `json:"capabilities,omitempty"`
+	// +optional
+	Skills SkillsList `json:"skills,omitempty"`
 
 	// Comma separated string of skill names.
 	SkillsNames string `json:"skillsNames,omitempty"`
 }
 
 type CapabilitiesSpec struct {
-	Streaming              bool `json:"streaming"`
-	PushNotifications      bool `json:"pushNotifications"`
+	// +optional
+	Streaming bool `json:"streaming"`
+	// +optional
+	PushNotifications bool `json:"pushNotifications"`
+	// +optional
 	StateTransitionHistory bool `json:"stateTransitionHistory"`
 }
 
@@ -301,7 +327,6 @@ type AgentStatus struct {
 
 	// Conditions represent the latest available observations of the resource's state.
 	// +optional
-	// +kubebuilder:validation:Enum=Pending;Running;Failed;Unknown
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Ready indicates if the resource is ready.
