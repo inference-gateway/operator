@@ -937,7 +937,7 @@ func buildDefaultListener(gateway *corev1alpha1.Gateway) gwapiv1.Listener {
 			Protocol: gwapiv1.HTTPSProtocolType,
 			Port:     gwapiv1.PortNumber(443),
 			Hostname: hostname,
-			TLS: &gwapiv1.GatewayTLSConfig{
+			TLS: &gwapiv1.ListenerTLSConfig{
 				CertificateRefs: []gwapiv1.SecretObjectReference{
 					{Name: secretName},
 				},
