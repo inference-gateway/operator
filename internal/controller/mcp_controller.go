@@ -268,6 +268,7 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 
 	port := defaultPort
 	command := []string{defaultCommand}
+	var args []string
 
 	envVars := []corev1.EnvVar{
 		{
@@ -291,6 +292,10 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 
 		if len(mcp.Spec.Server.Command) > 0 {
 			command = mcp.Spec.Server.Command
+		}
+
+		if len(mcp.Spec.Server.Args) > 0 {
+			args = mcp.Spec.Server.Args
 		}
 
 		if mcp.Spec.Server.TLS != nil && mcp.Spec.Server.TLS.Enabled && mcp.Spec.Server.TLS.SecretName != "" {
@@ -344,6 +349,7 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 							VolumeMounts: volumeMounts,
 							Env:          envVars,
 							Command:      command,
+							Args:         args,
 						},
 					},
 					Volumes: volumes,
@@ -546,7 +552,17 @@ func (r *MCPReconciler) buildServiceURL(mcp *v1alpha1.MCP, service *corev1.Servi
 		port = mcp.Spec.Server.Port
 	}
 
-	return fmt.Sprintf("%s://%s.%s.svc.cluster.local:%d", scheme, service.Name, service.Namespace, port)
+	return fmt.Sprintf("%s://%s.%s.svc.cluster.local:%d%s", scheme, service.Name, service.Namespace, port, mcpProtocolPath(mcp))
+}
+
+// mcpProtocolPath returns the MCP protocol path for the given MCP CR, defaulting
+// to "/mcp" when unset. The kubebuilder default fills this in for new resources;
+// the explicit fallback keeps older objects and unit-test fixtures working.
+func mcpProtocolPath(mcp *v1alpha1.MCP) string {
+	if mcp.Spec.Server == nil || mcp.Spec.Server.Path == "" {
+		return "/mcp"
+	}
+	return mcp.Spec.Server.Path
 }
 
 // isDeploymentReady checks if the deployment is ready

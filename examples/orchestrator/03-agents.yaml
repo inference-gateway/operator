@@ -1,15 +1,15 @@
 ---
 # Calendar agent - provides Google Calendar skills (list/create/update/delete events).
 # Runs in mock mode so it works without real Google credentials.
-# The label `orchestrator: orchestrator` opts this agent into the orchestrator's
-# service discovery selector defined in 04-orchestrator.yaml.
+# The label `agent-group: group1` tags this Agent into a group; any Orchestrator
+# whose a2a.serviceDiscovery.selector matches that label will discover it.
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: Agent
 metadata:
   name: google-calendar-agent
   namespace: agents
   labels:
-    orchestrator: orchestrator
+    agent-group: group1
 spec:
   image: ghcr.io/inference-gateway/google-calendar-agent:latest
   agent:
@@ -21,15 +21,15 @@ spec:
       value: "true"
 ---
 # Mock agent - useful for testing the orchestrator's A2A fan-out without a real backend.
-# The label `orchestrator: orchestrator` opts this agent into the orchestrator's
-# service discovery selector defined in 04-orchestrator.yaml.
+# The label `agent-group: group1` tags this Agent into a group; any Orchestrator
+# whose a2a.serviceDiscovery.selector matches that label will discover it.
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: Agent
 metadata:
   name: mock-agent
   namespace: agents
   labels:
-    orchestrator: orchestrator
+    agent-group: group1
 spec:
   image: ghcr.io/inference-gateway/mock-agent:latest
   agent:

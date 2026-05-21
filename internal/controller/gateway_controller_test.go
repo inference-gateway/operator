@@ -33,13 +33,32 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
+	fake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
+
+// newFakeMCPClient builds a controller-runtime fake client with the v1alpha1 scheme
+// registered and the given MCP objects pre-loaded - for use in non-envtest unit tests
+// that exercise reconciler helpers in isolation.
+func newFakeMCPClient(objs ...client.Object) client.Client {
+	s := runtime.NewScheme()
+	_ = corev1alpha1.AddToScheme(s)
+	return fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build()
+}
+
+// gatewayTestScheme is a runtime.Scheme prebuilt with the project APIs registered,
+// used to satisfy `Scheme` on reconcilers under unit tests.
+var gatewayTestScheme = func() *runtime.Scheme {
+	s := runtime.NewScheme()
+	_ = corev1alpha1.AddToScheme(s)
+	return s
+}()
 
 func checkGatewayDeploymentEnvVars(ctx context.Context, k8sClient client.Client, gateway *corev1alpha1.Gateway, expectedEnvVars []corev1.EnvVar, timeout time.Duration, interval time.Duration) {
 	gatewayLookupKey := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
@@ -661,5 +680,131 @@ var _ = Describe("Gateway controller", func() {
 			}),
 		)
 
+	})
+})
+
+var _ = Describe("Gateway MCP service discovery", func() {
+	ctx := context.Background()
+
+	makeGateway := func(static []corev1alpha1.MCPServer, sd *corev1alpha1.MCPServiceDiscoverySpec) *corev1alpha1.Gateway {
+		return &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec: corev1alpha1.GatewaySpec{
+				MCP: &corev1alpha1.MCPServersSpec{
+					Enabled:          true,
+					Servers:          static,
+					ServiceDiscovery: sd,
+				},
+			},
+		}
+	}
+
+	withFakeClient := func(mcps ...*corev1alpha1.MCP) *GatewayReconciler {
+		objs := make([]client.Object, 0, len(mcps))
+		for _, m := range mcps {
+			objs = append(objs, m)
+		}
+		c := newFakeMCPClient(objs...)
+		return &GatewayReconciler{Client: c, Scheme: gatewayTestScheme}
+	}
+
+	It("returns only static URLs when service discovery is disabled", func() {
+		r := withFakeClient()
+		gw := makeGateway(
+			[]corev1alpha1.MCPServer{
+				{Name: "static-a", URL: "http://static-a:8080"},
+				{Name: "static-b", URL: "http://static-b:8080"},
+			},
+			nil,
+		)
+		urls := r.assembleMCPServerURLs(ctx, gw)
+		Expect(urls).To(Equal([]string{"http://static-a:8080", "http://static-b:8080"}))
+	})
+
+	It("returns the union of static and discovered URLs sorted, deduped on URL", func() {
+		r := withFakeClient(
+			&corev1alpha1.MCP{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "mcp-z",
+					Namespace: "default",
+					Labels:    map[string]string{"discoverable": "true"},
+				},
+				Spec:   corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{Port: 3000}},
+				Status: corev1alpha1.MCPStatus{URL: "http://mcp-z-service.default.svc.cluster.local:3000"},
+			},
+			&corev1alpha1.MCP{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "mcp-a",
+					Namespace: "default",
+					Labels:    map[string]string{"discoverable": "true"},
+				},
+				Spec:   corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{Port: 3000}},
+				Status: corev1alpha1.MCPStatus{URL: "http://static-a:8080"}, // collides with static below
+			},
+		)
+		gw := makeGateway(
+			[]corev1alpha1.MCPServer{{Name: "static-a", URL: "http://static-a:8080"}},
+			&corev1alpha1.MCPServiceDiscoverySpec{
+				Enabled:  true,
+				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"discoverable": "true"}},
+			},
+		)
+		urls := r.assembleMCPServerURLs(ctx, gw)
+		Expect(urls).To(Equal([]string{
+			"http://mcp-z-service.default.svc.cluster.local:3000",
+			"http://static-a:8080",
+		}))
+	})
+
+	It("filters discovered MCPs by selector and respects an empty selector (matches all)", func() {
+		r := withFakeClient(
+			&corev1alpha1.MCP{
+				ObjectMeta: metav1.ObjectMeta{Name: "m1", Namespace: "mcp", Labels: map[string]string{"a": "1"}},
+				Spec:       corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{Port: 3000}},
+			},
+			&corev1alpha1.MCP{
+				ObjectMeta: metav1.ObjectMeta{Name: "m2", Namespace: "mcp", Labels: map[string]string{"a": "2"}},
+				Spec:       corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{Port: 3000}},
+			},
+		)
+		gw := makeGateway(nil, &corev1alpha1.MCPServiceDiscoverySpec{
+			Enabled:   true,
+			Namespace: "mcp",
+		})
+		urls := r.assembleMCPServerURLs(ctx, gw)
+		Expect(urls).To(ConsistOf(
+			"http://m1-service.mcp.svc.cluster.local:3000/mcp",
+			"http://m2-service.mcp.svc.cluster.local:3000/mcp",
+		))
+	})
+
+	It("honors a custom spec.server.path on the MCP CR", func() {
+		r := withFakeClient(
+			&corev1alpha1.MCP{
+				ObjectMeta: metav1.ObjectMeta{Name: "sse-srv", Namespace: "mcp"},
+				Spec: corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{
+					Port: 3001,
+					Path: "/sse",
+				}},
+			},
+		)
+		gw := makeGateway(nil, &corev1alpha1.MCPServiceDiscoverySpec{Enabled: true, Namespace: "mcp"})
+		urls := r.assembleMCPServerURLs(ctx, gw)
+		Expect(urls).To(Equal([]string{"http://sse-srv-service.mcp.svc.cluster.local:3001/sse"}))
+	})
+
+	It("uses https when the MCP TLS is enabled and a custom port", func() {
+		r := withFakeClient(
+			&corev1alpha1.MCP{
+				ObjectMeta: metav1.ObjectMeta{Name: "secure", Namespace: "mcp"},
+				Spec: corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{
+					Port: 9443,
+					TLS:  &corev1alpha1.MCPTLSConfig{Enabled: true, SecretName: "tls"},
+				}},
+			},
+		)
+		gw := makeGateway(nil, &corev1alpha1.MCPServiceDiscoverySpec{Enabled: true, Namespace: "mcp"})
+		urls := r.assembleMCPServerURLs(ctx, gw)
+		Expect(urls).To(Equal([]string{"https://secure-service.mcp.svc.cluster.local:9443/mcp"}))
 	})
 })

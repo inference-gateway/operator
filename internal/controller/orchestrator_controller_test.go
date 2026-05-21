@@ -341,15 +341,16 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 
 	It("does not mount agents configmap when service discovery is disabled", func() {
 		orch := makeOrchestratorWithDiscovery(false)
-		dep := r.buildOrchestratorDeployment(orch, "")
+		dep := r.buildOrchestratorDeployment(orch, "", "")
 		Expect(dep.Spec.Template.Spec.Volumes).To(BeEmpty())
 		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(BeEmpty())
 		Expect(dep.Spec.Template.Annotations).NotTo(HaveKey("inference-gateway.com/agents-config-hash"))
 	})
 
+	//nolint:dupl // intentionally mirrors the MCP-discovery mount test for clarity.
 	It("mounts agents configmap at /home/infer/.infer/agents.yaml when service discovery is enabled", func() {
 		orch := makeOrchestratorWithDiscovery(true)
-		dep := r.buildOrchestratorDeployment(orch, "agents: []\n")
+		dep := r.buildOrchestratorDeployment(orch, "agents: []\n", "")
 
 		Expect(dep.Spec.Template.Spec.Volumes).To(HaveLen(1))
 		vol := dep.Spec.Template.Spec.Volumes[0]
@@ -366,11 +367,138 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 
 	It("rolls the deployment when agents.yaml content changes", func() {
 		orch := makeOrchestratorWithDiscovery(true)
-		dep1 := r.buildOrchestratorDeployment(orch, "agents:\n  - name: a\n")
-		dep2 := r.buildOrchestratorDeployment(orch, "agents:\n  - name: b\n")
+		dep1 := r.buildOrchestratorDeployment(orch, "agents:\n  - name: a\n", "")
+		dep2 := r.buildOrchestratorDeployment(orch, "agents:\n  - name: b\n", "")
 
 		hash1 := dep1.Spec.Template.Annotations["inference-gateway.com/agents-config-hash"]
 		hash2 := dep2.Spec.Template.Annotations["inference-gateway.com/agents-config-hash"]
+		Expect(hash1).NotTo(BeEmpty())
+		Expect(hash2).NotTo(BeEmpty())
+		Expect(hash1).NotTo(Equal(hash2))
+	})
+})
+
+var _ = Describe("buildMCPsYAML", func() {
+	It("emits empty mcpServers list when no static or discovered MCPs", func() {
+		yaml := buildMCPsYAML(nil, nil)
+		Expect(yaml).To(Equal("mcpServers:\n"))
+	})
+
+	It("emits static MCP entries with synthetic names", func() {
+		yaml := buildMCPsYAML([]string{"http://x:3000", "http://y:3000"}, nil)
+		Expect(yaml).To(ContainSubstring("- name: static-mcp-0\n"))
+		Expect(yaml).To(ContainSubstring("    url: http://x:3000\n"))
+		Expect(yaml).To(ContainSubstring("- name: static-mcp-1\n"))
+		Expect(yaml).To(ContainSubstring("    url: http://y:3000\n"))
+		Expect(yaml).To(ContainSubstring("    enabled: true\n"))
+	})
+
+	It("prefers status.URL when populated, falling back to the deterministic construction", func() {
+		mcps := []v1alpha1.MCP{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "with-status", Namespace: "mcp"},
+				Status:     v1alpha1.MCPStatus{URL: "https://override.example/mcp"},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "no-status", Namespace: "mcp"},
+				Spec:       v1alpha1.MCPSpec{Server: &v1alpha1.MCPServerSpec{Port: 3000}},
+			},
+		}
+		yaml := buildMCPsYAML(nil, mcps)
+		Expect(yaml).To(ContainSubstring("url: https://override.example/mcp\n"))
+		Expect(yaml).To(ContainSubstring("url: http://no-status-service.mcp.svc.cluster.local:3000/mcp\n"))
+	})
+
+	It("uses https when TLS is enabled on the MCP server", func() {
+		mcps := []v1alpha1.MCP{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-mcp", Namespace: "mcp"},
+				Spec: v1alpha1.MCPSpec{
+					Server: &v1alpha1.MCPServerSpec{
+						Port: 3000,
+						TLS:  &v1alpha1.MCPTLSConfig{Enabled: true, SecretName: "x"},
+					},
+				},
+			},
+		}
+		yaml := buildMCPsYAML(nil, mcps)
+		Expect(yaml).To(ContainSubstring("url: https://tls-mcp-service.mcp.svc.cluster.local:3000/mcp\n"))
+	})
+
+	It("sorts discovered MCPs by name for determinism", func() {
+		mcps := []v1alpha1.MCP{
+			{ObjectMeta: metav1.ObjectMeta{Name: "zebra", Namespace: "mcp"}, Status: v1alpha1.MCPStatus{URL: "http://z"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "mcp"}, Status: v1alpha1.MCPStatus{URL: "http://a"}},
+		}
+		yaml := buildMCPsYAML(nil, mcps)
+		alphaPos := strings.Index(yaml, "name: alpha")
+		zebraPos := strings.Index(yaml, "name: zebra")
+		Expect(alphaPos).To(BeNumerically("<", zebraPos))
+	})
+})
+
+var _ = Describe("buildOrchestratorDeployment with MCP service discovery", func() {
+	makeOrchestratorWithMCPDiscovery := func(enabled bool) *v1alpha1.Orchestrator {
+		return &v1alpha1.Orchestrator{
+			ObjectMeta: metav1.ObjectMeta{Name: "orch", Namespace: "default"},
+			Spec: v1alpha1.OrchestratorSpec{
+				Image: "img",
+				Channels: v1alpha1.ChannelsSpec{
+					Telegram: v1alpha1.TelegramChannelSpec{
+						Enabled: true,
+						TokenSecretRef: corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
+							Key:                  "token",
+						},
+					},
+				},
+				Gateway: v1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
+				Agent:   v1alpha1.OrchestratorAgentSpec{Model: "m"},
+				MCP: v1alpha1.OrchestratorMCPSpec{
+					Enabled: true,
+					ServiceDiscovery: v1alpha1.OrchestratorServiceDiscoverySpec{
+						Enabled:   enabled,
+						Namespace: "mcp",
+					},
+				},
+			},
+		}
+	}
+
+	r := &OrchestratorReconciler{}
+
+	It("does not mount mcps configmap when MCP service discovery is disabled", func() {
+		orch := makeOrchestratorWithMCPDiscovery(false)
+		dep := r.buildOrchestratorDeployment(orch, "", "")
+		Expect(dep.Spec.Template.Spec.Volumes).To(BeEmpty())
+		Expect(dep.Spec.Template.Annotations).NotTo(HaveKey("inference-gateway.com/mcps-config-hash"))
+	})
+
+	//nolint:dupl // intentionally mirrors the agents-discovery mount test for clarity.
+	It("mounts mcps configmap at /home/infer/.infer/mcp.yaml when MCP service discovery is enabled", func() {
+		orch := makeOrchestratorWithMCPDiscovery(true)
+		dep := r.buildOrchestratorDeployment(orch, "", "mcpServers: []\n")
+
+		Expect(dep.Spec.Template.Spec.Volumes).To(HaveLen(1))
+		vol := dep.Spec.Template.Spec.Volumes[0]
+		Expect(vol.Name).To(Equal("mcps-config"))
+		Expect(vol.ConfigMap).NotTo(BeNil())
+		Expect(vol.ConfigMap.Name).To(Equal("orch-mcps"))
+
+		mounts := dep.Spec.Template.Spec.Containers[0].VolumeMounts
+		Expect(mounts).To(HaveLen(1))
+		Expect(mounts[0].Name).To(Equal("mcps-config"))
+		Expect(mounts[0].MountPath).To(Equal("/home/infer/.infer/mcp.yaml"))
+		Expect(mounts[0].SubPath).To(Equal("mcp.yaml"))
+	})
+
+	It("rolls the deployment when mcp.yaml content changes", func() {
+		orch := makeOrchestratorWithMCPDiscovery(true)
+		dep1 := r.buildOrchestratorDeployment(orch, "", "mcpServers:\n  - name: a\n")
+		dep2 := r.buildOrchestratorDeployment(orch, "", "mcpServers:\n  - name: b\n")
+
+		hash1 := dep1.Spec.Template.Annotations["inference-gateway.com/mcps-config-hash"]
+		hash2 := dep2.Spec.Template.Annotations["inference-gateway.com/mcps-config-hash"]
 		Expect(hash1).NotTo(BeEmpty())
 		Expect(hash2).NotTo(BeEmpty())
 		Expect(hash1).NotTo(Equal(hash2))

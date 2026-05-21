@@ -46,6 +46,11 @@ type OrchestratorSpec struct {
 	// +optional
 	A2A OrchestratorA2ASpec `json:"a2a,omitempty"`
 
+	// MCP configures Model Context Protocol integration, including optional
+	// label-selector discovery of MCP CRs in the cluster.
+	// +optional
+	MCP OrchestratorMCPSpec `json:"mcp,omitempty"`
+
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 
@@ -105,18 +110,18 @@ type OrchestratorToolsSpec struct {
 	Schedule bool `json:"schedule,omitempty"`
 }
 
-// OrchestratorServiceDiscoverySpec configures automatic discovery of Agent CRs.
+// OrchestratorServiceDiscoverySpec configures automatic discovery of Agent or MCP CRs.
 type OrchestratorServiceDiscoverySpec struct {
-	// Enabled toggles automatic service discovery of Agent CRs.
+	// Enabled toggles automatic service discovery.
 	Enabled bool `json:"enabled"`
 
-	// Namespace is the namespace to discover Agent CRs in.
+	// Namespace is the namespace to discover CRs in.
 	// Defaults to the Orchestrator's own namespace when empty.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 
-	// Selector filters which Agent CRs are discovered by their labels.
-	// A nil or empty selector matches all Agents in the namespace.
+	// Selector filters which CRs are discovered by their labels.
+	// A nil or empty selector matches all CRs in the namespace.
 	// Supports matchLabels and matchExpressions.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
@@ -134,6 +139,26 @@ type OrchestratorA2ASpec struct {
 	// The pod is rolled when the discovered set changes (a content hash is stamped on the
 	// pod template) because Kubernetes does not propagate live updates to ConfigMap volumes
 	// mounted with subPath.
+	// +optional
+	ServiceDiscovery OrchestratorServiceDiscoverySpec `json:"serviceDiscovery,omitempty"`
+}
+
+// OrchestratorMCPSpec configures Model Context Protocol integration. When
+// ServiceDiscovery is enabled, the controller discovers MCP CRs matching the
+// selector and writes them into mcp.yaml mounted at ~/.infer/mcp.yaml inside
+// the orchestrator pod. The pod is rolled when the discovered set changes
+// (a content hash is stamped on the pod template) because Kubernetes does not
+// propagate live updates to ConfigMap volumes mounted with subPath.
+type OrchestratorMCPSpec struct {
+	Enabled bool `json:"enabled"`
+
+	// Servers is a static list of MCP server URLs, kept for parity with
+	// A2A.Agents. Useful for referencing externally-hosted MCPs that have no
+	// MCP CR in the cluster.
+	// +optional
+	Servers []string `json:"servers,omitempty"`
+
+	// ServiceDiscovery configures automatic discovery of MCP CRs by label selector.
 	// +optional
 	ServiceDiscovery OrchestratorServiceDiscoverySpec `json:"serviceDiscovery,omitempty"`
 }
@@ -158,6 +183,14 @@ type OrchestratorStatus struct {
 	// DiscoveredAgentCount is the number of agents currently discovered via service discovery.
 	// +optional
 	DiscoveredAgentCount int32 `json:"discoveredAgentCount,omitempty"`
+
+	// DiscoveredMCPs is the sorted list of MCP server URLs found via service discovery.
+	// +optional
+	DiscoveredMCPs []string `json:"discoveredMCPs,omitempty"`
+
+	// DiscoveredMCPCount is the number of MCP servers currently discovered via service discovery.
+	// +optional
+	DiscoveredMCPCount int32 `json:"discoveredMCPCount,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -165,6 +198,7 @@ type OrchestratorStatus struct {
 // +kubebuilder:resource:shortName=orch,categories=inference-gateway
 // +kubebuilder:printcolumn:name="READY",type=boolean,JSONPath=".status.ready",description="Whether the Orchestrator Deployment is available"
 // +kubebuilder:printcolumn:name="AGENTS",type=integer,JSONPath=".status.discoveredAgentCount",description="Number of discovered agents"
+// +kubebuilder:printcolumn:name="MCPS",type=integer,JSONPath=".status.discoveredMCPCount",description="Number of discovered MCP servers"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 
 // Orchestrator is the Schema for the orchestrators API.

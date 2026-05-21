@@ -59,6 +59,7 @@ type OrchestratorReconciler struct {
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=orchestrators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=orchestrators/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=agents,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=mcps,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile drives an Orchestrator resource toward its desired state.
@@ -92,7 +93,18 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	deployment, err := r.reconcileDeployment(ctx, &orch, agentsYAML)
+	// Reconcile the MCPs ConfigMap (handles both static and discovered MCP servers).
+	discoveredMCPURLs, mcpYAML, err := r.reconcileMCPsConfigMap(ctx, &orch)
+	if err != nil {
+		if apiErrors.IsConflict(err) {
+			logger.V(1).Info("mcps configmap reconciliation conflict, requeueing", "error", err)
+			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
+		}
+		logger.Error(err, "failed to reconcile mcps configmap")
+		return ctrl.Result{}, err
+	}
+
+	deployment, err := r.reconcileDeployment(ctx, &orch, agentsYAML, mcpYAML)
 	if err != nil {
 		if apiErrors.IsConflict(err) {
 			logger.V(1).Info("deployment reconciliation conflict, requeueing", "error", err)
@@ -102,7 +114,7 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	if err := r.updateStatus(ctx, &orch, deployment, discoveredAgentURLs); err != nil {
+	if err := r.updateStatus(ctx, &orch, deployment, discoveredAgentURLs, discoveredMCPURLs); err != nil {
 		logger.Error(err, "failed to update orchestrator status")
 		return ctrl.Result{}, err
 	}
@@ -114,7 +126,7 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 // builds an agents.yaml combining static and discovered agents, and writes it to a ConfigMap
 // owned by the Orchestrator. Returns the sorted list of discovered agent URLs and the
 // rendered agents.yaml content (used to stamp a hash annotation on the Deployment so the
-// pod is rolled when the content changes — required because the ConfigMap is mounted with
+// pod is rolled when the content changes - required because the ConfigMap is mounted with
 // subPath, which Kubernetes does not propagate live updates for).
 //
 // Note on INFER_A2A_AGENTS: the env var is retained for backward compatibility when
@@ -250,11 +262,151 @@ func buildAgentsYAML(staticAgents []string, discoveredAgents []v1alpha1.Agent) s
 	return sb.String()
 }
 
+// reconcileMCPsConfigMap discovers MCP CRs matching the service discovery selector,
+// builds an mcp.yaml combining static and discovered MCP servers, and writes it to a ConfigMap
+// owned by the Orchestrator. Returns the sorted list of discovered MCP URLs and the
+// rendered mcp.yaml content (used to stamp a hash annotation on the Deployment so the
+// pod is rolled when the content changes - required because the ConfigMap is mounted with
+// subPath, which Kubernetes does not propagate live updates for).
+func (r *OrchestratorReconciler) reconcileMCPsConfigMap(ctx context.Context, orch *v1alpha1.Orchestrator) ([]string, string, error) {
+	logger := logf.FromContext(ctx)
+
+	if !orch.Spec.MCP.Enabled || !orch.Spec.MCP.ServiceDiscovery.Enabled {
+		return nil, "", nil
+	}
+
+	discoveredMCPs, err := r.discoverMCPs(ctx, orch)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to discover mcps: %w", err)
+	}
+
+	discoveredURLs := make([]string, 0, len(discoveredMCPs))
+	for _, mcp := range discoveredMCPs {
+		discoveredURLs = append(discoveredURLs, mcpURL(&mcp))
+	}
+	sort.Strings(discoveredURLs)
+
+	mcpYAML := buildMCPsYAML(orch.Spec.MCP.Servers, discoveredMCPs)
+
+	cmName := orch.Name + "-mcps"
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cmName,
+			Namespace: orch.Namespace,
+			Labels:    map[string]string{"app": orch.Name},
+		},
+		Data: map[string]string{
+			"mcp.yaml": mcpYAML,
+		},
+	}
+
+	if err := controllerutil.SetControllerReference(orch, cm, r.Scheme); err != nil {
+		return nil, "", err
+	}
+
+	found := &corev1.ConfigMap{}
+	err = r.Get(ctx, types.NamespacedName{Name: cmName, Namespace: orch.Namespace}, found)
+	if err != nil && apiErrors.IsNotFound(err) {
+		logger.Info("creating mcps configmap", "ConfigMap.Name", cmName)
+		if err = r.Create(ctx, cm); err != nil {
+			return nil, "", err
+		}
+		return discoveredURLs, mcpYAML, nil
+	} else if err != nil {
+		return nil, "", err
+	}
+
+	if found.Data == nil || found.Data["mcp.yaml"] != mcpYAML {
+		found.Data = cm.Data
+		logger.Info("updating mcps configmap", "ConfigMap.Name", cmName, "mcpCount", len(discoveredMCPs))
+		if err = r.Update(ctx, found); err != nil {
+			return nil, "", err
+		}
+	}
+
+	return discoveredURLs, mcpYAML, nil
+}
+
+// discoverMCPs lists MCP CRs in the configured namespace filtered by the label selector.
+func (r *OrchestratorReconciler) discoverMCPs(ctx context.Context, orch *v1alpha1.Orchestrator) ([]v1alpha1.MCP, error) {
+	ns := orch.Spec.MCP.ServiceDiscovery.Namespace
+	if ns == "" {
+		ns = orch.Namespace
+	}
+
+	listOpts := []client.ListOption{client.InNamespace(ns)}
+
+	if orch.Spec.MCP.ServiceDiscovery.Selector != nil {
+		selector, err := metav1.LabelSelectorAsSelector(orch.Spec.MCP.ServiceDiscovery.Selector)
+		if err != nil {
+			return nil, fmt.Errorf("invalid label selector: %w", err)
+		}
+		listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: selector})
+	}
+
+	var mcpList v1alpha1.MCPList
+	if err := r.List(ctx, &mcpList, listOpts...); err != nil {
+		return nil, err
+	}
+
+	return mcpList.Items, nil
+}
+
+// buildMCPsYAML constructs an mcp.yaml document combining static and discovered MCP servers.
+// Discovered entries are sorted by name for determinism.
+func buildMCPsYAML(staticServers []string, discoveredMCPs []v1alpha1.MCP) string {
+	var sb strings.Builder
+	sb.WriteString("mcpServers:\n")
+
+	for i, url := range staticServers {
+		fmt.Fprintf(&sb, "  - name: static-mcp-%d\n", i)
+		fmt.Fprintf(&sb, "    url: %s\n", url)
+		sb.WriteString("    enabled: true\n")
+	}
+
+	sorted := make([]v1alpha1.MCP, len(discoveredMCPs))
+	copy(sorted, discoveredMCPs)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
+
+	for _, mcp := range sorted {
+		fmt.Fprintf(&sb, "  - name: %s\n", mcp.Name)
+		fmt.Fprintf(&sb, "    url: %s\n", mcpURL(&mcp))
+		sb.WriteString("    enabled: true\n")
+	}
+
+	return sb.String()
+}
+
+// mcpURL returns the URL for an MCP CR. It prefers Status.URL (already TLS- and
+// path-aware, populated by the MCP controller) and falls back to a deterministic
+// construction when status has not been populated yet.
+func mcpURL(mcp *v1alpha1.MCP) string {
+	if mcp.Status.URL != "" {
+		return mcp.Status.URL
+	}
+	scheme := "http"
+	var port int32 = 8080
+	path := "/mcp"
+	if mcp.Spec.Server != nil {
+		if mcp.Spec.Server.Port != 0 {
+			port = mcp.Spec.Server.Port
+		}
+		if mcp.Spec.Server.TLS != nil && mcp.Spec.Server.TLS.Enabled {
+			scheme = "https"
+		}
+		if mcp.Spec.Server.Path != "" {
+			path = mcp.Spec.Server.Path
+		}
+	}
+	return fmt.Sprintf("%s://%s-service.%s.svc.cluster.local:%d%s", scheme, mcp.Name, mcp.Namespace, port, path)
+}
+
 // reconcileDeployment ensures the Orchestrator's singleton Deployment exists and matches the spec.
-// agentsYAML is the rendered ConfigMap content; its hash is stamped as a pod template annotation
-// so the Deployment rolls when the content changes (subPath mounts do not propagate updates).
-func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *v1alpha1.Orchestrator, agentsYAML string) (*appsv1.Deployment, error) {
-	deployment := r.buildOrchestratorDeployment(orch, agentsYAML)
+// agentsYAML and mcpYAML are the rendered ConfigMap contents; their hashes are stamped as
+// pod template annotations so the Deployment rolls when the contents change (subPath mounts
+// do not propagate updates).
+func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *v1alpha1.Orchestrator, agentsYAML, mcpYAML string) (*appsv1.Deployment, error) {
+	deployment := r.buildOrchestratorDeployment(orch, agentsYAML, mcpYAML)
 
 	if err := controllerutil.SetControllerReference(orch, deployment, r.Scheme); err != nil {
 		return nil, err
@@ -264,11 +416,12 @@ func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *
 }
 
 // buildOrchestratorDeployment returns a singleton Deployment for the given Orchestrator.
-// When service discovery is enabled the agents ConfigMap is mounted at /home/infer/.infer/agents.yaml
-// so the CLI picks up the discovered agent list on each invocation. The hash of agentsYAML is stamped
-// as a pod template annotation so the Deployment rolls when the discovered agent set changes —
+// When service discovery is enabled the agents/mcps ConfigMaps are mounted at
+// /home/infer/.infer/agents.yaml and /home/infer/.infer/mcp.yaml so the CLI picks up the
+// discovered sets on each invocation. The hashes of the YAML contents are stamped as
+// pod template annotations so the Deployment rolls when either set changes -
 // Kubernetes does not propagate live updates to ConfigMap volumes that use subPath.
-func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orchestrator, agentsYAML string) *appsv1.Deployment {
+func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orchestrator, agentsYAML, mcpYAML string) *appsv1.Deployment {
 	orchLabels := map[string]string{"app": orch.Name}
 
 	container := corev1.Container{
@@ -307,6 +460,29 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orch
 		)
 		sum := sha256.Sum256([]byte(agentsYAML))
 		podAnnotations["inference-gateway.com/agents-config-hash"] = hex.EncodeToString(sum[:])
+	}
+
+	// Mount the mcps ConfigMap when MCP service discovery is enabled.
+	if orch.Spec.MCP.Enabled && orch.Spec.MCP.ServiceDiscovery.Enabled {
+		cmName := orch.Name + "-mcps"
+		podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+			Name: "mcps-config",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: cmName},
+				},
+			},
+		})
+		podSpec.Containers[0].VolumeMounts = append(
+			podSpec.Containers[0].VolumeMounts,
+			corev1.VolumeMount{
+				Name:      "mcps-config",
+				MountPath: "/home/infer/.infer/mcp.yaml",
+				SubPath:   "mcp.yaml",
+			},
+		)
+		sum := sha256.Sum256([]byte(mcpYAML))
+		podAnnotations["inference-gateway.com/mcps-config-hash"] = hex.EncodeToString(sum[:])
 	}
 
 	return &appsv1.Deployment{
@@ -518,8 +694,8 @@ func (r *OrchestratorReconciler) updateOrchestratorDeploymentIfNeeded(ctx contex
 	return nil, fmt.Errorf("failed to update orchestrator deployment after 3 retries due to conflicts")
 }
 
-// updateStatus reflects Deployment availability and discovered agents into Orchestrator status.
-func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *v1alpha1.Orchestrator, deployment *appsv1.Deployment, discoveredAgentURLs []string) error {
+// updateStatus reflects Deployment availability and discovered agents/MCPs into Orchestrator status.
+func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *v1alpha1.Orchestrator, deployment *appsv1.Deployment, discoveredAgentURLs, discoveredMCPURLs []string) error {
 	patch := client.MergeFrom(orch.DeepCopy())
 
 	ready := deployment.Status.AvailableReplicas >= 1
@@ -527,6 +703,8 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *v1alpha
 	orch.Status.ObservedGeneration = orch.Generation
 	orch.Status.DiscoveredAgents = discoveredAgentURLs
 	orch.Status.DiscoveredAgentCount = int32(len(discoveredAgentURLs))
+	orch.Status.DiscoveredMCPs = discoveredMCPURLs
+	orch.Status.DiscoveredMCPCount = int32(len(discoveredMCPURLs))
 
 	readyCondition := metav1.Condition{
 		Type:               "Ready",
@@ -556,6 +734,19 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *v1alpha
 		setCondition(&orch.Status.Conditions, discoveredCondition)
 	}
 
+	// Reflect the outcome of the last MCP discovery pass.
+	if orch.Spec.MCP.Enabled && orch.Spec.MCP.ServiceDiscovery.Enabled {
+		discoveredMCPCondition := metav1.Condition{
+			Type:               "MCPsDiscovered",
+			Status:             metav1.ConditionTrue,
+			Reason:             "MCPsDiscovered",
+			Message:            fmt.Sprintf("discovered %d mcp(s)", len(discoveredMCPURLs)),
+			ObservedGeneration: orch.Generation,
+			LastTransitionTime: metav1.Now(),
+		}
+		setCondition(&orch.Status.Conditions, discoveredMCPCondition)
+	}
+
 	return r.Status().Patch(ctx, orch, patch)
 }
 
@@ -576,6 +767,10 @@ func setCondition(conditions *[]metav1.Condition, newCond metav1.Condition) {
 
 // agentToOrchestratorRequests maps an Agent event to the set of Orchestrator reconcile requests
 // whose service discovery configuration selects that Agent.
+//
+// hurt readability for marginal LOC savings.
+//
+//nolint:dupl // structurally parallel to mcpToOrchestratorRequests; merging via generics would
 func (r *OrchestratorReconciler) agentToOrchestratorRequests(ctx context.Context, obj client.Object) []ctrl.Request {
 	agent, ok := obj.(*v1alpha1.Agent)
 	if !ok {
@@ -623,9 +818,61 @@ func (r *OrchestratorReconciler) agentToOrchestratorRequests(ctx context.Context
 	return requests
 }
 
+// mcpToOrchestratorRequests maps an MCP event to the set of Orchestrator reconcile requests
+// whose MCP service discovery configuration selects that MCP.
+//
+// hurt readability for marginal LOC savings.
+//
+//nolint:dupl // structurally parallel to agentToOrchestratorRequests; merging via generics would
+func (r *OrchestratorReconciler) mcpToOrchestratorRequests(ctx context.Context, obj client.Object) []ctrl.Request {
+	mcp, ok := obj.(*v1alpha1.MCP)
+	if !ok {
+		return nil
+	}
+
+	var orchList v1alpha1.OrchestratorList
+	if err := r.List(ctx, &orchList); err != nil {
+		return nil
+	}
+
+	var requests []ctrl.Request
+	for _, orch := range orchList.Items {
+		if !orch.Spec.MCP.Enabled || !orch.Spec.MCP.ServiceDiscovery.Enabled {
+			continue
+		}
+
+		ns := orch.Spec.MCP.ServiceDiscovery.Namespace
+		if ns == "" {
+			ns = orch.Namespace
+		}
+
+		if ns != mcp.Namespace {
+			continue
+		}
+
+		if orch.Spec.MCP.ServiceDiscovery.Selector != nil {
+			selector, err := metav1.LabelSelectorAsSelector(orch.Spec.MCP.ServiceDiscovery.Selector)
+			if err != nil {
+				continue
+			}
+			if !selector.Matches(labels.Set(mcp.Labels)) {
+				continue
+			}
+		}
+
+		requests = append(requests, ctrl.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      orch.Name,
+				Namespace: orch.Namespace,
+			},
+		})
+	}
+	return requests
+}
+
 // SetupWithManager registers the Orchestrator controller with the manager.
-// It watches Agent CRs across all namespaces and triggers Orchestrator reconciliations
-// when an Agent matching an Orchestrator's service discovery selector changes.
+// It watches Agent and MCP CRs across all namespaces and triggers Orchestrator
+// reconciliations when one matching an Orchestrator's service discovery selector changes.
 func (r *OrchestratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.Orchestrator{}).
@@ -634,6 +881,10 @@ func (r *OrchestratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&v1alpha1.Agent{},
 			handler.EnqueueRequestsFromMapFunc(r.agentToOrchestratorRequests),
+		).
+		Watches(
+			&v1alpha1.MCP{},
+			handler.EnqueueRequestsFromMapFunc(r.mcpToOrchestratorRequests),
 		).
 		Named("orchestrator").
 		Complete(r)

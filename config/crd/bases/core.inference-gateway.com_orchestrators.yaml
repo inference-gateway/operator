@@ -27,6 +27,10 @@ spec:
       jsonPath: .status.discoveredAgentCount
       name: AGENTS
       type: integer
+    - description: Number of discovered MCP servers
+      jsonPath: .status.discoveredMCPCount
+      name: MCPS
+      type: integer
     - description: Age of the resource
       jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -81,18 +85,17 @@ spec:
                       mounted with subPath.
                     properties:
                       enabled:
-                        description: Enabled toggles automatic service discovery of
-                          Agent CRs.
+                        description: Enabled toggles automatic service discovery.
                         type: boolean
                       namespace:
                         description: |-
-                          Namespace is the namespace to discover Agent CRs in.
+                          Namespace is the namespace to discover CRs in.
                           Defaults to the Orchestrator's own namespace when empty.
                         type: string
                       selector:
                         description: |-
-                          Selector filters which Agent CRs are discovered by their labels.
-                          A nil or empty selector matches all Agents in the namespace.
+                          Selector filters which CRs are discovered by their labels.
+                          A nil or empty selector matches all CRs in the namespace.
                           Supports matchLabels and matchExpressions.
                         properties:
                           matchExpressions:
@@ -426,6 +429,88 @@ spec:
                 type: object
               image:
                 type: string
+              mcp:
+                description: |-
+                  MCP configures Model Context Protocol integration, including optional
+                  label-selector discovery of MCP CRs in the cluster.
+                properties:
+                  enabled:
+                    type: boolean
+                  servers:
+                    description: |-
+                      Servers is a static list of MCP server URLs, kept for parity with
+                      A2A.Agents. Useful for referencing externally-hosted MCPs that have no
+                      MCP CR in the cluster.
+                    items:
+                      type: string
+                    type: array
+                  serviceDiscovery:
+                    description: ServiceDiscovery configures automatic discovery of
+                      MCP CRs by label selector.
+                    properties:
+                      enabled:
+                        description: Enabled toggles automatic service discovery.
+                        type: boolean
+                      namespace:
+                        description: |-
+                          Namespace is the namespace to discover CRs in.
+                          Defaults to the Orchestrator's own namespace when empty.
+                        type: string
+                      selector:
+                        description: |-
+                          Selector filters which CRs are discovered by their labels.
+                          A nil or empty selector matches all CRs in the namespace.
+                          Supports matchLabels and matchExpressions.
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: |-
+                                A label selector requirement is a selector that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: |-
+                                    operator represents a key's relationship to a set of values.
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.
+                                  type: string
+                                values:
+                                  description: |-
+                                    values is an array of string values. If the operator is In or NotIn,
+                                    the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                    the values array must be empty. This array is replaced during a strategic
+                                    merge patch.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                              map is equivalent to an element of matchExpressions, whose key field is "key", the
+                              operator is "In", and the values array contains only "value". The requirements are ANDed.
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    required:
+                    - enabled
+                    type: object
+                required:
+                - enabled
+                type: object
               resources:
                 description: ResourceRequirements describes the compute resource requirements.
                 properties:
@@ -571,6 +656,17 @@ spec:
               discoveredAgents:
                 description: DiscoveredAgents is the sorted list of agent URLs found
                   via service discovery.
+                items:
+                  type: string
+                type: array
+              discoveredMCPCount:
+                description: DiscoveredMCPCount is the number of MCP servers currently
+                  discovered via service discovery.
+                format: int32
+                type: integer
+              discoveredMCPs:
+                description: DiscoveredMCPs is the sorted list of MCP server URLs
+                  found via service discovery.
                 items:
                   type: string
                 type: array

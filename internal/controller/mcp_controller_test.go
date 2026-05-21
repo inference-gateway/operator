@@ -383,7 +383,7 @@ var _ = Describe("MCPReconciler", func() {
 						},
 					}
 				},
-				"http://test-url-service.default.svc.cluster.local:3000"),
+				"http://test-url-service.default.svc.cluster.local:3000/mcp"),
 
 			Entry("builds HTTPS URL when TLS is enabled",
 				func() *v1alpha1.MCP {
@@ -412,7 +412,7 @@ var _ = Describe("MCPReconciler", func() {
 						},
 					}
 				},
-				"https://test-url-tls-service.default.svc.cluster.local:8443"),
+				"https://test-url-tls-service.default.svc.cluster.local:8443/mcp"),
 
 			Entry("builds URL with custom port",
 				func() *v1alpha1.MCP {
@@ -437,7 +437,7 @@ var _ = Describe("MCPReconciler", func() {
 						},
 					}
 				},
-				"http://test-url-custom-service.production.svc.cluster.local:9090"),
+				"http://test-url-custom-service.production.svc.cluster.local:9090/mcp"),
 
 			Entry("returns empty string for nil service",
 				func() *v1alpha1.MCP {
@@ -596,7 +596,7 @@ var _ = Describe("MCPReconciler", func() {
 				Namespace: "default",
 			}, updatedMCP)).To(Succeed())
 
-			Expect(updatedMCP.Status.URL).To(Equal("http://test-status-update-service.default.svc.cluster.local:8080"))
+			Expect(updatedMCP.Status.URL).To(Equal("http://test-status-update-service.default.svc.cluster.local:8080/mcp"))
 			Expect(updatedMCP.Status.Ready).To(BeTrue())
 			Expect(updatedMCP.Status.ObservedGeneration).To(Equal(int64(1)))
 		})
@@ -612,7 +612,7 @@ var _ = Describe("MCPReconciler", func() {
 					Image: "test:image",
 				},
 				Status: v1alpha1.MCPStatus{
-					URL:                "http://test-no-status-change-service.default.svc.cluster.local:3000",
+					URL:                "http://test-no-status-change-service.default.svc.cluster.local:3000/mcp",
 					Ready:              false,
 					ObservedGeneration: 1,
 				},
@@ -647,7 +647,7 @@ var _ = Describe("MCPReconciler", func() {
 				Namespace: "default",
 			}, updatedMCP)).To(Succeed())
 
-			Expect(updatedMCP.Status.URL).To(Equal("http://test-no-status-change-service.default.svc.cluster.local:3000"))
+			Expect(updatedMCP.Status.URL).To(Equal("http://test-no-status-change-service.default.svc.cluster.local:3000/mcp"))
 			Expect(updatedMCP.Status.Ready).To(BeFalse())
 			Expect(updatedMCP.Status.ObservedGeneration).To(Equal(int64(1)))
 		})
@@ -788,7 +788,7 @@ var _ = Describe("MCPReconciler", func() {
 				Namespace: "default",
 			}, updatedMCP)).To(Succeed())
 
-			Expect(updatedMCP.Status.URL).To(Equal("http://test-integration-service-service.default.svc.cluster.local:8080"))
+			Expect(updatedMCP.Status.URL).To(Equal("http://test-integration-service-service.default.svc.cluster.local:8080/mcp"))
 			Expect(updatedMCP.Status.ObservedGeneration).To(Equal(mcp.Generation))
 
 			DeferCleanup(func() {
@@ -855,7 +855,7 @@ var _ = Describe("MCPReconciler", func() {
 				Name:      "test-service-update",
 				Namespace: "default",
 			}, updatedMCP)).To(Succeed())
-			Expect(updatedMCP.Status.URL).To(Equal("http://test-service-update-service.default.svc.cluster.local:9090"))
+			Expect(updatedMCP.Status.URL).To(Equal("http://test-service-update-service.default.svc.cluster.local:9090/mcp"))
 
 			DeferCleanup(func() {
 				_ = k8sClient.Delete(ctx, updatedService)
@@ -900,7 +900,7 @@ var _ = Describe("MCPReconciler", func() {
 				Namespace: "default",
 			}, updatedMCP)).To(Succeed())
 
-			Expect(updatedMCP.Status.URL).To(Equal("https://test-tls-url-service.default.svc.cluster.local:8443"))
+			Expect(updatedMCP.Status.URL).To(Equal("https://test-tls-url-service.default.svc.cluster.local:8443/mcp"))
 
 			DeferCleanup(func() {
 				service := &corev1.Service{}

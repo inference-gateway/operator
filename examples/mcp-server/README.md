@@ -1,6 +1,6 @@
 # MCP Server Example
 
-Deploy an **MCP Memory Server** — a Model Context Protocol (MCP) server that provides persistent in-cluster memory storage for LLM interactions. The server is exposed over TLS using a self-signed certificate managed by cert-manager and scales automatically via HPA.
+Deploy an **MCP Memory Server** - a Model Context Protocol (MCP) server that provides persistent in-cluster memory storage for LLM interactions. The server is exposed over TLS using a self-signed certificate managed by cert-manager and scales automatically via HPA.
 
 Once deployed, register this server's in-cluster URL in a Gateway resource under `spec.mcp.servers` to allow the Inference Gateway to proxy MCP tool calls to it.
 

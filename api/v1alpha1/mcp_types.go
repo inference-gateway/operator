@@ -65,6 +65,15 @@ type MCPServerSpec struct {
 	// +optional
 	Port int32 `json:"port,omitempty"`
 
+	// Path is the URL path under which the MCP server serves protocol requests
+	// (e.g. "/mcp", "/sse", "/v1/mcp"). Consumers that auto-discover this MCP CR
+	// (Gateway / Orchestrator service discovery) will append this path to the
+	// constructed service URL. Defaults to "/mcp".
+	// +kubebuilder:default="/mcp"
+	// +kubebuilder:validation:Pattern=`^/.*`
+	// +optional
+	Path string `json:"path,omitempty"`
+
 	// Command is the command to run the MCP server.
 	// If not specified, the default command will be used.
 	// +optional
