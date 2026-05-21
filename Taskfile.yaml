@@ -175,10 +175,19 @@ tasks:
           controllerName: gateway.envoyproxy.io/gatewayclass-controller
         EOF
 
+  fetch-gateway-api-crds:
+    desc: Download upstream Gateway API CRDs for envtest
+    status:
+      - test -f test/crds/gateway-api/standard-install.yaml
+    cmds:
+      - mkdir -p test/crds/gateway-api
+      - curl -fsSL -o test/crds/gateway-api/standard-install.yaml https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
+
   test:
     desc: Run tests
     deps:
       - ensure-k8s-envtest
+      - fetch-gateway-api-crds
     cmds:
       - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path)" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
 
