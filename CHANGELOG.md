@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.1](https://github.com/inference-gateway/operator/compare/v0.16.0...v0.16.1) (2026-05-21)
+
+### ♻️ Improvements
+
+* **examples:** Rename mcp-memory-server binary to mcp-server ([1bb090f](https://github.com/inference-gateway/operator/commit/1bb090f07e550af9e06ba69e2d9a0b86bfa60e01))
+
+### 🐛 Bug Fixes
+
+* **agent:** Populate status.card so kubectl get agents renders metadata ([#70](https://github.com/inference-gateway/operator/issues/70)) ([87fa392](https://github.com/inference-gateway/operator/commit/87fa392ed58c7217569983fb7d06d4ba9435a8b3))
+* **mcp:** Create the MCP config properly as described in the cli repo ([1ba2e52](https://github.com/inference-gateway/operator/commit/1ba2e5257d040a3905dccae9100a1fec74defbc4))
+
 ## [0.16.0](https://github.com/inference-gateway/operator/compare/v0.15.0...v0.16.0) (2026-05-21)
 
 ### ✨ Features
