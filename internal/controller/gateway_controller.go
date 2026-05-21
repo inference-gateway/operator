@@ -999,7 +999,7 @@ func defaultParentRefs(gateway *corev1alpha1.Gateway) []gwapiv1.ParentReference 
 func defaultHTTPRouteRules(gateway *corev1alpha1.Gateway) []gwapiv1.HTTPRouteRule {
 	pathPrefix := gwapiv1.PathMatchPathPrefix
 	rootPath := "/"
-	port := gwapiv1.PortNumber(gatewayServicePort(gateway))
+	port := gatewayServicePort(gateway)
 
 	return []gwapiv1.HTTPRouteRule{
 		{

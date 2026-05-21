@@ -163,7 +163,8 @@ tasks:
           oci://docker.io/envoyproxy/gateway-helm \
           --version {{.ENVOY_GATEWAY_VERSION}} \
           --namespace envoy-gateway-system \
-          --create-namespace
+          --create-namespace \
+          --skip-crds
       - kubectl -n envoy-gateway-system wait --for=condition=Available --timeout=120s deployment/envoy-gateway
       - |
         kubectl apply -f - <<'EOF'
