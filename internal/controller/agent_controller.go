@@ -122,24 +122,27 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	return ctrl.Result{RequeueAfter: agentCardRefreshInterval}, nil
 }
 
-// patchStatusReady patches the Agent status with the fetched card and a Ready=True condition.
+// patchStatusReady writes the Agent status with the fetched card and a Ready=True condition.
+// Uses Status().Update rather than a merge patch so that false-valued bool fields (e.g.
+// capabilities.pushNotifications) actually land on the API object: a JSON merge patch
+// would diff the in-memory base (zero-valued bools marshal as false) against the modified
+// object (same false), produce an empty diff for those fields, and leave them absent from
+// the stored status — meaning printer columns sourced from them render blank.
 func (r *AgentReconciler) patchStatusReady(ctx context.Context, agent *v1alpha1.Agent, card *v1alpha1.Card) error {
-	patch := client.MergeFrom(agent.DeepCopy())
 	agent.Status.Card = *card
 	agent.Status.Ready = true
 	agent.Status.ObservedGeneration = agent.Generation
 	setReadyCondition(&agent.Status.Conditions, metav1.ConditionTrue, "CardFetched", "agent card retrieved successfully")
-	return r.Status().Patch(ctx, agent, patch)
+	return r.Status().Update(ctx, agent)
 }
 
-// patchStatusNotReady patches the Agent status with a Ready=False condition explaining
+// patchStatusNotReady writes the Agent status with a Ready=False condition explaining
 // why the card could not be fetched. The previously cached card (if any) is preserved.
 func (r *AgentReconciler) patchStatusNotReady(ctx context.Context, agent *v1alpha1.Agent, fetchErr error) error {
-	patch := client.MergeFrom(agent.DeepCopy())
 	agent.Status.Ready = false
 	agent.Status.ObservedGeneration = agent.Generation
 	setReadyCondition(&agent.Status.Conditions, metav1.ConditionFalse, "CardFetchFailed", fetchErr.Error())
-	return r.Status().Patch(ctx, agent, patch)
+	return r.Status().Update(ctx, agent)
 }
 
 // setReadyCondition upserts a "Ready" condition on the slice.
@@ -212,6 +215,19 @@ const (
 	// defaultAgentPort is the port used when an agent's spec.port is unset.
 	defaultAgentPort = int32(8080)
 )
+
+// agentAdvertisedURL returns the URL the agent should report in its agent-card.
+// spec.card.url wins when set, otherwise it's the in-cluster Service URL.
+func agentAdvertisedURL(agent *v1alpha1.Agent) string {
+	if agent.Spec.Card.URL != "" {
+		return agent.Spec.Card.URL
+	}
+	port := agent.Spec.Port
+	if port <= 0 {
+		port = defaultAgentPort
+	}
+	return fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", agent.Name, agent.Namespace, port)
+}
 
 // agentCardPort returns the port to query for the agent's well-known card, preferring
 // the agent spec but falling back to the service port, then the package default.
@@ -349,6 +365,11 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 		corev1.EnvVar{Name: "TIMEZONE", Value: agent.Spec.Timezone},
 		corev1.EnvVar{Name: "PORT", Value: strconv.Itoa(int(agent.Spec.Port))},
 		corev1.EnvVar{Name: "HOST", Value: agent.Spec.Host},
+		// A2A_AGENT_URL is what the agent reports as its own URL in /.well-known/agent-card.json.
+		// The agent can't derive this itself, so the operator supplies a URL: spec.card.url
+		// takes precedence (for agents fronted by an Ingress/Gateway), falling back to the
+		// in-cluster Service URL.
+		corev1.EnvVar{Name: "A2A_AGENT_URL", Value: agentAdvertisedURL(agent)},
 		corev1.EnvVar{Name: "READ_TIMEOUT", Value: agent.Spec.ReadTimeout},
 		corev1.EnvVar{Name: "WRITE_TIMEOUT", Value: agent.Spec.WriteTimeout},
 		corev1.EnvVar{Name: "IDLE_TIMEOUT", Value: agent.Spec.IdleTimeout},

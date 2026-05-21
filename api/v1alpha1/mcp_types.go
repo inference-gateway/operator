@@ -113,7 +113,6 @@ type MCPStatus struct {
 
 	// Conditions represent the latest available observations of the resource's state.
 	// +optional
-	// +kubebuilder:validation:Enum=Pending;Running;Failed;Unknown
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Ready indicates if the resource is ready.

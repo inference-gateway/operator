@@ -522,6 +522,34 @@ var _ = Describe("Agent Controller", func() {
 		})
 	})
 
+	Context("agentAdvertisedURL", func() {
+		It("returns the in-cluster Service URL when spec.card.url is unset", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "agents"},
+				Spec:       v1alpha1.AgentSpec{Port: 8080},
+			}
+			Expect(agentAdvertisedURL(agent)).To(Equal("http://my-agent.agents.svc.cluster.local:8080"))
+		})
+
+		It("uses defaultAgentPort when port is unset", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "ns"},
+			}
+			Expect(agentAdvertisedURL(agent)).To(Equal("http://a.ns.svc.cluster.local:8080"))
+		})
+
+		It("returns spec.card.url when set, ignoring derived URL", func() {
+			agent := &v1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "agents"},
+				Spec: v1alpha1.AgentSpec{
+					Port: 8080,
+					Card: v1alpha1.CardSpec{URL: "https://agent.example.com"},
+				},
+			}
+			Expect(agentAdvertisedURL(agent)).To(Equal("https://agent.example.com"))
+		})
+	})
+
 	Context("getAgentCard", func() {
 		It("decodes a valid agent card JSON response", func() {
 			body := `{
