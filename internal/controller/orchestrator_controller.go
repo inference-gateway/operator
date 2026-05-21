@@ -126,7 +126,7 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 // builds an agents.yaml combining static and discovered agents, and writes it to a ConfigMap
 // owned by the Orchestrator. Returns the sorted list of discovered agent URLs and the
 // rendered agents.yaml content (used to stamp a hash annotation on the Deployment so the
-// pod is rolled when the content changes — required because the ConfigMap is mounted with
+// pod is rolled when the content changes - required because the ConfigMap is mounted with
 // subPath, which Kubernetes does not propagate live updates for).
 //
 // Note on INFER_A2A_AGENTS: the env var is retained for backward compatibility when
@@ -266,7 +266,7 @@ func buildAgentsYAML(staticAgents []string, discoveredAgents []v1alpha1.Agent) s
 // builds an mcp.yaml combining static and discovered MCP servers, and writes it to a ConfigMap
 // owned by the Orchestrator. Returns the sorted list of discovered MCP URLs and the
 // rendered mcp.yaml content (used to stamp a hash annotation on the Deployment so the
-// pod is rolled when the content changes — required because the ConfigMap is mounted with
+// pod is rolled when the content changes - required because the ConfigMap is mounted with
 // subPath, which Kubernetes does not propagate live updates for).
 func (r *OrchestratorReconciler) reconcileMCPsConfigMap(ctx context.Context, orch *v1alpha1.Orchestrator) ([]string, string, error) {
 	logger := logf.FromContext(ctx)
@@ -377,15 +377,16 @@ func buildMCPsYAML(staticServers []string, discoveredMCPs []v1alpha1.MCP) string
 	return sb.String()
 }
 
-// mcpURL returns the URL for an MCP CR. It prefers Status.URL (already TLS-aware,
-// populated by the MCP controller) and falls back to a deterministic construction
-// when status has not been populated yet.
+// mcpURL returns the URL for an MCP CR. It prefers Status.URL (already TLS- and
+// path-aware, populated by the MCP controller) and falls back to a deterministic
+// construction when status has not been populated yet.
 func mcpURL(mcp *v1alpha1.MCP) string {
 	if mcp.Status.URL != "" {
 		return mcp.Status.URL
 	}
 	scheme := "http"
 	var port int32 = 8080
+	path := "/mcp"
 	if mcp.Spec.Server != nil {
 		if mcp.Spec.Server.Port != 0 {
 			port = mcp.Spec.Server.Port
@@ -393,8 +394,11 @@ func mcpURL(mcp *v1alpha1.MCP) string {
 		if mcp.Spec.Server.TLS != nil && mcp.Spec.Server.TLS.Enabled {
 			scheme = "https"
 		}
+		if mcp.Spec.Server.Path != "" {
+			path = mcp.Spec.Server.Path
+		}
 	}
-	return fmt.Sprintf("%s://%s-service.%s.svc.cluster.local:%d", scheme, mcp.Name, mcp.Namespace, port)
+	return fmt.Sprintf("%s://%s-service.%s.svc.cluster.local:%d%s", scheme, mcp.Name, mcp.Namespace, port, path)
 }
 
 // reconcileDeployment ensures the Orchestrator's singleton Deployment exists and matches the spec.
@@ -415,7 +419,7 @@ func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *
 // When service discovery is enabled the agents/mcps ConfigMaps are mounted at
 // /home/infer/.infer/agents.yaml and /home/infer/.infer/mcp.yaml so the CLI picks up the
 // discovered sets on each invocation. The hashes of the YAML contents are stamped as
-// pod template annotations so the Deployment rolls when either set changes —
+// pod template annotations so the Deployment rolls when either set changes -
 // Kubernetes does not propagate live updates to ConfigMap volumes that use subPath.
 func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orchestrator, agentsYAML, mcpYAML string) *appsv1.Deployment {
 	orchLabels := map[string]string{"app": orch.Name}

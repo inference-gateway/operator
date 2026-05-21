@@ -406,7 +406,7 @@ var _ = Describe("buildMCPsYAML", func() {
 		}
 		yaml := buildMCPsYAML(nil, mcps)
 		Expect(yaml).To(ContainSubstring("url: https://override.example/mcp\n"))
-		Expect(yaml).To(ContainSubstring("url: http://no-status-service.mcp.svc.cluster.local:3000\n"))
+		Expect(yaml).To(ContainSubstring("url: http://no-status-service.mcp.svc.cluster.local:3000/mcp\n"))
 	})
 
 	It("uses https when TLS is enabled on the MCP server", func() {
@@ -422,7 +422,7 @@ var _ = Describe("buildMCPsYAML", func() {
 			},
 		}
 		yaml := buildMCPsYAML(nil, mcps)
-		Expect(yaml).To(ContainSubstring("url: https://tls-mcp-service.mcp.svc.cluster.local:3000\n"))
+		Expect(yaml).To(ContainSubstring("url: https://tls-mcp-service.mcp.svc.cluster.local:3000/mcp\n"))
 	})
 
 	It("sorts discovered MCPs by name for determinism", func() {

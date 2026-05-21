@@ -44,7 +44,7 @@ import (
 )
 
 // newFakeMCPClient builds a controller-runtime fake client with the v1alpha1 scheme
-// registered and the given MCP objects pre-loaded — for use in non-envtest unit tests
+// registered and the given MCP objects pre-loaded - for use in non-envtest unit tests
 // that exercise reconciler helpers in isolation.
 func newFakeMCPClient(objs ...client.Object) client.Client {
 	s := runtime.NewScheme()
@@ -773,9 +773,24 @@ var _ = Describe("Gateway MCP service discovery", func() {
 		})
 		urls := r.assembleMCPServerURLs(ctx, gw)
 		Expect(urls).To(ConsistOf(
-			"http://m1-service.mcp.svc.cluster.local:3000",
-			"http://m2-service.mcp.svc.cluster.local:3000",
+			"http://m1-service.mcp.svc.cluster.local:3000/mcp",
+			"http://m2-service.mcp.svc.cluster.local:3000/mcp",
 		))
+	})
+
+	It("honors a custom spec.server.path on the MCP CR", func() {
+		r := withFakeClient(
+			&corev1alpha1.MCP{
+				ObjectMeta: metav1.ObjectMeta{Name: "sse-srv", Namespace: "mcp"},
+				Spec: corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{
+					Port: 3001,
+					Path: "/sse",
+				}},
+			},
+		)
+		gw := makeGateway(nil, &corev1alpha1.MCPServiceDiscoverySpec{Enabled: true, Namespace: "mcp"})
+		urls := r.assembleMCPServerURLs(ctx, gw)
+		Expect(urls).To(Equal([]string{"http://sse-srv-service.mcp.svc.cluster.local:3001/sse"}))
 	})
 
 	It("uses https when the MCP TLS is enabled and a custom port", func() {
@@ -790,6 +805,6 @@ var _ = Describe("Gateway MCP service discovery", func() {
 		)
 		gw := makeGateway(nil, &corev1alpha1.MCPServiceDiscoverySpec{Enabled: true, Namespace: "mcp"})
 		urls := r.assembleMCPServerURLs(ctx, gw)
-		Expect(urls).To(Equal([]string{"https://secure-service.mcp.svc.cluster.local:9443"}))
+		Expect(urls).To(Equal([]string{"https://secure-service.mcp.svc.cluster.local:9443/mcp"}))
 	})
 })

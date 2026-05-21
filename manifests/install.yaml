@@ -3054,6 +3054,15 @@ spec:
                     items:
                       type: string
                     type: array
+                  path:
+                    default: /mcp
+                    description: |-
+                      Path is the URL path under which the MCP server serves protocol requests
+                      (e.g. "/mcp", "/sse", "/v1/mcp"). Consumers that auto-discover this MCP CR
+                      (Gateway / Orchestrator service discovery) will append this path to the
+                      constructed service URL. Defaults to "/mcp".
+                    pattern: ^/.*
+                    type: string
                   port:
                     default: 8080
                     description: Port is the port on which the MCP server listens.

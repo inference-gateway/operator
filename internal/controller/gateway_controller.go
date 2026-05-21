@@ -1468,15 +1468,16 @@ func (r *GatewayReconciler) discoverMCPs(ctx context.Context, gateway *corev1alp
 	return mcpList.Items, nil
 }
 
-// gatewayMCPURL returns the URL for an MCP CR. It prefers Status.URL (already TLS-aware,
-// populated by the MCP controller) and falls back to a deterministic construction when
-// status has not been populated yet.
+// gatewayMCPURL returns the URL for an MCP CR. It prefers Status.URL (already TLS-
+// and path-aware, populated by the MCP controller) and falls back to a deterministic
+// construction when status has not been populated yet.
 func gatewayMCPURL(mcp *corev1alpha1.MCP) string {
 	if mcp.Status.URL != "" {
 		return mcp.Status.URL
 	}
 	scheme := "http"
 	var port int32 = 8080
+	path := "/mcp"
 	if mcp.Spec.Server != nil {
 		if mcp.Spec.Server.Port != 0 {
 			port = mcp.Spec.Server.Port
@@ -1484,8 +1485,11 @@ func gatewayMCPURL(mcp *corev1alpha1.MCP) string {
 		if mcp.Spec.Server.TLS != nil && mcp.Spec.Server.TLS.Enabled {
 			scheme = "https"
 		}
+		if mcp.Spec.Server.Path != "" {
+			path = mcp.Spec.Server.Path
+		}
 	}
-	return fmt.Sprintf("%s://%s-service.%s.svc.cluster.local:%d", scheme, mcp.Name, mcp.Namespace, port)
+	return fmt.Sprintf("%s://%s-service.%s.svc.cluster.local:%d%s", scheme, mcp.Name, mcp.Namespace, port, path)
 }
 
 // mcpToGatewayRequests maps an MCP event to the set of Gateway reconcile requests
