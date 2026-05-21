@@ -135,6 +135,8 @@ Support for multiple AI/ML providers with flexible configuration:
 ### Extensions
 
 - **MCP (Model Context Protocol)**: Integration with MCP servers for tool access
+  - **Service Discovery**: Automatic discovery of `MCP` CRs via Kubernetes label selectors (Gateway and Orchestrator)
+  - **Dynamic Updates**: The pod's `MCP_SERVERS` / mounted `mcp.yaml` is rebuilt and rolled when the discovered set changes
 - **A2A (Agent-to-Agent)**: Distributed agent communication and polling
   - **Service Discovery**: Automatic discovery of A2A agents via Kubernetes label selectors
   - **Dynamic Agent Registration**: Real-time detection and configuration of new agents
@@ -586,6 +588,89 @@ metadata:
 spec:
   # Service configuration
 ```
+
+#### MCP Service Discovery Configuration
+
+`MCP` Custom Resources can be discovered automatically by both `Gateway` and
+`Orchestrator` via the same label-selector pattern used for A2A agents. Opt-in
+on the MCP side is via plain `metadata.labels` — no extra field on `MCPSpec`.
+
+**Gateway-side discovery** — discovered MCP URLs are unioned with the static
+`spec.mcp.servers[]` list, deduped, sorted, and exposed via the gateway pod's
+`MCP_SERVERS` env var:
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: gateway-with-mcp-discovery
+  namespace: inference-gateway
+spec:
+  mcp:
+    enabled: true
+    # Static entries still work alongside discovery.
+    servers:
+      - name: external-mcp
+        url: "https://mcp.example.com/mcp"
+    serviceDiscovery:
+      enabled: true
+      namespace: mcp # defaults to the Gateway's own namespace
+      selector:
+        matchLabels:
+          mcp-group: group1
+```
+
+**Orchestrator-side discovery** — discovered MCPs are rendered into an
+`mcp.yaml` ConfigMap mounted at `~/.infer/mcp.yaml` inside the orchestrator
+pod. A content-hash pod annotation rolls the singleton when the set changes:
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
+metadata:
+  name: orchestrator
+  namespace: orchestrator
+spec:
+  mcp:
+    enabled: true
+    servers: [] # static URLs, optional
+    serviceDiscovery:
+      enabled: true
+      namespace: mcp
+      selector:
+        matchLabels:
+          mcp-group: group1
+```
+
+**MCP CR labeling** — tag each `MCP` you want discovered with a matching label:
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: MCP
+metadata:
+  name: my-mcp
+  namespace: mcp
+  labels:
+    mcp-group: group1 # picked up by both selectors above
+spec:
+  image: ghcr.io/your-org/your-mcp-server:latest
+  server:
+    port: 8080
+    # Endpoint path the operator appends when building the in-cluster URL.
+    # Defaults to "/mcp"; override if your server listens elsewhere.
+    path: "/mcp"
+```
+
+Visibility:
+
+```bash
+kubectl get gateway       # MCPS column shows the discovered count
+kubectl get orchestrator  # MCPS column shows the discovered count
+```
+
+For a runnable end-to-end demo (Gateway + Orchestrator + two discovered MCP
+servers built with `metoro-io/mcp-golang`), see
+[`examples/orchestrator/`](examples/orchestrator/).
 
 #### Complete Configuration
 
