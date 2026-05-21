@@ -27,6 +27,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"reflect"
 	"sort"
 	"strconv"
@@ -353,15 +354,16 @@ func (r *OrchestratorReconciler) discoverMCPs(ctx context.Context, orch *v1alpha
 }
 
 // buildMCPsYAML constructs an mcp.yaml document combining static and discovered MCP servers.
-// Discovered entries are sorted by name for determinism.
+// Discovered entries are sorted by name for determinism. The schema matches the CLI's
+// MCPConfig (top-level `enabled` + `servers`, each entry split into scheme/host/port/path
+// rather than a single `url` field).
 func buildMCPsYAML(staticServers []string, discoveredMCPs []v1alpha1.MCP) string {
 	var sb strings.Builder
-	sb.WriteString("mcpServers:\n")
+	sb.WriteString("enabled: true\n")
+	sb.WriteString("servers:\n")
 
-	for i, url := range staticServers {
-		fmt.Fprintf(&sb, "  - name: static-mcp-%d\n", i)
-		fmt.Fprintf(&sb, "    url: %s\n", url)
-		sb.WriteString("    enabled: true\n")
+	for i, raw := range staticServers {
+		writeMCPServerEntry(&sb, fmt.Sprintf("static-mcp-%d", i), raw)
 	}
 
 	sorted := make([]v1alpha1.MCP, len(discoveredMCPs))
@@ -369,12 +371,52 @@ func buildMCPsYAML(staticServers []string, discoveredMCPs []v1alpha1.MCP) string
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 
 	for _, mcp := range sorted {
-		fmt.Fprintf(&sb, "  - name: %s\n", mcp.Name)
-		fmt.Fprintf(&sb, "    url: %s\n", mcpURL(&mcp))
-		sb.WriteString("    enabled: true\n")
+		writeMCPServerEntry(&sb, mcp.Name, mcpURL(&mcp))
 	}
 
 	return sb.String()
+}
+
+// writeMCPServerEntry appends a single server entry in the CLI's mcp.yaml schema.
+// The URL is split into scheme/host/port/path because MCPServerEntry has no `url` field.
+func writeMCPServerEntry(sb *strings.Builder, name, rawURL string) {
+	scheme, host, port, path := splitMCPURL(rawURL)
+	fmt.Fprintf(sb, "  - name: %s\n", name)
+	sb.WriteString("    enabled: true\n")
+	fmt.Fprintf(sb, "    scheme: %s\n", scheme)
+	fmt.Fprintf(sb, "    host: %s\n", host)
+	fmt.Fprintf(sb, "    port: %d\n", port)
+	fmt.Fprintf(sb, "    path: %s\n", path)
+}
+
+// splitMCPURL parses an MCP server URL into the fields the CLI's MCPServerEntry expects.
+// Falls back to sensible defaults on parse failure or missing components so the resulting
+// entry is still well-formed YAML.
+func splitMCPURL(raw string) (scheme, host string, port int, path string) {
+	scheme, host, port, path = "http", "localhost", 8080, "/mcp"
+	u, err := url.Parse(raw)
+	if err != nil {
+		return
+	}
+	if u.Scheme != "" {
+		scheme = u.Scheme
+	}
+	if u.Hostname() != "" {
+		host = u.Hostname()
+	}
+	if p := u.Port(); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			port = n
+		}
+	} else if u.Scheme == "https" {
+		port = 443
+	} else if u.Scheme == "http" {
+		port = 80
+	}
+	if u.Path != "" {
+		path = u.Path
+	}
+	return
 }
 
 // mcpURL returns the URL for an MCP CR. It prefers Status.URL (already TLS- and

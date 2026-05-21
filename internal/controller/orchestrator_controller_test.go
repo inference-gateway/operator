@@ -379,17 +379,18 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 })
 
 var _ = Describe("buildMCPsYAML", func() {
-	It("emits empty mcpServers list when no static or discovered MCPs", func() {
+	It("emits enabled flag and empty servers list when no static or discovered MCPs", func() {
 		yaml := buildMCPsYAML(nil, nil)
-		Expect(yaml).To(Equal("mcpServers:\n"))
+		Expect(yaml).To(Equal("enabled: true\nservers:\n"))
 	})
 
-	It("emits static MCP entries with synthetic names", func() {
-		yaml := buildMCPsYAML([]string{"http://x:3000", "http://y:3000"}, nil)
+	It("emits static MCP entries with synthetic names and split URL fields", func() {
+		yaml := buildMCPsYAML([]string{"http://x:3000/mcp", "http://y:3000/mcp"}, nil)
 		Expect(yaml).To(ContainSubstring("- name: static-mcp-0\n"))
-		Expect(yaml).To(ContainSubstring("    url: http://x:3000\n"))
+		Expect(yaml).To(ContainSubstring("    host: x\n"))
+		Expect(yaml).To(ContainSubstring("    port: 3000\n"))
 		Expect(yaml).To(ContainSubstring("- name: static-mcp-1\n"))
-		Expect(yaml).To(ContainSubstring("    url: http://y:3000\n"))
+		Expect(yaml).To(ContainSubstring("    host: y\n"))
 		Expect(yaml).To(ContainSubstring("    enabled: true\n"))
 	})
 
@@ -405,8 +406,13 @@ var _ = Describe("buildMCPsYAML", func() {
 			},
 		}
 		yaml := buildMCPsYAML(nil, mcps)
-		Expect(yaml).To(ContainSubstring("url: https://override.example/mcp\n"))
-		Expect(yaml).To(ContainSubstring("url: http://no-status-service.mcp.svc.cluster.local:3000/mcp\n"))
+		Expect(yaml).To(ContainSubstring("- name: with-status\n"))
+		Expect(yaml).To(ContainSubstring("    scheme: https\n"))
+		Expect(yaml).To(ContainSubstring("    host: override.example\n"))
+		Expect(yaml).To(ContainSubstring("- name: no-status\n"))
+		Expect(yaml).To(ContainSubstring("    host: no-status-service.mcp.svc.cluster.local\n"))
+		Expect(yaml).To(ContainSubstring("    port: 3000\n"))
+		Expect(yaml).To(ContainSubstring("    path: /mcp\n"))
 	})
 
 	It("uses https when TLS is enabled on the MCP server", func() {
@@ -422,13 +428,16 @@ var _ = Describe("buildMCPsYAML", func() {
 			},
 		}
 		yaml := buildMCPsYAML(nil, mcps)
-		Expect(yaml).To(ContainSubstring("url: https://tls-mcp-service.mcp.svc.cluster.local:3000/mcp\n"))
+		Expect(yaml).To(ContainSubstring("- name: tls-mcp\n"))
+		Expect(yaml).To(ContainSubstring("    scheme: https\n"))
+		Expect(yaml).To(ContainSubstring("    host: tls-mcp-service.mcp.svc.cluster.local\n"))
+		Expect(yaml).To(ContainSubstring("    port: 3000\n"))
 	})
 
 	It("sorts discovered MCPs by name for determinism", func() {
 		mcps := []v1alpha1.MCP{
-			{ObjectMeta: metav1.ObjectMeta{Name: "zebra", Namespace: "mcp"}, Status: v1alpha1.MCPStatus{URL: "http://z"}},
-			{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "mcp"}, Status: v1alpha1.MCPStatus{URL: "http://a"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "zebra", Namespace: "mcp"}, Status: v1alpha1.MCPStatus{URL: "http://z/mcp"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "mcp"}, Status: v1alpha1.MCPStatus{URL: "http://a/mcp"}},
 		}
 		yaml := buildMCPsYAML(nil, mcps)
 		alphaPos := strings.Index(yaml, "name: alpha")
@@ -477,7 +486,7 @@ var _ = Describe("buildOrchestratorDeployment with MCP service discovery", func(
 	//nolint:dupl // intentionally mirrors the agents-discovery mount test for clarity.
 	It("mounts mcps configmap at /home/infer/.infer/mcp.yaml when MCP service discovery is enabled", func() {
 		orch := makeOrchestratorWithMCPDiscovery(true)
-		dep := r.buildOrchestratorDeployment(orch, "", "mcpServers: []\n")
+		dep := r.buildOrchestratorDeployment(orch, "", "enabled: true\nservers: []\n")
 
 		Expect(dep.Spec.Template.Spec.Volumes).To(HaveLen(1))
 		vol := dep.Spec.Template.Spec.Volumes[0]
@@ -494,8 +503,8 @@ var _ = Describe("buildOrchestratorDeployment with MCP service discovery", func(
 
 	It("rolls the deployment when mcp.yaml content changes", func() {
 		orch := makeOrchestratorWithMCPDiscovery(true)
-		dep1 := r.buildOrchestratorDeployment(orch, "", "mcpServers:\n  - name: a\n")
-		dep2 := r.buildOrchestratorDeployment(orch, "", "mcpServers:\n  - name: b\n")
+		dep1 := r.buildOrchestratorDeployment(orch, "", "enabled: true\nservers:\n  - name: a\n")
+		dep2 := r.buildOrchestratorDeployment(orch, "", "enabled: true\nservers:\n  - name: b\n")
 
 		hash1 := dep1.Spec.Template.Annotations["inference-gateway.com/mcps-config-hash"]
 		hash2 := dep2.Spec.Template.Annotations["inference-gateway.com/mcps-config-hash"]
