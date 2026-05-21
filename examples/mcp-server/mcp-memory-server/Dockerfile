@@ -6,16 +6,16 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY main.go ./
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/mcp-memory-server .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/mcp-server .
 
 FROM alpine:3.20
 
 RUN apk --no-cache add ca-certificates && \
     addgroup -S app && adduser -S app -G app
 
-COPY --from=builder /out/mcp-memory-server /mcp-memory-server
+COPY --from=builder /out/mcp-server /mcp-server
 
 USER app
 EXPOSE 8080
 
-ENTRYPOINT ["/mcp-memory-server"]
+ENTRYPOINT ["/mcp-server"]
