@@ -53,7 +53,83 @@ plugins:
     - assets:
         - CHANGELOG.md
       releasedLabels: ["released"]
-      releaseNameTemplate: "🚀 Version ${nextRelease.version}"
+      releaseNameTemplate: "🚀 Version <%= nextRelease.version %>"
+      releaseBodyTemplate: |
+        ## What's Changed
+
+        <%= nextRelease.notes %>
+
+        ## 📦 Installation
+
+        ### One-Command Installation (Recommended)
+
+        Install the operator and CRDs in one command using this release:
+
+        ```bash
+        kubectl apply -f https://github.com/inference-gateway/operator/releases/download/<%= nextRelease.gitTag %>/install.yaml
+        ```
+
+        Or install the latest stable release:
+
+        ```bash
+        kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+        ```
+
+        ### GitOps / ArgoCD
+
+        ```yaml
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: inference-gateway-operator
+          namespace: argocd
+        spec:
+          project: default
+          source:
+            repoURL: https://github.com/inference-gateway/operator
+            targetRevision: <%= nextRelease.gitTag %>
+            path: manifests
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: inference-gateway-system
+          syncPolicy:
+            automated:
+              prune: true
+              selfHeal: true
+            syncOptions:
+              - CreateNamespace=true
+        ```
+
+        ### Separate CRD Installation (Advanced)
+
+        ```bash
+        # Install CRDs only
+        kubectl apply -f https://github.com/inference-gateway/operator/releases/download/<%= nextRelease.gitTag %>/crds.yaml
+
+        # Install operator without CRDs (namespace-scoped)
+        kubectl apply -f https://github.com/inference-gateway/operator/releases/download/<%= nextRelease.gitTag %>/namespace-install.yaml
+        ```
+
+        ### Container Image
+
+        ```bash
+        docker pull ghcr.io/inference-gateway/operator:<%= nextRelease.version %>
+        ```
+
+        Supported architectures: `linux/amd64`, `linux/arm64`.
+
+        ### ✅ Verify the Installation
+
+        ```bash
+        kubectl get pods -n inference-gateway-system
+        kubectl get crd | grep inference-gateway
+        ```
+
+        For additional installation methods (custom namespace, namespace-scoped permissions, development setup), see the [Installation guide](https://github.com/inference-gateway/operator/blob/main/README.md#-installation).
+
+        ---
+
+        **Full Changelog**: https://github.com/<%= env.GITHUB_REPOSITORY %>/compare/<%= lastRelease.gitTag %>...<%= nextRelease.gitTag %>
       successCommentCondition: "false"
       labels:
         - "release"
