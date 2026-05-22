@@ -78,6 +78,13 @@ jobs:
           kustomize version || (echo "kustomize not installed" && exit 1)
           prettier --version || (echo "prettier not installed" && exit 1)
 
+      - name: Install maintainer skill
+        run: |
+          mkdir -p ~/.claude/skills/maintainer
+          curl -fsSL \
+            https://raw.githubusercontent.com/inference-gateway/skills/main/skills/maintainer/SKILL.md \
+            -o ~/.claude/skills/maintainer/SKILL.md
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1.0.131
