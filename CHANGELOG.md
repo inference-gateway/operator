@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.2](https://github.com/inference-gateway/operator/compare/v0.16.1...v0.16.2) (2026-05-22)
+
+### 👷 CI
+
+* **claude:** Simplify conditions for triggering Claude Code actions ([95db957](https://github.com/inference-gateway/operator/commit/95db957070909584a300ca38c13b2f8b209f3b2e))
+* **deps:** Update claude-code-action to version 1.0.130 ([f397353](https://github.com/inference-gateway/operator/commit/f39735328bbaa4a263e29ed09976443cc4c270eb))
+
+### 📚 Documentation
+
+* **release:** Add operator installation instructions to release notes ([#74](https://github.com/inference-gateway/operator/issues/74)) ([5fd1d3e](https://github.com/inference-gateway/operator/commit/5fd1d3ef97b0aaeaa5b328ee138d73b8ccc8c8d5)), closes [#73](https://github.com/inference-gateway/operator/issues/73)
+
+### 🔧 Miscellaneous
+
+* **dependabot:** Add ignore rule for golang versions >=1.26.3 ([987149f](https://github.com/inference-gateway/operator/commit/987149fd8fa5154bf88c6ad14b0825da28c6cbbf))
+* **dependabot:** Update golang and ubuntu version ignore rules in dependabot configuration ([bbd4df6](https://github.com/inference-gateway/operator/commit/bbd4df61d756180072c70857ee59879d3711550f))
+* **deps:** Bump anthropics/claude-code-action ([#72](https://github.com/inference-gateway/operator/issues/72)) ([1865a45](https://github.com/inference-gateway/operator/commit/1865a45d939d1fe9ab05cc95a2126eea6afcc102))
+* **deps:** Bump sigs.k8s.io/gateway-api from 1.2.1 to 1.5.1 in the gomod group ([#71](https://github.com/inference-gateway/operator/issues/71)) ([e4dac43](https://github.com/inference-gateway/operator/commit/e4dac4322f441de1a56fb0b7b427ea540a0e0511))
+* **deps:** Update claude-code version to 2.1.141 and infer.flake to v0.109.11 ([365c104](https://github.com/inference-gateway/operator/commit/365c104ff2e8b9fe15577ebf5ef850513877d35a))
+
 ## [0.16.1](https://github.com/inference-gateway/operator/compare/v0.16.0...v0.16.1) (2026-05-21)
 
 ### ♻️ Improvements
