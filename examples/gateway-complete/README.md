@@ -2,10 +2,10 @@
 
 A full-featured Inference Gateway deployment showcasing all available options:
 
-- **Horizontal Pod Autoscaler (HPA)** — scales between 3 and 10 replicas based on CPU utilization
-- **Telemetry** — Prometheus metrics exposed on port 9464
+- **Horizontal Pod Autoscaler (HPA)** - scales between 3 and 10 replicas based on CPU utilization
+- **Telemetry** - Prometheus metrics exposed on port 9464
 - **OIDC authentication** (disabled by default, toggle with `auth.enabled: true`)
-- **Multiple AI providers** — OpenAI, Anthropic, Groq, Cohere, Cloudflare, DeepSeek, Ollama, Google, and a custom endpoint
+- **Multiple AI providers** - OpenAI, Anthropic, Groq, Cohere, Cloudflare, DeepSeek, Ollama, Google, and a custom endpoint
 - **MCP servers** (disabled by default, toggle with `mcp.enabled: true`)
 - **Ingress** with TLS via cert-manager
 

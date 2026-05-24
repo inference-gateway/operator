@@ -1,6 +1,6 @@
 # Gateway Minimal Example
 
-A minimal Inference Gateway deployment with a single OpenAI provider. This is the simplest possible configuration — one replica, one provider, no ingress, no TLS.
+A minimal Inference Gateway deployment with a single OpenAI provider. This is the simplest possible configuration - one replica, one provider, no ingress, no TLS.
 
 ## Prerequisites
 

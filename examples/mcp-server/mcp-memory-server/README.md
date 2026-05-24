@@ -1,6 +1,6 @@
 # mcp-memory-server
 
-A minimal MCP server written in Go using [`metoro-io/mcp-golang`](https://github.com/metoro-io/mcp-golang) — the same library the Inference Gateway uses on its client side. It exposes a small in-process key/value store over Streamable HTTP at `POST /mcp` + `GET /mcp`:
+A minimal MCP server written in Go using [`metoro-io/mcp-golang`](https://github.com/metoro-io/mcp-golang) - the same library the Inference Gateway uses on its client side. It exposes a small in-process key/value store over Streamable HTTP at `POST /mcp` + `GET /mcp`:
 
 | tool            | description                                              |
 | --------------- | -------------------------------------------------------- |
@@ -9,7 +9,7 @@ A minimal MCP server written in Go using [`metoro-io/mcp-golang`](https://github
 | `memory_delete` | Remove a key from the store.                             |
 | `memory_list`   | List all keys currently in the store (sorted).           |
 
-> **Note:** the store is process-local and resets on pod restart. This example deliberately avoids shipping a registry of "trusted" MCP servers — building your own image and importing it into your cluster is the recommended path. For persistence, back the store with Redis or a PVC yourself.
+> **Note:** the store is process-local and resets on pod restart. This example deliberately avoids shipping a registry of "trusted" MCP servers - building your own image and importing it into your cluster is the recommended path. For persistence, back the store with Redis or a PVC yourself.
 
 ## Build & import into the local k3d cluster
 

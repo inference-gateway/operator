@@ -1,6 +1,6 @@
 # Agent Server Example
 
-Deploy a **Google Calendar Agent** — an A2A (Agent-to-Agent) worker that can create, read, update, and delete Google Calendar events. In this example it runs in **mock mode** (`GOOGLE_CALENDAR_MOCK_MODE=true`), so no real Google credentials are needed; all calendar operations return synthetic mock data.
+Deploy a **Google Calendar Agent** - an A2A (Agent-to-Agent) worker that can create, read, update, and delete Google Calendar events. In this example it runs in **mock mode** (`GOOGLE_CALENDAR_MOCK_MODE=true`), so no real Google credentials are needed; all calendar operations return synthetic mock data.
 
 The agent exposes an A2A-compatible HTTP endpoint and can be registered with an Inference Gateway Orchestrator for LLM-driven task delegation.
 

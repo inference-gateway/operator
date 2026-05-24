@@ -145,7 +145,7 @@ Support for multiple AI/ML providers with flexible configuration:
 ### Networking
 
 - **Service**: Kubernetes Service configuration (ClusterIP, NodePort, LoadBalancer)
-- **Routing**: Kubernetes Gateway API (`gateway.networking.k8s.io/v1`) — operator-managed `Gateway` + `HTTPRoute`, or attach to a platform-team-managed shared `Gateway` via `parentRefs`
+- **Routing**: Kubernetes Gateway API (`gateway.networking.k8s.io/v1`) - operator-managed `Gateway` + `HTTPRoute`, or attach to a platform-team-managed shared `Gateway` via `parentRefs`
 - **TLS**: Listener-level TLS termination via cert-manager (Gateway API integration)
 
 ## 🚀 Quick Start
@@ -593,9 +593,9 @@ spec:
 
 `MCP` Custom Resources can be discovered automatically by both `Gateway` and
 `Orchestrator` via the same label-selector pattern used for A2A agents. Opt-in
-on the MCP side is via plain `metadata.labels` — no extra field on `MCPSpec`.
+on the MCP side is via plain `metadata.labels` - no extra field on `MCPSpec`.
 
-**Gateway-side discovery** — discovered MCP URLs are unioned with the static
+**Gateway-side discovery** - discovered MCP URLs are unioned with the static
 `spec.mcp.servers[]` list, deduped, sorted, and exposed via the gateway pod's
 `MCP_SERVERS` env var:
 
@@ -620,7 +620,7 @@ spec:
           mcp-group: group1
 ```
 
-**Orchestrator-side discovery** — discovered MCPs are rendered into an
+**Orchestrator-side discovery** - discovered MCPs are rendered into an
 `mcp.yaml` ConfigMap mounted at `~/.infer/mcp.yaml` inside the orchestrator
 pod. A content-hash pod annotation rolls the singleton when the set changes:
 
@@ -642,7 +642,7 @@ spec:
           mcp-group: group1
 ```
 
-**MCP CR labeling** — tag each `MCP` you want discovered with a matching label:
+**MCP CR labeling** - tag each `MCP` you want discovered with a matching label:
 
 ```yaml
 apiVersion: core.inference-gateway.com/v1alpha1

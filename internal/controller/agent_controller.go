@@ -121,7 +121,7 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 // capabilities.pushNotifications) actually land on the API object: a JSON merge patch
 // would diff the in-memory base (zero-valued bools marshal as false) against the modified
 // object (same false), produce an empty diff for those fields, and leave them absent from
-// the stored status — meaning printer columns sourced from them render blank.
+// the stored status - meaning printer columns sourced from them render blank.
 func (r *AgentReconciler) patchStatusReady(ctx context.Context, agent *v1alpha1.Agent, card *v1alpha1.Card) error {
 	agent.Status.Card = *card
 	agent.Status.Ready = true
