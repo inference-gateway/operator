@@ -25,7 +25,7 @@
       },
       "golangci-lint": {
         "pkg-path": "golangci-lint",
-        "version": "2.12.2"
+        "version": "^2.12.2"
       },
       "infer": {
         "flake": "github:inference-gateway/cli/v0.112.0"
@@ -40,7 +40,7 @@
       },
       "kubectl": {
         "pkg-path": "kubectl",
-        "version": "1.36.1"
+        "version": "^1.36.1"
       },
       "kubernetes-code-generator": {
         "pkg-path": "kubernetes-code-generator",
@@ -52,7 +52,7 @@
       },
       "prettier": {
         "pkg-path": "prettier",
-        "version": "3.8.3"
+        "version": "^3.8.2"
       }
     },
     "hook": {
