@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.3](https://github.com/inference-gateway/operator/compare/v0.16.2...v0.16.3) (2026-05-25)
+
+### 👷 CI
+
+* **claude:** Add maintainer skill ([ae34e22](https://github.com/inference-gateway/operator/commit/ae34e22132f54ff5486ae402dd76563fd611a210))
+* **deps:** Bump anthropics/claude-code-action  v1.0.131 -> v1.0.133 ([dce81a2](https://github.com/inference-gateway/operator/commit/dce81a279c99a3ecc027e6b2c9adb644ce7160e3))
+* **deps:** Bump the github-actions group with 2 updates ([#77](https://github.com/inference-gateway/operator/issues/77)) ([4047604](https://github.com/inference-gateway/operator/commit/404760414e49a60b153df38ab6782aea23d825d7))
+* **deps:** Update Claude Code Action to version 1.0.131 ([dd25be1](https://github.com/inference-gateway/operator/commit/dd25be1c424ab9e55ea90c31e778288af0a4ef0c))
+
+### 🔧 Miscellaneous
+
+* **deps:** Bump dev dependecies to latest ([add8210](https://github.com/inference-gateway/operator/commit/add8210b1be0e2875a6e30a7bce7b5166d24d098))
+* **deps:** Bump dev dependencies ([7954ec8](https://github.com/inference-gateway/operator/commit/7954ec808ef628eb4577b3a9d17e676291f9fed9))
+* **deps:** Bump prettier to version 3.8.3 ([864dd49](https://github.com/inference-gateway/operator/commit/864dd499467663f0a762182664581e3032ea5ac9))
+* **flox:** Bump dev dependecies to latest ([7e08dfc](https://github.com/inference-gateway/operator/commit/7e08dfceb9267c38c009824fbb5b5cc0b133fa3e))
+* **license:** Update license to Apache 2.0 ([5d58997](https://github.com/inference-gateway/operator/commit/5d589976aaed157a4bf9f812c12f7b304d745be3))
+* Replace em dashes with normal dashes ([1fbb15a](https://github.com/inference-gateway/operator/commit/1fbb15a369eef9801647c05c6961d497f50ed475))
+* Update license template ([dc08e56](https://github.com/inference-gateway/operator/commit/dc08e564514f211c77d8f871fbbf4ca45d99e458))
+
 ## [0.16.2](https://github.com/inference-gateway/operator/compare/v0.16.1...v0.16.2) (2026-05-22)
 
 ### 👷 CI
