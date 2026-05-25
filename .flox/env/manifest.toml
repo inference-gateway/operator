@@ -24,7 +24,7 @@ kubernetes-code-generator.version = "0.25.4"
 kustomize.pkg-path = "kustomize"
 kustomize.version = "5.8.1"
 prettier.pkg-path = "prettier"
-prettier.version = "^3.8.2"
+prettier.version = "^3.8.3"
 infer.flake = "github:inference-gateway/cli/v0.112.0"
 
 [hook]
