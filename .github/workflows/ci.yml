@@ -42,7 +42,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v9.2.0
+        uses: golangci/golangci-lint-action@v9.2.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --help
@@ -79,7 +79,7 @@ jobs:
           npm install -g prettier@3.6.2
 
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v9.2.0
+        uses: golangci/golangci-lint-action@v9.2.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --help
