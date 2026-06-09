@@ -55,7 +55,7 @@ The operator follows cloud-native best practices and provides a unified control 
 
 **🤖 Supported AI Providers:**
 
-- OpenAI • Anthropic • Ollama • Groq • Cohere • Cloudflare • DeepSeek
+- OpenAI • Anthropic • Google • Ollama • Groq • Cohere • Cloudflare • DeepSeek
 
 **☸️ Kubernetes Native:**
 
@@ -125,6 +125,7 @@ Support for multiple AI/ML providers with flexible configuration:
 
 - **OpenAI**: Integration with OpenAI API
 - **Anthropic**: Claude API integration
+- **Google**: Google AI / Gemini API integration
 - **Ollama**: Local model serving
 - **Groq**: Fast inference with open models
 - **Cohere**: Command and embedding models
@@ -353,14 +354,14 @@ spec:
       enabled: true
       port: 9464
   providers:
-    - name: openai
-      type: openai
-      config:
-        baseUrl: "https://api.openai.com/v1"
-        authType: bearer
-        tokenRef:
-          name: openai-secret
-          key: api-key
+    - name: OpenAI
+      enabled: true
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: api_key
 EOF
 ```
 
@@ -368,7 +369,7 @@ EOF
 
 ```bash
 kubectl create secret generic openai-secret \
-  --from-literal=api-key=your-openai-api-key-here
+  --from-literal=api_key=your-openai-api-key-here
 ```
 
 ## 🤖 Deploy an Orchestrator
@@ -481,14 +482,14 @@ spec:
       enabled: true
       port: 9464
   providers:
-    - name: openai
-      type: openai
-      config:
-        baseUrl: "https://api.openai.com/v1"
-        authType: bearer
-        tokenRef:
-          name: openai-secret
-          key: api-key
+    - name: OpenAI
+      enabled: true
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: api_key
 ```
 
 #### Production Gateway with Authentication
@@ -515,14 +516,14 @@ spec:
         key: client-secret
 
   providers:
-    - name: openai
-      type: openai
-      config:
-        baseUrl: "https://api.openai.com/v1"
-        authType: bearer
-        tokenRef:
-          name: ai-secrets
-          key: openai-key
+    - name: OpenAI
+      enabled: true
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-secrets
+              key: openai-key
 
   resources:
     requests:
@@ -698,7 +699,6 @@ The operator includes comprehensive validation:
 - **Replica limits**: 1-100 replicas
 - **Port ranges**: Valid port numbers (1024-65535 for server ports)
 - **Environment values**: Restricted to development, staging, production
-- **Provider types**: Validated against supported provider list
 - **Resource limits**: Proper CPU/memory specifications
 
 ### 📊 Monitoring and Status
