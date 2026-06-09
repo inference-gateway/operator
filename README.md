@@ -138,9 +138,9 @@ Support for multiple AI/ML providers with flexible configuration:
 - **MCP (Model Context Protocol)**: Integration with MCP servers for tool access
   - **Service Discovery**: Automatic discovery of `MCP` CRs via Kubernetes label selectors (Gateway and Orchestrator)
   - **Dynamic Updates**: The pod's `MCP_SERVERS` / mounted `mcp.yaml` is rebuilt and rolled when the discovered set changes
-- **A2A (Agent-to-Agent)**: Distributed agent communication and polling
-  - **Service Discovery**: Automatic discovery of A2A agents via Kubernetes label selectors
-  - **Dynamic Agent Registration**: Real-time detection and configuration of new agents
+- **A2A (Agent-to-Agent)**: Distributed agent communication and polling, driven by the `Orchestrator`
+  - **Service Discovery**: Automatic discovery of `Agent` CRs via Kubernetes label selectors (Orchestrator only)
+  - **Dynamic Agent Registration**: Discovered agents are written to the orchestrator's mounted `agents.yaml` and the pod is rolled when the set changes
 - **Health Checks**: Automated health monitoring for external services
 
 ### Networking
@@ -548,46 +548,52 @@ spec:
 
 #### A2A Service Discovery Configuration
 
+A2A agent discovery is an **`Orchestrator`** feature — the `Gateway` does not
+discover or run A2A agents. The `Orchestrator` discovers `Agent` CRs by label
+selector and writes them into `~/.infer/agents.yaml` inside its pod:
+
 ```yaml
 apiVersion: core.inference-gateway.com/v1alpha1
-kind: Gateway
+kind: Orchestrator
 metadata:
-  name: gateway-with-service-discovery
+  name: orchestrator-with-service-discovery
   namespace: default
 spec:
   a2a:
     enabled: true
-    # Service Discovery Configuration
+    # Static agent URLs are kept alongside discovered ones.
+    agents:
+      - "http://static-agent.agents.svc.cluster.local:8080"
+    # Automatic discovery of Agent CRs by label selector.
     serviceDiscovery:
       enabled: true
-      namespace: "agents" # Namespace to search for A2A agents
-      pollingInterval: "30s" # How often to check for new agents
-    # Manual agents can still be configured alongside service discovery
-    agents:
-      - name: static-agent
-        url: "http://static-agent:8080"
+      namespace: "agents" # Namespace to search (defaults to the Orchestrator's own namespace)
+      selector:
+        matchLabels:
+          agent-group: group1
 ```
 
 **Service Discovery Features:**
 
-- **Automatic Agent Discovery**: Automatically discovers A2A agents based on Kubernetes service labels
-- **Dynamic Configuration**: Agents are added/removed in real-time as services are created/deleted
-- **Label-Based Selection**: Uses configurable label selectors to identify A2A agent services
-- **Namespace Scoping**: Can search for agents in specific namespaces
-- **Configurable Polling**: Adjustable discovery polling interval
+- **Automatic Agent Discovery**: Discovers `Agent` CRs based on their Kubernetes labels
+- **Dynamic Configuration**: Discovered agents are written to the orchestrator's mounted `agents.yaml`; the pod is rolled when the set changes
+- **Label-Based Selection**: Uses a configurable label selector to identify `Agent` CRs
+- **Namespace Scoping**: Can search for `Agent` CRs in a specific namespace (defaults to the Orchestrator's namespace)
 
-**Agent Service Requirements:**
+**Agent Requirements:**
 
-For a service to be discovered as an A2A agent, it must have the appropriate label:
+For an `Agent` CR to be discovered, it must carry labels matching the selector:
 
 ```yaml
-apiVersion: v1
-kind: Service
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Agent
 metadata:
   name: my-agent
   namespace: agents
+  labels:
+    agent-group: group1 # matches spec.a2a.serviceDiscovery.selector
 spec:
-  # Service configuration
+  # Agent configuration
 ```
 
 #### MCP Service Discovery Configuration
@@ -687,9 +693,6 @@ kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/ma
 
 # Deploy minimal gateway for development
 kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-minimal.yaml
-
-# Deploy gateway with A2A service discovery
-kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-a2a-service-discovery.yaml
 ```
 
 ### ✅ Configuration Validation
