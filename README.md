@@ -681,7 +681,7 @@ servers built with `metoro-io/mcp-golang`), see
 
 #### Complete Configuration
 
-See `examples/gateway-complete.yaml` for a comprehensive configuration example with all features enabled.
+See [`examples/gateway-complete/gateway.yaml`](examples/gateway-complete/gateway.yaml) for a comprehensive configuration example with all features enabled.
 
 ### 🚀 Advanced Configuration
 
@@ -689,11 +689,15 @@ For production deployments, use the complete configuration examples:
 
 ```bash
 # Deploy production-ready gateway with authentication
-kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-complete.yaml
+kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-complete/gateway.yaml
 
 # Deploy minimal gateway for development
-kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-minimal.yaml
+kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-minimal/gateway.yaml
 ```
+
+For an A2A service discovery example — `Agent` CRs discovered by the
+`Orchestrator`, not the `Gateway` — see
+[`examples/orchestrator/`](examples/orchestrator/).
 
 ### ✅ Configuration Validation
 
