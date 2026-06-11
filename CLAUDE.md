@@ -35,7 +35,7 @@ Run a single test package: `KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.35 -p 
 Four kinds, all namespaced, all under `core.inference-gateway.com/v1alpha1`:
 
 - **`Gateway`** — the main deployable. Reconciles a `Deployment` + `Service` + optional Gateway API `Gateway`/`HTTPRoute` + optional HPA + `ServiceAccount`/RBAC, and writes `Status.URL`, `Status.MCPServers`, `Status.ProviderSummary`.
-- **`Agent`** — A2A agent worker; reconciles a `Deployment` + `Service`. Discoverable by `Gateway` and `Orchestrator` via label selectors.
+- **`Agent`** — A2A agent worker; reconciles a `Deployment` + `Service`. Discoverable by the `Orchestrator` via label selectors (the `Gateway` does **not** discover Agents).
 - **`MCP`** — Model Context Protocol server; reconciles a `Deployment` + `Service`. Its `Status.URL` is the canonical URL consumed by `Gateway`/`Orchestrator`.
 - **`Orchestrator`** — runs the Inference Gateway CLI's `channels-manager` daemon (Telegram-driven LLM loop). The Deployment is **always a singleton** (`replicas: 1`, `strategy: Recreate`) because Telegram only allows one `getUpdates` consumer per token. No Service is created (outbound-only).
 
@@ -43,7 +43,7 @@ Each reconciler lives in `internal/controller/<kind>_controller.go` with a sibli
 
 ### Cross-CR coordination
 
-- `Gateway` and `Orchestrator` both implement **service discovery** for `Agent` and `MCP` CRs via `metav1.LabelSelector` against `metadata.labels` on the target CRs (there is no opt-in field on the agent/MCP side beyond labels). The discovered set is unioned with the spec's static list, deduped, sorted, and fed to the workload — for the Gateway via the `MCP_SERVERS` env var; for the Orchestrator via two mounted ConfigMaps (`~/.infer/agents.yaml`, `~/.infer/mcp.yaml`). The orchestrator pod is rolled by a content-hash annotation when the rendered YAML changes.
+- Both `Gateway` and `Orchestrator` implement **service discovery** via `metav1.LabelSelector` against `metadata.labels` on the target CRs (there is no opt-in field on the agent/MCP side beyond labels), but they discover different kinds: the **`Gateway` discovers `MCP` CRs only**, while the **`Orchestrator` discovers both `Agent` and `MCP` CRs**. The discovered set is unioned with the spec's static list, deduped, sorted, and fed to the workload — for the Gateway via the `MCP_SERVERS` env var; for the Orchestrator via two mounted ConfigMaps (`~/.infer/agents.yaml`, `~/.infer/mcp.yaml`). The orchestrator pod is rolled by a content-hash annotation when the rendered YAML changes.
 - The Gateway controller watches `MCP` events and maps them back to affected Gateways via `mcpToGatewayRequests` in `gateway_controller.go`. Keep that mapping in sync if you add new discovery fields.
 - Prefer `MCP.Status.URL` (TLS- and path-aware) over reconstructing the URL from `MCPSpec.Server`; `gatewayMCPURL` falls back to a deterministic construction only when status is empty.
 

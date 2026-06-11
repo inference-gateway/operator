@@ -55,7 +55,7 @@ The operator follows cloud-native best practices and provides a unified control 
 
 **🤖 Supported AI Providers:**
 
-- OpenAI • Anthropic • Ollama • Groq • Cohere • Cloudflare • DeepSeek
+- OpenAI • Anthropic • Google • Ollama • Groq • Cohere • Cloudflare • DeepSeek
 
 **☸️ Kubernetes Native:**
 
@@ -125,6 +125,7 @@ Support for multiple AI/ML providers with flexible configuration:
 
 - **OpenAI**: Integration with OpenAI API
 - **Anthropic**: Claude API integration
+- **Google**: Google AI / Gemini API integration
 - **Ollama**: Local model serving
 - **Groq**: Fast inference with open models
 - **Cohere**: Command and embedding models
@@ -137,9 +138,9 @@ Support for multiple AI/ML providers with flexible configuration:
 - **MCP (Model Context Protocol)**: Integration with MCP servers for tool access
   - **Service Discovery**: Automatic discovery of `MCP` CRs via Kubernetes label selectors (Gateway and Orchestrator)
   - **Dynamic Updates**: The pod's `MCP_SERVERS` / mounted `mcp.yaml` is rebuilt and rolled when the discovered set changes
-- **A2A (Agent-to-Agent)**: Distributed agent communication and polling
-  - **Service Discovery**: Automatic discovery of A2A agents via Kubernetes label selectors
-  - **Dynamic Agent Registration**: Real-time detection and configuration of new agents
+- **A2A (Agent-to-Agent)**: Distributed agent communication and polling, driven by the `Orchestrator`
+  - **Service Discovery**: Automatic discovery of `Agent` CRs via Kubernetes label selectors (Orchestrator only)
+  - **Dynamic Agent Registration**: Discovered agents are written to the orchestrator's mounted `agents.yaml` and the pod is rolled when the set changes
 - **Health Checks**: Automated health monitoring for external services
 
 ### Networking
@@ -353,14 +354,14 @@ spec:
       enabled: true
       port: 9464
   providers:
-    - name: openai
-      type: openai
-      config:
-        baseUrl: "https://api.openai.com/v1"
-        authType: bearer
-        tokenRef:
-          name: openai-secret
-          key: api-key
+    - name: OpenAI
+      enabled: true
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: api_key
 EOF
 ```
 
@@ -368,7 +369,7 @@ EOF
 
 ```bash
 kubectl create secret generic openai-secret \
-  --from-literal=api-key=your-openai-api-key-here
+  --from-literal=api_key=your-openai-api-key-here
 ```
 
 ## 🤖 Deploy an Orchestrator
@@ -481,14 +482,14 @@ spec:
       enabled: true
       port: 9464
   providers:
-    - name: openai
-      type: openai
-      config:
-        baseUrl: "https://api.openai.com/v1"
-        authType: bearer
-        tokenRef:
-          name: openai-secret
-          key: api-key
+    - name: OpenAI
+      enabled: true
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: api_key
 ```
 
 #### Production Gateway with Authentication
@@ -515,14 +516,14 @@ spec:
         key: client-secret
 
   providers:
-    - name: openai
-      type: openai
-      config:
-        baseUrl: "https://api.openai.com/v1"
-        authType: bearer
-        tokenRef:
-          name: ai-secrets
-          key: openai-key
+    - name: OpenAI
+      enabled: true
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ai-secrets
+              key: openai-key
 
   resources:
     requests:
@@ -547,46 +548,52 @@ spec:
 
 #### A2A Service Discovery Configuration
 
+A2A agent discovery is an **`Orchestrator`** feature — the `Gateway` does not
+discover or run A2A agents. The `Orchestrator` discovers `Agent` CRs by label
+selector and writes them into `~/.infer/agents.yaml` inside its pod:
+
 ```yaml
 apiVersion: core.inference-gateway.com/v1alpha1
-kind: Gateway
+kind: Orchestrator
 metadata:
-  name: gateway-with-service-discovery
+  name: orchestrator-with-service-discovery
   namespace: default
 spec:
   a2a:
     enabled: true
-    # Service Discovery Configuration
+    # Static agent URLs are kept alongside discovered ones.
+    agents:
+      - "http://static-agent.agents.svc.cluster.local:8080"
+    # Automatic discovery of Agent CRs by label selector.
     serviceDiscovery:
       enabled: true
-      namespace: "agents" # Namespace to search for A2A agents
-      pollingInterval: "30s" # How often to check for new agents
-    # Manual agents can still be configured alongside service discovery
-    agents:
-      - name: static-agent
-        url: "http://static-agent:8080"
+      namespace: "agents" # Namespace to search (defaults to the Orchestrator's own namespace)
+      selector:
+        matchLabels:
+          agent-group: group1
 ```
 
 **Service Discovery Features:**
 
-- **Automatic Agent Discovery**: Automatically discovers A2A agents based on Kubernetes service labels
-- **Dynamic Configuration**: Agents are added/removed in real-time as services are created/deleted
-- **Label-Based Selection**: Uses configurable label selectors to identify A2A agent services
-- **Namespace Scoping**: Can search for agents in specific namespaces
-- **Configurable Polling**: Adjustable discovery polling interval
+- **Automatic Agent Discovery**: Discovers `Agent` CRs based on their Kubernetes labels
+- **Dynamic Configuration**: Discovered agents are written to the orchestrator's mounted `agents.yaml`; the pod is rolled when the set changes
+- **Label-Based Selection**: Uses a configurable label selector to identify `Agent` CRs
+- **Namespace Scoping**: Can search for `Agent` CRs in a specific namespace (defaults to the Orchestrator's namespace)
 
-**Agent Service Requirements:**
+**Agent Requirements:**
 
-For a service to be discovered as an A2A agent, it must have the appropriate label:
+For an `Agent` CR to be discovered, it must carry labels matching the selector:
 
 ```yaml
-apiVersion: v1
-kind: Service
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Agent
 metadata:
   name: my-agent
   namespace: agents
+  labels:
+    agent-group: group1 # matches spec.a2a.serviceDiscovery.selector
 spec:
-  # Service configuration
+  # Agent configuration
 ```
 
 #### MCP Service Discovery Configuration
@@ -674,7 +681,7 @@ servers built with `metoro-io/mcp-golang`), see
 
 #### Complete Configuration
 
-See `examples/gateway-complete.yaml` for a comprehensive configuration example with all features enabled.
+See [`examples/gateway-complete/gateway.yaml`](examples/gateway-complete/gateway.yaml) for a comprehensive configuration example with all features enabled.
 
 ### 🚀 Advanced Configuration
 
@@ -682,14 +689,15 @@ For production deployments, use the complete configuration examples:
 
 ```bash
 # Deploy production-ready gateway with authentication
-kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-complete.yaml
+kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-complete/gateway.yaml
 
 # Deploy minimal gateway for development
-kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-minimal.yaml
-
-# Deploy gateway with A2A service discovery
-kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-a2a-service-discovery.yaml
+kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-minimal/gateway.yaml
 ```
+
+For an A2A service discovery example — `Agent` CRs discovered by the
+`Orchestrator`, not the `Gateway` — see
+[`examples/orchestrator/`](examples/orchestrator/).
 
 ### ✅ Configuration Validation
 
@@ -698,7 +706,6 @@ The operator includes comprehensive validation:
 - **Replica limits**: 1-100 replicas
 - **Port ranges**: Valid port numbers (1024-65535 for server ports)
 - **Environment values**: Restricted to development, staging, production
-- **Provider types**: Validated against supported provider list
 - **Resource limits**: Proper CPU/memory specifications
 
 ### 📊 Monitoring and Status
