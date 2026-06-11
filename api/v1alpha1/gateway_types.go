@@ -206,6 +206,13 @@ type OIDCSpec struct {
 	// Reference to a secret containing the client secret
 	// +optional
 	ClientSecretRef *corev1.SecretKeySelector `json:"clientSecretRef,omitempty"`
+
+	// CACertRef references a ConfigMap key holding a PEM-encoded CA certificate
+	// used to trust the OIDC issuer's TLS endpoint (e.g. a self-signed Keycloak).
+	// When set, the operator mounts the certificate into the gateway pod and points
+	// SSL_CERT_FILE at it so the Go runtime trusts the issuer during OIDC discovery.
+	// +optional
+	CACertRef *corev1.ConfigMapKeySelector `json:"caCertRef,omitempty"`
 }
 
 // ServerSpec contains server configuration settings

@@ -309,6 +309,11 @@ func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway 
 	return nil
 }
 
+// oidcCACertPath is where the OIDC issuer CA certificate (spec.auth.oidc.caCertRef)
+// is mounted in the gateway pod. SSL_CERT_FILE points here so the Go runtime trusts
+// a self-signed issuer (e.g. Keycloak) during OIDC discovery.
+const oidcCACertPath = "/usr/local/share/ca-certificates/oidc-ca.crt"
+
 // reconcileDeployment ensures the Deployment exists with the correct configuration
 func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway) (*appsv1.Deployment, error) {
 	deployment := r.buildDeployment(ctx, gateway)
@@ -339,6 +344,27 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      "inference-gateway-tls",
 			MountPath: "/app/tls",
+			ReadOnly:  true,
+		})
+	}
+
+	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled &&
+		gateway.Spec.Auth.OIDC != nil && gateway.Spec.Auth.OIDC.CACertRef != nil {
+		caRef := gateway.Spec.Auth.OIDC.CACertRef
+		volumes = append(volumes, corev1.Volume{
+			Name: "oidc-ca",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: caRef.Name,
+					},
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "oidc-ca",
+			MountPath: oidcCACertPath,
+			SubPath:   caRef.Key,
 			ReadOnly:  true,
 		})
 	}
@@ -440,17 +466,36 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 	}
 
 	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled && gateway.Spec.Auth.OIDC != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name: "OIDC_CLIENT_SECRET",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: gateway.Spec.Auth.OIDC.ClientSecretRef.Name,
-					},
-					Key: gateway.Spec.Auth.OIDC.ClientSecretRef.Key,
-				},
+		oidc := gateway.Spec.Auth.OIDC
+		envVars = append(envVars,
+			corev1.EnvVar{
+				Name:  "AUTH_OIDC_ISSUER",
+				Value: oidc.IssuerURL,
 			},
-		})
+			corev1.EnvVar{
+				Name:  "AUTH_OIDC_CLIENT_ID",
+				Value: oidc.ClientID,
+			},
+		)
+		if oidc.ClientSecretRef != nil {
+			envVars = append(envVars, corev1.EnvVar{
+				Name: "AUTH_OIDC_CLIENT_SECRET",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: oidc.ClientSecretRef.Name,
+						},
+						Key: oidc.ClientSecretRef.Key,
+					},
+				},
+			})
+		}
+		if oidc.CACertRef != nil {
+			envVars = append(envVars, corev1.EnvVar{
+				Name:  "SSL_CERT_FILE",
+				Value: oidcCACertPath,
+			})
+		}
 	}
 
 	if gateway.Spec.MCP != nil && gateway.Spec.MCP.Enabled {

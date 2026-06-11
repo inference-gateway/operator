@@ -215,13 +215,86 @@ var _ = Describe("Gateway controller", func() {
 				Name:  "TELEMETRY_ENABLE",
 				Value: "true",
 			}))
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "AUTH_ENABLE",
+				Value: "true",
+			}))
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "AUTH_OIDC_ISSUER",
+				Value: "https://auth.example.com",
+			}))
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "AUTH_OIDC_CLIENT_ID",
+				Value: "test-client",
+			}))
 			Expect(envVars).To(ContainElement(MatchFields(IgnoreExtras, Fields{
-				"Name":      Equal("OIDC_CLIENT_SECRET"),
+				"Name":      Equal("AUTH_OIDC_CLIENT_SECRET"),
 				"ValueFrom": Not(BeNil()),
 			})))
 			Expect(envVars).To(ContainElement(MatchFields(IgnoreExtras, Fields{
 				"Name":      Equal("OPENAI_API_KEY"),
 				"ValueFrom": Not(BeNil()),
+			})))
+
+			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
+		})
+
+		It("Should mount the OIDC CA certificate and set SSL_CERT_FILE when caCertRef is set", func() {
+			By("Creating a Gateway with auth.oidc.caCertRef")
+			gateway := &corev1alpha1.Gateway{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.inference-gateway.com/v1alpha1",
+					Kind:       "Gateway",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      GatewayName + "-oidc-ca",
+					Namespace: GatewayNamespace,
+				},
+				Spec: corev1alpha1.GatewaySpec{
+					Environment: "production",
+					Replicas:    &[]int32{1}[0],
+					Auth: &corev1alpha1.AuthSpec{
+						Enabled:  true,
+						Provider: "oidc",
+						OIDC: &corev1alpha1.OIDCSpec{
+							IssuerURL: "https://keycloak.example.com/realms/test",
+							ClientID:  "test-client",
+							ClientSecretRef: &corev1.SecretKeySelector{
+								LocalObjectReference: corev1.LocalObjectReference{Name: "oidc-secret"},
+								Key:                  "client-secret",
+							},
+							CACertRef: &corev1.ConfigMapKeySelector{
+								LocalObjectReference: corev1.LocalObjectReference{Name: "keycloak-ca"},
+								Key:                  "ca.crt",
+							},
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
+
+			deploymentName := types.NamespacedName{Name: GatewayName + "-oidc-ca", Namespace: GatewayNamespace}
+			createdDeployment := &appsv1.Deployment{}
+			Eventually(func() bool {
+				return k8sClient.Get(ctx, deploymentName, createdDeployment) == nil
+			}, timeout, interval).Should(BeTrue())
+
+			By("Setting SSL_CERT_FILE on the container")
+			containers := createdDeployment.Spec.Template.Spec.Containers
+			Expect(containers).To(HaveLen(1))
+			Expect(containers[0].Env).To(ContainElement(corev1.EnvVar{
+				Name:  "SSL_CERT_FILE",
+				Value: "/usr/local/share/ca-certificates/oidc-ca.crt",
+			}))
+
+			By("Mounting the CA ConfigMap into the pod")
+			Expect(containers[0].VolumeMounts).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":      Equal("oidc-ca"),
+				"MountPath": Equal("/usr/local/share/ca-certificates/oidc-ca.crt"),
+				"SubPath":   Equal("ca.crt"),
+			})))
+			Expect(createdDeployment.Spec.Template.Spec.Volumes).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name": Equal("oidc-ca"),
 			})))
 
 			Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
