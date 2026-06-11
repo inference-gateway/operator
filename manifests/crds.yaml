@@ -724,6 +724,33 @@ spec:
                   oidc:
                     description: OIDC configuration
                     properties:
+                      caCertRef:
+                        description: |-
+                          CACertRef references a ConfigMap key holding a PEM-encoded CA certificate
+                          used to trust the OIDC issuer's TLS endpoint (e.g. a self-signed Keycloak).
+                          When set, the operator mounts the certificate into the gateway pod and points
+                          SSL_CERT_FILE at it so the Go runtime trusts the issuer during OIDC discovery.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                          optional:
+                            description: Specify whether the ConfigMap or its key
+                              must be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
                       clientId:
                         default: inference-gateway-client
                         type: string
