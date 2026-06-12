@@ -9,7 +9,7 @@
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/inference-gateway/operator?style=flat-square)](https://golang.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.32+-blue.svg?style=flat-square&logo=kubernetes)](https://kubernetes.io/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.35+-blue.svg?style=flat-square&logo=kubernetes)](https://kubernetes.io/)
 [![Docker](https://img.shields.io/badge/Docker-Available-blue.svg?style=flat-square&logo=docker)](https://hub.docker.com/)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.0-green.svg?style=flat-square)](https://swagger.io/specification/)
 
@@ -852,9 +852,6 @@ If installing manually:
 ### Development Workflow
 
 ```sh
-# Install dependencies
-task install-tools
-
 # Run tests
 task test
 
@@ -874,8 +871,8 @@ task run
 **Note:** The `task manifests` command automatically generates:
 
 - CRDs in `config/crd/bases/`
-- Installation manifests in `dist/install.yaml`
-- CRD-only manifests in `dist/crds.yaml`
+- Installation manifests in `manifests/install.yaml`
+- CRD-only manifests in `manifests/crds.yaml`
 
 These files are version-controlled and included in releases.
 
@@ -887,11 +884,8 @@ The operator includes comprehensive unit and integration tests:
 # Run all tests
 task test
 
-# Run with coverage
-task test-coverage
-
 # Run e2e tests (requires running cluster)
-task test-e2e
+task test:e2e
 ```
 
 ## 📊 Monitoring & Management
