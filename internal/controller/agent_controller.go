@@ -76,6 +76,15 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, nil
 	}
 
+	if agent.Spec.Image == "" {
+		logger.Info("rejecting Agent with invalid spec", "reason", "spec.image is required")
+		if statusErr := r.patchStatusInvalidSpec(ctx, &agent, "spec.image is required"); statusErr != nil {
+			logger.Error(statusErr, "unable to update agent status with invalid spec")
+			return ctrl.Result{}, statusErr
+		}
+		return ctrl.Result{}, nil
+	}
+
 	_, err := r.reconcileDeployment(ctx, &agent)
 	if err != nil {
 		if apiErrors.IsConflict(err) {
@@ -136,6 +145,17 @@ func (r *AgentReconciler) patchStatusNotReady(ctx context.Context, agent *v1alph
 	agent.Status.Ready = false
 	agent.Status.ObservedGeneration = agent.Generation
 	setReadyCondition(&agent.Status.Conditions, metav1.ConditionFalse, "CardFetchFailed", fetchErr.Error())
+	return r.Status().Update(ctx, agent)
+}
+
+// patchStatusInvalidSpec marks the Agent Ready=False with an InvalidSpec reason
+// when the spec cannot produce a valid workload (e.g. a missing container image).
+// It runs before any child resource is created, so a rejected Agent leaves no
+// partial Deployment/Service behind.
+func (r *AgentReconciler) patchStatusInvalidSpec(ctx context.Context, agent *v1alpha1.Agent, msg string) error {
+	agent.Status.Ready = false
+	agent.Status.ObservedGeneration = agent.Generation
+	setReadyCondition(&agent.Status.Conditions, metav1.ConditionFalse, "InvalidSpec", msg)
 	return r.Status().Update(ctx, agent)
 }
 
