@@ -68,6 +68,24 @@ tasks:
     cmds:
       - '{{.CONTROLLER_GEN}} object:headerFile="hack/boilerplate.go.txt" paths="./..."'
 
+  generate:providers:
+    desc: Regenerate the shared provider list from the canonical inference-gateway schema
+    cmds:
+      - go generate ./internal/providers/...
+
+  verify-shared-types:
+    desc: Fail if the operator's shared provider types have drifted from the inference-gateway schema
+    cmds:
+      - go generate ./internal/providers/...
+      - |
+        if [ -n "$(git status --porcelain internal/providers/zz_generated_providers.go)" ]; then
+          echo "❌ Shared provider types are out of sync with the inference-gateway schema."
+          echo "Run 'task generate:providers' and commit internal/providers/zz_generated_providers.go."
+          git --no-pager diff -- internal/providers/zz_generated_providers.go
+          exit 1
+        fi
+        echo "✅ Shared provider types are in sync with the inference-gateway schema."
+
   tidy:
     desc: Run go mod tidy
     cmds:
