@@ -21,7 +21,8 @@ on:
     types:
       - created
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   infer:
