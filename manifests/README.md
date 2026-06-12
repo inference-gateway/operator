@@ -49,34 +49,6 @@ kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/d
 - Setting up multi-tenant environments
 - Preparing for namespace-scoped installations
 
----
-
-### 🏢 `namespace-install.yaml`
-
-Operator deployment without CRDs (namespace-scoped permissions).
-
-```bash
-# Install CRDs first
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
-
-# Install operator in specific namespace
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/namespace-install.yaml -n my-namespace
-```
-
-**Includes:**
-
-- Operator deployment
-- Namespace-scoped RBAC (no ClusterRole)
-- Service accounts
-- ConfigMaps and Secrets
-
-**Use when:**
-
-- Multi-tenant Kubernetes clusters
-- Limited cluster permissions
-- Multiple operator instances in different namespaces
-- Enhanced security isolation
-
 ## GitOps Integration
 
 ### ArgoCD Application
@@ -157,7 +129,6 @@ kubectl apply -f manifests/my-custom-namespace/install.yaml
 # Download manifests
 curl -L -O https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 curl -L -O https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
-curl -L -O https://github.com/inference-gateway/operator/releases/latest/download/namespace-install.yaml
 
 # Apply in air-gapped environment
 kubectl apply -f install.yaml
@@ -199,20 +170,20 @@ kubectl get gateways --all-namespaces
 ## Architecture
 
 ```
-┌─────────────────┐    ┌────────────────────┐    ┌──────────────────────┐
-│   install.yaml  │    │     crds.yaml.     │    │namespace-install.yaml│
-│                 │    │                    │    │                      │
-│ ┌─────────────┐ │    │  ┌──────────────┐  │    │    ┌─────────────┐   │
-│ │ Namespace   │ │    │  │ Gateway CRD  │  │    │    │ Deployment  │   │
-│ │ CRDs        │ │◄───┤  │              │  │    │    │ RBAC        │   │
-│ │ Deployment  │ │    │  │              │  │    │    │ ConfigMaps  │   │
-│ │ RBAC        │ │    │  └──────────────┘  │    │    └─────────────┘   │
-│ │ Monitoring  │ │    └────────────────────┘    └──────────────────────┘
+┌─────────────────┐    ┌────────────────────┐
+│   install.yaml  │    │      crds.yaml     │
+│                 │    │                    │
+│ ┌─────────────┐ │    │  ┌──────────────┐  │
+│ │ Namespace   │ │    │  │ Gateway CRD  │  │
+│ │ CRDs        │ │◄───┤  │              │  │
+│ │ Deployment  │ │    │  │              │  │
+│ │ RBAC        │ │    │  └──────────────┘  │
+│ │ Monitoring  │ │    └────────────────────┘
 │ └─────────────┘ │
 └─────────────────┘
 
-    Complete               CRDs Only                Operator Only
-   Installation                                     (No CRDs)
+    Complete               CRDs Only
+   Installation
 ```
 
 ## License

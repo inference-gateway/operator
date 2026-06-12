@@ -357,7 +357,6 @@ tasks:
       - echo "Generating manifests for namespace {{.NAMESPACE}}"
       - mkdir -p manifests/{{.NAMESPACE}}
       - sed 's/inference-gateway-system/{{.NAMESPACE}}/g' manifests/install.yaml > manifests/{{.NAMESPACE}}/install.yaml
-      - sed 's/inference-gateway-system/{{.NAMESPACE}}/g' manifests/namespace-install.yaml > manifests/{{.NAMESPACE}}/namespace-install.yaml
       - cp manifests/crds.yaml manifests/{{.NAMESPACE}}/crds.yaml
       - echo "✅ Manifests generated in manifests/{{.NAMESPACE}}/"
       - echo "🚀 Deploy with kubectl apply -f manifests/{{.NAMESPACE}}/install.yaml"

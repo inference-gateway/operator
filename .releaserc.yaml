@@ -103,11 +103,11 @@ plugins:
         ### Separate CRD Installation (Advanced)
 
         ```bash
-        # Install CRDs only
+        # Install (or upgrade) only the CRDs
         kubectl apply -f https://github.com/inference-gateway/operator/releases/download/<%= nextRelease.gitTag %>/crds.yaml
 
-        # Install operator without CRDs (namespace-scoped)
-        kubectl apply -f https://github.com/inference-gateway/operator/releases/download/<%= nextRelease.gitTag %>/namespace-install.yaml
+        # Then install the operator (install.yaml is idempotent and keeps the CRDs in sync)
+        kubectl apply -f https://github.com/inference-gateway/operator/releases/download/<%= nextRelease.gitTag %>/install.yaml
         ```
 
         ### Container Image
