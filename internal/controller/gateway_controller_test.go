@@ -27,32 +27,25 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
-	fake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	testutil "github.com/inference-gateway/operator/internal/controller/testutil"
 )
 
 // newFakeMCPClient builds a controller-runtime fake client with the v1alpha1 scheme
 // registered and the given MCP objects pre-loaded - for use in non-envtest unit tests
 // that exercise reconciler helpers in isolation.
 func newFakeMCPClient(objs ...client.Object) client.Client {
-	s := runtime.NewScheme()
-	_ = corev1alpha1.AddToScheme(s)
-	return fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build()
+	return testutil.NewFakeClient(objs...)
 }
 
 // gatewayTestScheme is a runtime.Scheme prebuilt with the project APIs registered,
 // used to satisfy `Scheme` on reconcilers under unit tests.
-var gatewayTestScheme = func() *runtime.Scheme {
-	s := runtime.NewScheme()
-	_ = corev1alpha1.AddToScheme(s)
-	return s
-}()
+var gatewayTestScheme = testutil.Scheme()
 
 func checkGatewayDeploymentEnvVars(ctx context.Context, k8sClient client.Client, gateway *corev1alpha1.Gateway, expectedEnvVars []corev1.EnvVar, timeout time.Duration, interval time.Duration) {
 	gatewayLookupKey := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
