@@ -214,29 +214,17 @@ spec:
 
 ### Method 4: Separate CRD Installation (Advanced)
 
-For scenarios where you need separate control over CRDs:
+For scenarios where you need separate control over the CRD lifecycle (for example, upgrading CRDs independently of the operator):
 
 ```bash
-# Step 1: Install CRDs only
+# Step 1: Install (or upgrade) the CRDs on their own
 kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
 
-# Step 2: Install the operator (without CRDs)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/namespace-install.yaml
+# Step 2: Install the operator (install.yaml is idempotent and keeps the CRDs in sync)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 ```
 
-### Method 5: Namespace-Scoped Installation
-
-For multi-tenant environments where you don't want cluster-wide permissions:
-
-```bash
-# Install CRDs first (requires cluster-admin)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
-
-# Install operator in specific namespace (namespace-scoped permissions)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/namespace-install.yaml -n my-namespace
-```
-
-### Method 6: Custom Namespace Installation
+### Method 5: Custom Namespace Installation
 
 By default, the operator deploys to the `inference-gateway-system` namespace. To deploy to a custom namespace:
 
@@ -291,7 +279,7 @@ spec:
     namespace: my-custom-namespace
 ```
 
-### Method 7: Development Installation
+### Method 6: Development Installation
 
 For development and testing with the latest code:
 
@@ -753,11 +741,11 @@ Status includes:
     path: manifests # Includes both CRDs and operator
   ```
 
-- **Namespace-scoped installations**: Yes! Install CRDs first, then the operator:
+- **Custom namespace installations**: No! When you substitute the namespace in `install.yaml`, the CRDs are still included:
 
   ```bash
-  kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
-  kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/namespace-install.yaml -n my-namespace
+  curl -L https://github.com/inference-gateway/operator/releases/latest/download/install.yaml | \
+    sed 's/inference-gateway-system/my-namespace/g' | kubectl apply -f -
   ```
 
 - **Advanced scenarios**: You can install CRDs separately for more control:
