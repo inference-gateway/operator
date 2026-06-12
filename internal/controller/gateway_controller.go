@@ -44,7 +44,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
-	"github.com/inference-gateway/operator/internal/providers"
+	providers "github.com/inference-gateway/operator/internal/providers"
 )
 
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways,verbs=get;list;watch;create;update;patch;delete
@@ -244,9 +244,6 @@ func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway 
 
 	configuredProviderNames := []string{}
 	for _, p := range gateway.Spec.Providers {
-		// The supported-provider set is derived from the canonical Inference
-		// Gateway schema (see internal/providers), so it stays in sync with the
-		// gateway instead of being hand-maintained here.
 		if !providers.IsSupported(p.Name) {
 			logger.V(1).Info("Skipping unsupported provider", "provider", p)
 			continue
