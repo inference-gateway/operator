@@ -34,6 +34,7 @@ var SupportedProviders = []string{
 	"minimax",
 	"mistral",
 	"moonshot",
+	"nvidia",
 	"ollama",
 	"ollama_cloud",
 	"openai",
