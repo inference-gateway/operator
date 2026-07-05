@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.0](https://github.com/inference-gateway/operator/compare/v0.16.3...v0.17.0) (2026-07-05)
+
 ## [0.16.3](https://github.com/inference-gateway/operator/compare/v0.16.2...v0.16.3) (2026-05-25)
 
 ### 👷 CI
