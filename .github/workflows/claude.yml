@@ -48,7 +48,7 @@ jobs:
       issues: write
       id-token: write
       actions: read
-    uses: inference-gateway/.github/.github/workflows/claude.yml@v0.16.0
+    uses: inference-gateway/.github/.github/workflows/claude.yml@v0.16.1
     with:
       language: "go"
       browser: ${{ inputs.browser || false }}
