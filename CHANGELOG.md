@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.1](https://github.com/inference-gateway/operator/compare/v0.17.0...v0.17.1) (2026-07-06)
+
+### 🐛 Bug Fixes
+
+* **ci:** release notes are not being generated ([ea74fc0](https://github.com/inference-gateway/operator/commit/ea74fc074fbcd1de935df35dc62af4b9b6f418df))
+
+### 👷 CI
+
+* **deps:** bump sigs.k8s.io/gateway-api in the gomod group ([#139](https://github.com/inference-gateway/operator/issues/139)) ([90c5b9e](https://github.com/inference-gateway/operator/commit/90c5b9eea20185ba3d737377bbb032b03a672dc0))
+* **deps:** bump the github-actions group with 6 updates ([#140](https://github.com/inference-gateway/operator/issues/140)) ([2acc187](https://github.com/inference-gateway/operator/commit/2acc1879591456437c2202e8b2968fe96b399ab8))
+
+### 🔧 Miscellaneous
+
+* **deps:** bump claude-code 2.1.177 -> 2.1.197, claude-code-action v1.0.155 -> v1.0.165 ([#138](https://github.com/inference-gateway/operator/issues/138)) ([0d848e5](https://github.com/inference-gateway/operator/commit/0d848e52cde00fb334a045134784cfc901f2b1e4))
+
 ## [0.17.0](https://github.com/inference-gateway/operator/compare/v0.16.3...v0.17.0) (2026-07-05)
 
 ## [0.16.3](https://github.com/inference-gateway/operator/compare/v0.16.2...v0.16.3) (2026-05-25)
