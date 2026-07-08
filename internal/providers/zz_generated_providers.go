@@ -38,4 +38,5 @@ var SupportedProviders = []string{
 	"ollama",
 	"ollama_cloud",
 	"openai",
+	"zai",
 }
