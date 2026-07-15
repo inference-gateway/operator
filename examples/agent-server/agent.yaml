@@ -20,6 +20,17 @@ spec:
       apiKeySecretRef:
         name: inference-gateway-providers-secret
         key: OPENAI_API_KEY
+  telemetry:
+    enabled: true
+    traces:
+      exporter:
+        otlp:
+          endpoint: "http://otel-collector.observability.svc.cluster.local:4318"
+          protocol: "http/protobuf"
+    metrics:
+      exporter:
+        prometheus:
+          port: 9464
   env:
     - name: GOOGLE_CALENDAR_MOCK_MODE
       value: "true"

@@ -147,12 +147,21 @@ type CustomHorizontalPodAutoscalerSpec struct {
 	Behavior *autoscalingv2.HorizontalPodAutoscalerBehavior `json:"behavior,omitempty" protobuf:"bytes,5,opt,name=behavior"`
 }
 
-// TelemetrySpec contains telemetry and observability configuration
+// TelemetrySpec contains telemetry and observability configuration.
+// The traces/metrics exporter blocks follow the OpenTelemetry SDK
+// declarative-config model shared with ADL v0.19.0: each signal nests an
+// exporter and the single key beneath it selects the exporter (otlp = push,
+// prometheus = pull). Omitting a signal disables it.
 type TelemetrySpec struct {
-	// Enable telemetry collection
+	// Enable telemetry collection. Master switch mapped to the Go ADK's
+	// A2A_TELEMETRY_ENABLE; when false the traces/metrics exporter blocks are ignored.
 	// +optional
 	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
+
+	// Traces configures the tracing (spans) signal exporter.
+	// +optional
+	Traces *TracesSpec `json:"traces,omitempty"`
 
 	// Metrics configuration
 	// +optional
@@ -170,6 +179,68 @@ type MetricsSpec struct {
 	// Port for metrics endpoint
 	// +optional
 	// +kubebuilder:default=9464
+	// +kubebuilder:validation:Minimum=1024
+	// +kubebuilder:validation:Maximum=65535
+	Port int32 `json:"port,omitempty"`
+
+	// Exporter selects how metrics leave the process (OTLP push or Prometheus
+	// pull), following the OpenTelemetry declarative-config model. Consumed by
+	// Agent workloads via the A2A_OTEL_* env vars.
+	// +optional
+	Exporter *MetricsExporterSpec `json:"exporter,omitempty"`
+}
+
+// TracesSpec configures the tracing (spans) signal.
+type TracesSpec struct {
+	// Exporter selects how spans leave the process. Omitting it disables tracing.
+	// +optional
+	Exporter *TracesExporterSpec `json:"exporter,omitempty"`
+}
+
+// TracesExporterSpec selects the traces exporter. Only OTLP is supported today.
+type TracesExporterSpec struct {
+	// OTLP push exporter for spans.
+	// +optional
+	OTLP *OTLPExporterSpec `json:"otlp,omitempty"`
+}
+
+// MetricsExporterSpec selects the metrics exporter. Set exactly one of otlp or prometheus.
+type MetricsExporterSpec struct {
+	// OTLP push exporter for metrics.
+	// +optional
+	OTLP *OTLPExporterSpec `json:"otlp,omitempty"`
+
+	// Prometheus pull exporter for metrics (exposes a scrape endpoint).
+	// +optional
+	Prometheus *PrometheusExporterSpec `json:"prometheus,omitempty"`
+}
+
+// OTLPExporterSpec configures an OTLP push exporter for a single signal.
+// The Go ADK exposes a single shared OTLP endpoint, so when both traces and
+// metrics push over OTLP the traces endpoint wins (see agent_controller.go).
+type OTLPExporterSpec struct {
+	// Endpoint is the collector endpoint, e.g. http://localhost:4318.
+	// Emitted as A2A_OTEL_EXPORTER_OTLP_ENDPOINT.
+	// +optional
+	Endpoint string `json:"endpoint,omitempty"`
+
+	// Protocol is the OTLP wire protocol.
+	// Emitted as A2A_OTEL_EXPORTER_OTLP_PROTOCOL.
+	// +optional
+	// +kubebuilder:validation:Enum=grpc;http/protobuf
+	Protocol string `json:"protocol,omitempty"`
+}
+
+// PrometheusExporterSpec configures a Prometheus pull exporter (metrics only).
+type PrometheusExporterSpec struct {
+	// Host/interface the scrape endpoint binds to (empty = all interfaces).
+	// Emitted as A2A_OTEL_EXPORTER_PROMETHEUS_HOST.
+	// +optional
+	Host string `json:"host,omitempty"`
+
+	// Port the scrape endpoint listens on (OpenTelemetry default 9464).
+	// Emitted as A2A_OTEL_EXPORTER_PROMETHEUS_PORT.
+	// +optional
 	// +kubebuilder:validation:Minimum=1024
 	// +kubebuilder:validation:Maximum=65535
 	Port int32 `json:"port,omitempty"`
