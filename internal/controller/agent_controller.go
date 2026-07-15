@@ -390,8 +390,6 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 		// Logging
 		corev1.EnvVar{Name: "LOG_LEVEL", Value: agent.Spec.Logging.Level},
 		corev1.EnvVar{Name: "LOG_FORMAT", Value: agent.Spec.Logging.Format},
-		// Telemetry
-		corev1.EnvVar{Name: "TELEMETRY_ENABLED", Value: strconv.FormatBool(agent.Spec.Telemetry.Enabled)},
 		// Queue
 		corev1.EnvVar{Name: "QUEUE_ENABLED", Value: strconv.FormatBool(agent.Spec.Queue.Enabled)},
 		corev1.EnvVar{Name: "QUEUE_MAX_SIZE", Value: strconv.Itoa(int(agent.Spec.Queue.MaxSize))},
@@ -403,6 +401,9 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 		corev1.EnvVar{Name: "AGENT_ENABLED", Value: strconv.FormatBool(agent.Spec.Agent.Enabled)},
 		corev1.EnvVar{Name: "AGENT_MAX_CONVERSATION_HISTORY", Value: strconv.Itoa(int(agent.Spec.Agent.MaxConversationHistory))},
 	)
+
+	// Telemetry: master switch plus OTel-aligned exporter vars (Go ADK A2A_OTEL_* prefix).
+	envVars = append(envVars, agentTelemetryEnvVars(agent.Spec.Telemetry)...)
 
 	llm := agent.Spec.Agent.LLM
 
@@ -477,6 +478,83 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 	}
 
 	return envVars
+}
+
+// agentTelemetryEnvVars maps spec.telemetry onto the Go ADK's OpenTelemetry env
+// vars, mirroring adl-cli's internal/templates/telemetry_env.go for the Go
+// (A2A_) prefix. A2A_TELEMETRY_ENABLE is always emitted; the OTEL_* exporter
+// vars only when telemetry is enabled.
+//
+// The Go ADK exposes a single shared OTLP endpoint pair (no per-signal OTLP
+// fields), so when both traces and metrics push over OTLP the traces endpoint
+// wins and the metrics endpoint can't be expressed - adl-cli does the same.
+func agentTelemetryEnvVars(tel v1alpha1.TelemetrySpec) []corev1.EnvVar {
+	envVars := []corev1.EnvVar{
+		{Name: "A2A_TELEMETRY_ENABLE", Value: strconv.FormatBool(tel.Enabled)},
+	}
+	if !tel.Enabled {
+		return envVars
+	}
+
+	var tracesOTLP *v1alpha1.OTLPExporterSpec
+	if tel.Traces != nil && tel.Traces.Exporter != nil {
+		tracesOTLP = tel.Traces.Exporter.OTLP
+	}
+
+	var metricsOTLP *v1alpha1.OTLPExporterSpec
+	var metricsProm *v1alpha1.PrometheusExporterSpec
+	if tel.Metrics != nil && tel.Metrics.Exporter != nil {
+		metricsOTLP = tel.Metrics.Exporter.OTLP
+		metricsProm = tel.Metrics.Exporter.Prometheus
+	}
+
+	envVars = append(envVars, corev1.EnvVar{
+		Name:  "A2A_OTEL_TRACES_EXPORTER",
+		Value: telemetryExporterValue(tracesOTLP != nil, "otlp"),
+	})
+
+	switch {
+	case metricsOTLP != nil:
+		envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_METRICS_EXPORTER", Value: "otlp"})
+	case metricsProm != nil:
+		envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_METRICS_EXPORTER", Value: "prometheus"})
+	default:
+		envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_METRICS_EXPORTER", Value: "none"})
+	}
+
+	// Shared OTLP endpoint/protocol: prefer traces, fall back to metrics.
+	otlp := tracesOTLP
+	if otlp == nil {
+		otlp = metricsOTLP
+	}
+	if otlp != nil {
+		if otlp.Endpoint != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_EXPORTER_OTLP_ENDPOINT", Value: otlp.Endpoint})
+		}
+		if otlp.Protocol != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_EXPORTER_OTLP_PROTOCOL", Value: otlp.Protocol})
+		}
+	}
+
+	if metricsProm != nil {
+		if metricsProm.Host != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_EXPORTER_PROMETHEUS_HOST", Value: metricsProm.Host})
+		}
+		if metricsProm.Port != 0 {
+			envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_EXPORTER_PROMETHEUS_PORT", Value: strconv.Itoa(int(metricsProm.Port))})
+		}
+	}
+
+	return envVars
+}
+
+// telemetryExporterValue returns the exporter key when the signal is configured,
+// or "none" to disable it (OTEL_{TRACES,METRICS}_EXPORTER=none).
+func telemetryExporterValue(configured bool, key string) string {
+	if configured {
+		return key
+	}
+	return "none"
 }
 
 // createOrUpdateDeployment handles deployment creation and updates

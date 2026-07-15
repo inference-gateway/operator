@@ -330,6 +330,89 @@ var _ = Describe("Agent Controller", func() {
 		})
 	})
 
+	Context("agentTelemetryEnvVars", func() {
+		It("emits A2A_TELEMETRY_ENABLE=false and no OTEL vars when telemetry is disabled", func() {
+			envVars := agentTelemetryEnvVars(v1alpha1.TelemetrySpec{Enabled: false})
+
+			enable := findEnvVar(envVars, "A2A_TELEMETRY_ENABLE")
+			Expect(enable).NotTo(BeNil())
+			Expect(enable.Value).To(Equal("false"))
+
+			Expect(findEnvVar(envVars, "A2A_OTEL_TRACES_EXPORTER")).To(BeNil())
+			Expect(findEnvVar(envVars, "A2A_OTEL_METRICS_EXPORTER")).To(BeNil())
+		})
+
+		It("emits A2A_TELEMETRY_ENABLE (not the legacy TELEMETRY_ENABLED) from buildAgentEnvironmentVars", func() {
+			agent := &v1alpha1.Agent{
+				Spec: v1alpha1.AgentSpec{Telemetry: v1alpha1.TelemetrySpec{Enabled: true}},
+			}
+			envVars := (&AgentReconciler{}).buildAgentEnvironmentVars(agent)
+
+			Expect(findEnvVar(envVars, "TELEMETRY_ENABLED")).To(BeNil(), "the Go ADK reads A2A_TELEMETRY_ENABLE, not TELEMETRY_ENABLED")
+			Expect(findEnvVar(envVars, "A2A_TELEMETRY_ENABLE")).NotTo(BeNil())
+		})
+
+		It("maps traces OTLP and metrics Prometheus to A2A_OTEL_* vars", func() {
+			tel := v1alpha1.TelemetrySpec{
+				Enabled: true,
+				Traces: &v1alpha1.TracesSpec{Exporter: &v1alpha1.TracesExporterSpec{
+					OTLP: &v1alpha1.OTLPExporterSpec{Endpoint: "http://localhost:4318", Protocol: "http/protobuf"},
+				}},
+				Metrics: &v1alpha1.MetricsSpec{Exporter: &v1alpha1.MetricsExporterSpec{
+					Prometheus: &v1alpha1.PrometheusExporterSpec{Port: 9464},
+				}},
+			}
+			envVars := agentTelemetryEnvVars(tel)
+
+			Expect(findEnvVar(envVars, "A2A_TELEMETRY_ENABLE").Value).To(Equal("true"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_TRACES_EXPORTER").Value).To(Equal("otlp"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_METRICS_EXPORTER").Value).To(Equal("prometheus"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_EXPORTER_OTLP_ENDPOINT").Value).To(Equal("http://localhost:4318"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_EXPORTER_OTLP_PROTOCOL").Value).To(Equal("http/protobuf"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_EXPORTER_PROMETHEUS_PORT").Value).To(Equal("9464"))
+		})
+
+		It("shares a single OTLP endpoint (traces preferred) when both signals use OTLP", func() {
+			tel := v1alpha1.TelemetrySpec{
+				Enabled: true,
+				Traces: &v1alpha1.TracesSpec{Exporter: &v1alpha1.TracesExporterSpec{
+					OTLP: &v1alpha1.OTLPExporterSpec{Endpoint: "http://traces:4318", Protocol: "grpc"},
+				}},
+				Metrics: &v1alpha1.MetricsSpec{Exporter: &v1alpha1.MetricsExporterSpec{
+					OTLP: &v1alpha1.OTLPExporterSpec{Endpoint: "http://metrics:4318", Protocol: "grpc"},
+				}},
+			}
+			envVars := agentTelemetryEnvVars(tel)
+
+			Expect(findEnvVar(envVars, "A2A_OTEL_TRACES_EXPORTER").Value).To(Equal("otlp"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_METRICS_EXPORTER").Value).To(Equal("otlp"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_EXPORTER_OTLP_ENDPOINT").Value).To(Equal("http://traces:4318"))
+		})
+
+		It("falls back to the metrics OTLP endpoint when only metrics uses OTLP", func() {
+			tel := v1alpha1.TelemetrySpec{
+				Enabled: true,
+				Metrics: &v1alpha1.MetricsSpec{Exporter: &v1alpha1.MetricsExporterSpec{
+					OTLP: &v1alpha1.OTLPExporterSpec{Endpoint: "http://metrics:4318"},
+				}},
+			}
+			envVars := agentTelemetryEnvVars(tel)
+
+			Expect(findEnvVar(envVars, "A2A_OTEL_TRACES_EXPORTER").Value).To(Equal("none"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_METRICS_EXPORTER").Value).To(Equal("otlp"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_EXPORTER_OTLP_ENDPOINT").Value).To(Equal("http://metrics:4318"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_EXPORTER_OTLP_PROTOCOL")).To(BeNil(), "omitted protocol lets the SDK default apply")
+		})
+
+		It("defaults both exporters to none when enabled without exporter blocks", func() {
+			envVars := agentTelemetryEnvVars(v1alpha1.TelemetrySpec{Enabled: true})
+
+			Expect(findEnvVar(envVars, "A2A_OTEL_TRACES_EXPORTER").Value).To(Equal("none"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_METRICS_EXPORTER").Value).To(Equal("none"))
+			Expect(findEnvVar(envVars, "A2A_OTEL_EXPORTER_OTLP_ENDPOINT")).To(BeNil())
+		})
+	})
+
 	Context("buildAgentDeployment resources", func() {
 		var reconciler *AgentReconciler
 
