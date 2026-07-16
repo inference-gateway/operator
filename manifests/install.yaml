@@ -3899,6 +3899,105 @@ spec:
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
+              telemetry:
+                description: |-
+                  Telemetry configures observability (traces and metrics) for the
+                  orchestrator. Mapped onto INFER_TELEMETRY_* env vars consumed by
+                  the `infer channels-manager` CLI.
+                properties:
+                  enabled:
+                    default: false
+                    description: |-
+                      Enable telemetry collection. Master switch mapped to the Go ADK's
+                      A2A_TELEMETRY_ENABLE; when false the traces/metrics exporter blocks are ignored.
+                    type: boolean
+                  metrics:
+                    default:
+                      enabled: false
+                      port: 9464
+                    description: Metrics configuration
+                    properties:
+                      enabled:
+                        default: false
+                        description: Enable metrics collection
+                        type: boolean
+                      exporter:
+                        description: |-
+                          Exporter selects how metrics leave the process (OTLP push or Prometheus
+                          pull), following the OpenTelemetry declarative-config model. Consumed by
+                          Agent workloads via the A2A_OTEL_* env vars.
+                        properties:
+                          otlp:
+                            description: OTLP push exporter for metrics.
+                            properties:
+                              endpoint:
+                                description: |-
+                                  Endpoint is the collector endpoint, e.g. http://localhost:4318.
+                                  Emitted as A2A_OTEL_EXPORTER_OTLP_ENDPOINT.
+                                type: string
+                              protocol:
+                                description: |-
+                                  Protocol is the OTLP wire protocol.
+                                  Emitted as A2A_OTEL_EXPORTER_OTLP_PROTOCOL.
+                                enum:
+                                - grpc
+                                - http/protobuf
+                                type: string
+                            type: object
+                          prometheus:
+                            description: Prometheus pull exporter for metrics (exposes
+                              a scrape endpoint).
+                            properties:
+                              host:
+                                description: |-
+                                  Host/interface the scrape endpoint binds to (empty = all interfaces).
+                                  Emitted as A2A_OTEL_EXPORTER_PROMETHEUS_HOST.
+                                type: string
+                              port:
+                                description: |-
+                                  Port the scrape endpoint listens on (OpenTelemetry default 9464).
+                                  Emitted as A2A_OTEL_EXPORTER_PROMETHEUS_PORT.
+                                format: int32
+                                maximum: 65535
+                                minimum: 1024
+                                type: integer
+                            type: object
+                        type: object
+                      port:
+                        default: 9464
+                        description: Port for metrics endpoint
+                        format: int32
+                        maximum: 65535
+                        minimum: 1024
+                        type: integer
+                    type: object
+                  traces:
+                    description: Traces configures the tracing (spans) signal exporter.
+                    properties:
+                      exporter:
+                        description: Exporter selects how spans leave the process.
+                          Omitting it disables tracing.
+                        properties:
+                          otlp:
+                            description: OTLP push exporter for spans.
+                            properties:
+                              endpoint:
+                                description: |-
+                                  Endpoint is the collector endpoint, e.g. http://localhost:4318.
+                                  Emitted as A2A_OTEL_EXPORTER_OTLP_ENDPOINT.
+                                type: string
+                              protocol:
+                                description: |-
+                                  Protocol is the OTLP wire protocol.
+                                  Emitted as A2A_OTEL_EXPORTER_OTLP_PROTOCOL.
+                                enum:
+                                - grpc
+                                - http/protobuf
+                                type: string
+                            type: object
+                        type: object
+                    type: object
+                type: object
               tools:
                 description: OrchestratorToolsSpec toggles built-in CLI tools.
                 properties:

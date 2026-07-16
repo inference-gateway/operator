@@ -51,6 +51,12 @@ type OrchestratorSpec struct {
 	// Env is an optional passthrough for additional environment variables.
 	// +optional
 	Env *[]corev1.EnvVar `json:"env,omitempty"`
+
+	// Telemetry configures observability (traces and metrics) for the
+	// orchestrator. Mapped onto INFER_TELEMETRY_* env vars consumed by
+	// the `infer channels-manager` CLI.
+	// +optional
+	Telemetry *TelemetrySpec `json:"telemetry,omitempty"`
 }
 
 // ChannelsSpec mirrors the CLI's ChannelsConfig top-level shared fields.
