@@ -68,15 +68,12 @@ spec:
       selector:
         matchLabels:
           mcp-group: group1
+  # The orchestrator CLI consumes a single shared OTLP endpoint via
+  # INFER_TELEMETRY_OTLP_ENDPOINT. Per-signal protocol and Prometheus scrape
+  # settings are not wired up (the orchestrator exposes no Service to scrape).
   telemetry:
     enabled: true
     traces:
       exporter:
         otlp:
           endpoint: http://otel-collector:4318
-          protocol: http/protobuf
-    metrics:
-      exporter:
-        prometheus:
-          host: 0.0.0.0
-          port: 9464
