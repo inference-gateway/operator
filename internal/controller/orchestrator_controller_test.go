@@ -326,8 +326,8 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 					Telegram: v1alpha1.TelegramChannelSpec{
 						Enabled: true,
 						TokenSecretRef: corev1.SecretKeySelector{
-								LocalObjectReference: corev1.LocalObjectReference{Name: "telegram-bot-credentials"},
-								Key:                  "token",
+							LocalObjectReference: corev1.LocalObjectReference{Name: "telegram-bot-credentials"},
+							Key:                  "token",
 						},
 					},
 				},
@@ -337,9 +337,9 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 					Enabled: true,
 					Traces: &v1alpha1.TracesSpec{
 						Exporter: &v1alpha1.TracesExporterSpec{
-								OTLP: &v1alpha1.OTLPExporterSpec{
-									Endpoint: "http://otel:4318",
-								},
+							OTLP: &v1alpha1.OTLPExporterSpec{
+								Endpoint: "http://otel:4318",
+							},
 						},
 					},
 				},
