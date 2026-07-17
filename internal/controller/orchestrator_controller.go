@@ -560,6 +560,8 @@ func buildOrchestratorEnvironmentVars(orch *v1alpha1.Orchestrator) []corev1.EnvV
 		corev1.EnvVar{Name: "INFER_GATEWAY_RUN", Value: "false"},
 	)
 
+	envVars = append(envVars, orchestratorTelemetryEnvVars(orch.Spec.Telemetry)...)
+
 	if orch.Spec.Channels.MaxWorkers != nil {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  "INFER_CHANNELS_MAX_WORKERS",
@@ -640,6 +642,41 @@ func buildOrchestratorEnvironmentVars(orch *v1alpha1.Orchestrator) []corev1.EnvV
 			Value: strings.Join(orch.Spec.A2A.Agents, ","),
 		},
 	)
+
+	return envVars
+}
+
+// orchestratorTelemetryEnvVars maps spec.telemetry onto the CLI's
+// INFER_TELEMETRY_* env vars. The CLI exposes a single shared OTLP
+// endpoint for both traces and metrics (no per-signal OTLP fields),
+// so when both traces and metrics push over OTLP the traces endpoint
+// wins and the metrics endpoint can't be expressed independently.
+func orchestratorTelemetryEnvVars(tel *v1alpha1.TelemetrySpec) []corev1.EnvVar {
+	if tel == nil {
+		return []corev1.EnvVar{
+			{Name: "INFER_TELEMETRY_ENABLED", Value: "false"},
+		}
+	}
+	envVars := []corev1.EnvVar{
+		{Name: "INFER_TELEMETRY_ENABLED", Value: strconv.FormatBool(tel.Enabled)},
+	}
+	if !tel.Enabled {
+		return envVars
+	}
+
+	var otlp *v1alpha1.OTLPExporterSpec
+	if tel.Traces != nil && tel.Traces.Exporter != nil {
+		otlp = tel.Traces.Exporter.OTLP
+	}
+	if otlp == nil && tel.Metrics != nil && tel.Metrics.Exporter != nil {
+		otlp = tel.Metrics.Exporter.OTLP
+	}
+	if otlp != nil && otlp.Endpoint != "" {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "INFER_TELEMETRY_OTLP_ENDPOINT",
+			Value: otlp.Endpoint,
+		})
+	}
 
 	return envVars
 }

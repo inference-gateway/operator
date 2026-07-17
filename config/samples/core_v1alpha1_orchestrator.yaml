@@ -33,3 +33,9 @@ spec:
     schedule: true
   a2a:
     enabled: false
+  telemetry:
+    enabled: true
+    metrics:
+      exporter:
+        otlp:
+          endpoint: http://otel-collector:4318

@@ -159,30 +159,22 @@ var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 		}
 	}
 
-	envByName := func(envs []corev1.EnvVar) map[string]corev1.EnvVar {
-		out := map[string]corev1.EnvVar{}
-		for _, e := range envs {
-			out[e.Name] = e
-		}
-		return out
-	}
-
 	It("emits hardcoded INFER_* defaults", func() {
-		envs := envByName(buildOrchestratorEnvironmentVars(makeOrchestrator()))
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(makeOrchestrator()))
 		Expect(envs["INFER_CHANNELS_ENABLED"].Value).To(Equal("true"))
 		Expect(envs["INFER_LOGGING_STDOUT"].Value).To(Equal("true"))
 		Expect(envs["INFER_GATEWAY_RUN"].Value).To(Equal("false"))
 	})
 
 	It("translates plain channel knobs", func() {
-		envs := envByName(buildOrchestratorEnvironmentVars(makeOrchestrator()))
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(makeOrchestrator()))
 		Expect(envs["INFER_CHANNELS_MAX_WORKERS"].Value).To(Equal("7"))
 		Expect(envs["INFER_CHANNELS_IMAGE_RETENTION"].Value).To(Equal("3"))
 		Expect(envs["INFER_CHANNELS_REQUIRE_APPROVAL"].Value).To(Equal("false"))
 	})
 
 	It("wires Telegram fields including secret refs and pollTimeout", func() {
-		envs := envByName(buildOrchestratorEnvironmentVars(makeOrchestrator()))
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(makeOrchestrator()))
 
 		Expect(envs["INFER_CHANNELS_TELEGRAM_ENABLED"].Value).To(Equal("true"))
 		Expect(envs["INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT"].Value).To(Equal("45"))
@@ -201,7 +193,7 @@ var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 	})
 
 	It("wires gateway, agent, tools, and a2a", func() {
-		envs := envByName(buildOrchestratorEnvironmentVars(makeOrchestrator()))
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(makeOrchestrator()))
 
 		Expect(envs["INFER_GATEWAY_URL"].Value).To(Equal("http://gw:8080"))
 		apiKey := envs["INFER_GATEWAY_API_KEY"]
@@ -226,7 +218,7 @@ var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 		orch.Spec.Channels.Telegram.PollTimeout = nil
 		orch.Spec.Gateway.APIKeySecretRef = nil
 
-		envs := envByName(buildOrchestratorEnvironmentVars(orch))
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(orch))
 		Expect(envs).NotTo(HaveKey("INFER_CHANNELS_MAX_WORKERS"))
 		Expect(envs).NotTo(HaveKey("INFER_CHANNELS_IMAGE_RETENTION"))
 		Expect(envs).NotTo(HaveKey("INFER_CHANNELS_REQUIRE_APPROVAL"))
@@ -238,8 +230,124 @@ var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 	It("passes through spec.env", func() {
 		orch := makeOrchestrator()
 		orch.Spec.Env = &[]corev1.EnvVar{{Name: "EXTRA", Value: "yes"}}
-		envs := envByName(buildOrchestratorEnvironmentVars(orch))
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(orch))
 		Expect(envs["EXTRA"].Value).To(Equal("yes"))
+	})
+})
+
+var _ = Describe("orchestratorTelemetryEnvVars", func() {
+	It("emits INFER_TELEMETRY_ENABLED=false when telemetry is nil", func() {
+		envVars := orchestratorTelemetryEnvVars(nil)
+		envs := envByNameFn(envVars)
+		Expect(envs["INFER_TELEMETRY_ENABLED"].Value).To(Equal("false"))
+		Expect(envs).NotTo(HaveKey("INFER_TELEMETRY_OTLP_ENDPOINT"))
+	})
+
+	It("emits INFER_TELEMETRY_ENABLED=false when telemetry is disabled", func() {
+		tel := &v1alpha1.TelemetrySpec{Enabled: false}
+		envVars := orchestratorTelemetryEnvVars(tel)
+		envs := envByNameFn(envVars)
+		Expect(envs["INFER_TELEMETRY_ENABLED"].Value).To(Equal("false"))
+		Expect(envs).NotTo(HaveKey("INFER_TELEMETRY_OTLP_ENDPOINT"))
+	})
+
+	It("emits INFER_TELEMETRY_ENABLED=true and OTLP endpoint from traces", func() {
+		tel := &v1alpha1.TelemetrySpec{
+			Enabled: true,
+			Traces: &v1alpha1.TracesSpec{
+				Exporter: &v1alpha1.TracesExporterSpec{
+					OTLP: &v1alpha1.OTLPExporterSpec{
+						Endpoint: "http://traces:4318",
+						Protocol: "http/protobuf",
+					},
+				},
+			},
+		}
+		envVars := orchestratorTelemetryEnvVars(tel)
+		envs := envByNameFn(envVars)
+		Expect(envs["INFER_TELEMETRY_ENABLED"].Value).To(Equal("true"))
+		Expect(envs["INFER_TELEMETRY_OTLP_ENDPOINT"].Value).To(Equal("http://traces:4318"))
+	})
+
+	It("falls back to metrics OTLP endpoint when traces has no exporter", func() {
+		tel := &v1alpha1.TelemetrySpec{
+			Enabled: true,
+			Metrics: &v1alpha1.MetricsSpec{
+				Exporter: &v1alpha1.MetricsExporterSpec{
+					OTLP: &v1alpha1.OTLPExporterSpec{
+						Endpoint: "http://metrics:4318",
+					},
+				},
+			},
+		}
+		envVars := orchestratorTelemetryEnvVars(tel)
+		envs := envByNameFn(envVars)
+		Expect(envs["INFER_TELEMETRY_ENABLED"].Value).To(Equal("true"))
+		Expect(envs["INFER_TELEMETRY_OTLP_ENDPOINT"].Value).To(Equal("http://metrics:4318"))
+	})
+
+	It("prefers traces OTLP endpoint over metrics when both are set", func() {
+		tel := &v1alpha1.TelemetrySpec{
+			Enabled: true,
+			Traces: &v1alpha1.TracesSpec{
+				Exporter: &v1alpha1.TracesExporterSpec{
+					OTLP: &v1alpha1.OTLPExporterSpec{
+						Endpoint: "http://traces:4318",
+					},
+				},
+			},
+			Metrics: &v1alpha1.MetricsSpec{
+				Exporter: &v1alpha1.MetricsExporterSpec{
+					OTLP: &v1alpha1.OTLPExporterSpec{
+						Endpoint: "http://metrics:4318",
+					},
+				},
+			},
+		}
+		envVars := orchestratorTelemetryEnvVars(tel)
+		envs := envByNameFn(envVars)
+		Expect(envs["INFER_TELEMETRY_OTLP_ENDPOINT"].Value).To(Equal("http://traces:4318"))
+	})
+
+	It("omits OTLP endpoint when no exporter is configured", func() {
+		tel := &v1alpha1.TelemetrySpec{Enabled: true}
+		envVars := orchestratorTelemetryEnvVars(tel)
+		envs := envByNameFn(envVars)
+		Expect(envs["INFER_TELEMETRY_ENABLED"].Value).To(Equal("true"))
+		Expect(envs).NotTo(HaveKey("INFER_TELEMETRY_OTLP_ENDPOINT"))
+	})
+
+	It("wires telemetry env vars through buildOrchestratorEnvironmentVars", func() {
+		orch := &v1alpha1.Orchestrator{
+			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "default"},
+			Spec: v1alpha1.OrchestratorSpec{
+				Image: "img",
+				Channels: v1alpha1.ChannelsSpec{
+					Telegram: v1alpha1.TelegramChannelSpec{
+						Enabled: true,
+						TokenSecretRef: corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{Name: "telegram-bot-credentials"},
+							Key:                  "token",
+						},
+					},
+				},
+				Gateway: v1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
+				Agent:   v1alpha1.OrchestratorAgentSpec{Model: "m"},
+				Telemetry: &v1alpha1.TelemetrySpec{
+					Enabled: true,
+					Traces: &v1alpha1.TracesSpec{
+						Exporter: &v1alpha1.TracesExporterSpec{
+							OTLP: &v1alpha1.OTLPExporterSpec{
+								Endpoint: "http://otel:4318",
+							},
+						},
+					},
+				},
+			},
+		}
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(orch))
+		Expect(envs["INFER_TELEMETRY_ENABLED"].Value).To(Equal("true"))
+		Expect(envs["INFER_TELEMETRY_OTLP_ENDPOINT"].Value).To(Equal("http://otel:4318"))
 	})
 })
 
@@ -507,3 +615,12 @@ var _ = Describe("buildOrchestratorDeployment with MCP service discovery", func(
 		Expect(hash1).NotTo(Equal(hash2))
 	})
 })
+
+// envByNameFn converts a slice of EnvVar to a map keyed by name.
+func envByNameFn(envs []corev1.EnvVar) map[string]corev1.EnvVar {
+	out := map[string]corev1.EnvVar{}
+	for _, e := range envs {
+		out[e.Name] = e
+	}
+	return out
+}
