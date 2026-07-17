@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.18.0](https://github.com/inference-gateway/operator/compare/v0.17.1...v0.18.0) (2026-07-17)
+
+### ✨ Features
+
+* **orchestrator:** add OTel-aligned telemetry support to Orchestrator CRD ([#157](https://github.com/inference-gateway/operator/issues/157)) ([e06484e](https://github.com/inference-gateway/operator/commit/e06484edde2323718c3357975331cc21b074e207))
+* support OTel-aligned telemetry exporters in Agent CRD ([#154](https://github.com/inference-gateway/operator/issues/154)) ([f28d85c](https://github.com/inference-gateway/operator/commit/f28d85c963960dddfdb7e8f7b91b2b931fe05201)), closes [#153](https://github.com/inference-gateway/operator/issues/153)
+
+### 👷 CI
+
+* **claude:** centralize claude.yml via reusable workflow ([#151](https://github.com/inference-gateway/operator/issues/151)) ([8cb48d5](https://github.com/inference-gateway/operator/commit/8cb48d5a224e22b998b93f4a85d98d0520cb375f))
+* **deps:** bump golang.org/x/crypto ([#145](https://github.com/inference-gateway/operator/issues/145)) ([0a0172f](https://github.com/inference-gateway/operator/commit/0a0172fd14da8150eb7d82240cddb27ecd113ef5))
+* **deps:** bump golang.org/x/crypto ([#146](https://github.com/inference-gateway/operator/issues/146)) ([4eb7a02](https://github.com/inference-gateway/operator/commit/4eb7a028a22e24433be97287cdbf176ed6c481f4))
+* **infer:** centralize infer.yml via reusable workflow ([#148](https://github.com/inference-gateway/operator/issues/148)) ([9610fde](https://github.com/inference-gateway/operator/commit/9610fde21ccc7b6026e450d7ce08064c5c94f4b3))
+* **infer:** centralize infer.yml via reusable workflow ([#149](https://github.com/inference-gateway/operator/issues/149)) ([7e2584e](https://github.com/inference-gateway/operator/commit/7e2584e78f1f0b87156753fcedf639129aa88386))
+* install prettier in infer/claude agent runs ([#158](https://github.com/inference-gateway/operator/issues/158)) ([18b11b4](https://github.com/inference-gateway/operator/commit/18b11b46fde2829fe35e003208fe31a30d0bfff9)), references [inference-gateway/.github#111](https://github.com/inference-gateway/.github/issues/111)
+
+### 🔧 Miscellaneous
+
+* **deps:** bump claude-code 2.1.197 -> 2.1.201 ([#141](https://github.com/inference-gateway/operator/issues/141)) ([8fe274a](https://github.com/inference-gateway/operator/commit/8fe274a955e0a6c4a4b11f8d0ebe0e076093019a))
+* **deps:** bump claude-code-action v1.0.165 -> v1.0.169 ([#150](https://github.com/inference-gateway/operator/issues/150)) ([0383d9c](https://github.com/inference-gateway/operator/commit/0383d9c5adcecf0f84b8b7a47fa667fe55e295c7))
+* **deps:** bump infer CLI v0.130.1 -> v0.133.0, infer-action v0.24.0 -> v0.26.0 ([#142](https://github.com/inference-gateway/operator/issues/142)) ([1d8fe37](https://github.com/inference-gateway/operator/commit/1d8fe37c3ade1c7cf6862b1f3fe8658261d4e30c))
+* **deps:** bump infer CLI v0.133.0 -> v0.133.1, infer-action v0.26.0 -> v0.27.1 ([#143](https://github.com/inference-gateway/operator/issues/143)) ([5391d03](https://github.com/inference-gateway/operator/commit/5391d038bdbe04c7d0cb6ee6a8b7d215fcdec55b))
+* **deps:** bump infer CLI v0.133.1 -> v0.137.0, infer-action v0.27.1 -> v0.29.0 ([#144](https://github.com/inference-gateway/operator/issues/144)) ([1310de1](https://github.com/inference-gateway/operator/commit/1310de188a9d25fdb5929154cf7f701f99dfc5ec))
+* **deps:** bump infer CLI v0.137.0 -> v0.138.0, infer-action v0.29.0 -> v0.30.1 ([#147](https://github.com/inference-gateway/operator/issues/147)) ([791b64e](https://github.com/inference-gateway/operator/commit/791b64e58ec4ed9e02541d4cced9c770af9ba5ec))
+* **deps:** bump infer CLI v0.138.0 -> v0.141.0 ([#152](https://github.com/inference-gateway/operator/issues/152)) ([8e2fb44](https://github.com/inference-gateway/operator/commit/8e2fb448d0885ec04ace98168ea05db53f388b32))
+* **deps:** bump infer CLI v0.141.0 -> v0.147.1 ([#159](https://github.com/inference-gateway/operator/issues/159)) ([4b74a9f](https://github.com/inference-gateway/operator/commit/4b74a9f2e56f01954936feadc1bafd6c3b3948f0))
+* **release:** update GitHub App credentials to use RELEASER_APP_ID and RELEASER_APP_PRIVATE_KEY ([936dfc6](https://github.com/inference-gateway/operator/commit/936dfc6df42b1c5eb373d1c9acf927e4844c6e00))
+
 ## [0.17.1](https://github.com/inference-gateway/operator/compare/v0.17.0...v0.17.1) (2026-07-06)
 
 ### 🐛 Bug Fixes
