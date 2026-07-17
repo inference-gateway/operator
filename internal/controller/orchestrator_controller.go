@@ -560,8 +560,6 @@ func buildOrchestratorEnvironmentVars(orch *v1alpha1.Orchestrator) []corev1.EnvV
 		corev1.EnvVar{Name: "INFER_GATEWAY_RUN", Value: "false"},
 	)
 
-	// Telemetry: master switch plus OTLP endpoint (single shared endpoint
-	// for both traces and metrics, matching the CLI's INFER_TELEMETRY_* vars).
 	envVars = append(envVars, orchestratorTelemetryEnvVars(orch.Spec.Telemetry)...)
 
 	if orch.Spec.Channels.MaxWorkers != nil {
@@ -666,7 +664,6 @@ func orchestratorTelemetryEnvVars(tel *v1alpha1.TelemetrySpec) []corev1.EnvVar {
 		return envVars
 	}
 
-	// Single shared OTLP endpoint: prefer traces, fall back to metrics.
 	var otlp *v1alpha1.OTLPExporterSpec
 	if tel.Traces != nil && tel.Traces.Exporter != nil {
 		otlp = tel.Traces.Exporter.OTLP
