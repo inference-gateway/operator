@@ -1,0 +1,26 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: GPU
+metadata:
+  labels:
+    app.kubernetes.io/name: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: gpu-sample
+spec:
+  provider: runpod
+  credentialsRef:
+    name: runpod-credentials
+    key: api-key
+  image: ghcr.io/ggml-org/llama.cpp:server-cuda
+  command:
+    - "--model"
+    - "/models/qwen.gguf"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8080"
+  gpuTypes:
+    - NVIDIA RTX A6000
+  endpoint:
+    port: 8080
+    readinessPath: /v1/models
+  maxRuntime: 2h

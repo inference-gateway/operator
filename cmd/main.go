@@ -240,6 +240,13 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Orchestrator")
 		os.Exit(1)
 	}
+	if err = (&controller.GPUReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "GPU")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {

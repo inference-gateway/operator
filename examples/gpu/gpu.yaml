@@ -1,0 +1,73 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+# Provider management credential. Read only at reconcile time; never written to
+# the GPU status, events, or the generated connection Secret.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: runpod-credentials
+  namespace: inference-gateway
+type: Opaque
+stringData:
+  api-key: "REPLACE_WITH_RUNPOD_API_KEY"
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: GPU
+metadata:
+  name: qwen-coder
+  namespace: inference-gateway
+spec:
+  provider: runpod
+  credentialsRef:
+    name: runpod-credentials
+    key: api-key
+  image: ghcr.io/ggml-org/llama.cpp:server-cuda
+  command:
+    - "--model"
+    - "/models/qwen.gguf"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8080"
+  gpuTypes:
+    - NVIDIA RTX A6000
+  endpoint:
+    port: 8080
+    readinessPath: /v1/models
+  # Required. The allocation is released and the resource parked in `Expired`
+  # once this elapses; it is NOT reprovisioned automatically.
+  maxRuntime: 2h
+---
+# A Gateway consumes the generated connection Secret (qwen-coder-connection)
+# through the standard provider env/secretKeyRef mechanism. No GPU-specific
+# wiring is needed on the Gateway side.
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway
+  namespace: inference-gateway
+spec:
+  environment: development
+  image: "ghcr.io/inference-gateway/inference-gateway:latest"
+  providers:
+    - name: qwen-coder
+      enabled: true
+      env:
+        # The runtime endpoint URL published by the GPU controller.
+        - name: LLM_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: qwen-coder-connection
+              key: url
+        # The per-allocation token (NOT the RunPod management key).
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: qwen-coder-connection
+              key: apiKey

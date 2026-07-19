@@ -35,6 +35,7 @@ This Kubernetes operator extends the Kubernetes API to create, configure and man
 - **Authentication & Authorization**: OIDC integration with configurable identity providers
 - **Model Context Protocol (MCP)**: Integration with MCP servers for extended AI capabilities
 - **Agent-to-Agent (A2A)**: Support for distributed agent communication and orchestration
+- **GPU Runtimes**: Lease externally hosted, GPU-backed inference runtimes (RunPod today) via a pluggable provider interface, exposed as an HTTP endpoint and connection Secret ([`examples/gpu`](examples/gpu))
 - **Observability**: Built-in metrics, tracing, and health monitoring
 - **Network Configuration**: Service and Gateway API routing (Gateway + HTTPRoute) with listener-level TLS
 
