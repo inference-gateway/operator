@@ -64,7 +64,6 @@ func TestRunPodProvisionCreatesPod(t *testing.T) {
 	if posted["name"] != "igw-gpu-uid-1" {
 		t.Errorf("pod name = %v, want igw-gpu-uid-1", posted["name"])
 	}
-	// Per-allocation token is injected, provider key is not in the body.
 	env, _ := posted["env"].(map[string]any)
 	if env["API_KEY"] != "tok" {
 		t.Errorf("env.API_KEY = %v, want tok", env["API_KEY"])
@@ -78,7 +77,6 @@ func TestRunPodProvisionIsIdempotent(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/pods":
-			// existing pod tagged with our UID -> must be recovered, not recreated
 			_, _ = w.Write([]byte(`[{"id":"existing","name":"igw-gpu-uid-1","desiredStatus":"RUNNING","ports":["8080/http"]}]`))
 		case r.Method == http.MethodPost:
 			t.Error("Provision must not create a second pod when one already exists")

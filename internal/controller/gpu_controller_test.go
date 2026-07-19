@@ -65,7 +65,7 @@ func (f *fakeGPUProvider) Provision(_ context.Context, req gpu.ProvisionRequest)
 		return gpu.Allocation{}, f.provisionErr
 	}
 	if a, ok := f.allocs[req.UID]; ok {
-		return a, nil // idempotent recovery by UID
+		return a, nil
 	}
 	a := gpu.Allocation{ID: "inst-" + req.UID, URL: "http://fake-" + req.UID + ".local", State: f.state}
 	f.allocs[req.UID] = a
@@ -133,14 +133,12 @@ var _ = Describe("GPU Controller", func() {
 		}
 	}
 
-	// reconcile drives one reconcile pass and fails on unexpected errors.
 	reconcileOnce := func(nn types.NamespacedName) reconcile.Result {
 		res, err := reconciler.Reconcile(context.Background(), reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
 		return res
 	}
 
-	// reconcileUntil pumps reconcile passes until phase is reached (or gives up).
 	reconcileUntil := func(nn types.NamespacedName, phase v1alpha1.GPUPhase) {
 		Eventually(func() v1alpha1.GPUPhase {
 			reconcileOnce(nn)
@@ -165,7 +163,6 @@ var _ = Describe("GPU Controller", func() {
 			CheckReady: func(_ context.Context, _, _ string) error { return readyErr },
 			Now:        func() time.Time { return clock },
 		}
-		// Provider management credential.
 		_ = k8sClient.Create(context.Background(), &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: credName, Namespace: "default"},
 			StringData: map[string]string{"api-key": "provider-secret"},
@@ -176,7 +173,6 @@ var _ = Describe("GPU Controller", func() {
 		nn := types.NamespacedName{Name: "gpu-lifecycle", Namespace: "default"}
 		Expect(k8sClient.Create(context.Background(), newGPU(nn.Name))).To(Succeed())
 
-		// Endpoint not ready yet -> must not report Ready.
 		readyErr = context.DeadlineExceeded
 		reconcileUntil(nn, v1alpha1.GPUPhaseStarting)
 
@@ -187,7 +183,6 @@ var _ = Describe("GPU Controller", func() {
 		Expect(readyConditionTrue(g)).To(BeFalse())
 		Expect(capturedAPIKey).To(Equal("provider-secret"))
 
-		// Endpoint becomes ready.
 		readyErr = nil
 		reconcileUntil(nn, v1alpha1.GPUPhaseReady)
 
@@ -201,7 +196,6 @@ var _ = Describe("GPU Controller", func() {
 			Name: nn.Name + "-connection", Namespace: "default"}, secret)).To(Succeed())
 		Expect(secret.Data).To(HaveKey("url"))
 		Expect(secret.Data).To(HaveKey("apiKey"))
-		// The per-allocation token must NOT be the provider API key.
 		Expect(string(secret.Data["apiKey"])).NotTo(Equal("provider-secret"))
 		Expect(string(secret.Data["apiKey"])).To(HaveLen(64))
 	})
@@ -216,7 +210,6 @@ var _ = Describe("GPU Controller", func() {
 		Expect(k8sClient.Get(context.Background(), nn, g)).To(Succeed())
 		instanceID := g.Status.InstanceID
 
-		// Jump past the deadline.
 		clock = clock.Add(2 * time.Hour)
 		reconcileOnce(nn)
 
@@ -237,19 +230,16 @@ var _ = Describe("GPU Controller", func() {
 		nn := types.NamespacedName{Name: "gpu-crash", Namespace: "default"}
 		Expect(k8sClient.Create(context.Background(), newGPU(nn.Name))).To(Succeed())
 
-		reconcileOnce(nn) // add finalizer
-		reconcileOnce(nn) // provision
+		reconcileOnce(nn)
+		reconcileOnce(nn)
 		Expect(fake.provisionCount).To(Equal(1))
 		Expect(fake.allocCount()).To(Equal(1))
 
-		// Simulate a crash: the status write carrying InstanceID never landed.
 		g := &v1alpha1.GPU{}
 		Expect(k8sClient.Get(context.Background(), nn, g)).To(Succeed())
 		g.Status = v1alpha1.GPUStatus{}
 		Expect(k8sClient.Status().Update(context.Background(), g)).To(Succeed())
 
-		// Reconcile again: provider is called a second time but idempotency by UID
-		// yields the SAME single allocation - no orphaned duplicate.
 		reconcileOnce(nn)
 		Expect(fake.provisionCount).To(Equal(2))
 		Expect(fake.allocCount()).To(Equal(1))
@@ -268,7 +258,7 @@ var _ = Describe("GPU Controller", func() {
 		instanceID := g.Status.InstanceID
 
 		Expect(k8sClient.Delete(context.Background(), g)).To(Succeed())
-		reconcileOnce(nn) // finalize
+		reconcileOnce(nn)
 
 		Expect(fake.destroyed).To(ContainElement(instanceID))
 		err := k8sClient.Get(context.Background(), nn, g)
@@ -281,8 +271,8 @@ var _ = Describe("GPU Controller", func() {
 		g.Spec.CredentialsRef.Name = "does-not-exist"
 		Expect(k8sClient.Create(context.Background(), g)).To(Succeed())
 
-		reconcileOnce(nn) // add finalizer
-		reconcileOnce(nn) // providerFor fails
+		reconcileOnce(nn)
+		reconcileOnce(nn)
 
 		Expect(k8sClient.Get(context.Background(), nn, g)).To(Succeed())
 		Expect(g.Status.Phase).To(Equal(v1alpha1.GPUPhaseFailed))

@@ -64,7 +64,6 @@ type runpodPod struct {
 func podName(uid string) string { return "igw-gpu-" + uid }
 
 func (p *runPodProvider) Provision(ctx context.Context, req ProvisionRequest) (Allocation, error) {
-	// Idempotency: recover an existing pod tagged with this object's UID.
 	if existing, err := p.findByName(ctx, podName(req.UID)); err != nil {
 		return Allocation{}, err
 	} else if existing != nil {
@@ -87,7 +86,6 @@ func (p *runPodProvider) Provision(ctx context.Context, req ProvisionRequest) (A
 		body["dockerStartCmd"] = req.Command
 	}
 	if req.EndpointToken != "" {
-		// Per-allocation credential handed to the runtime, never the RunPod key.
 		body["env"] = map[string]string{"API_KEY": req.EndpointToken}
 	}
 
@@ -123,7 +121,7 @@ func (p *runPodProvider) Destroy(ctx context.Context, allocationID string) error
 		return err
 	}
 	if status == http.StatusNotFound {
-		return nil // already gone; treat as successful cleanup
+		return nil
 	}
 	if status < 200 || status >= 300 {
 		return fmt.Errorf("runpod: delete pod returned status %d", status)
