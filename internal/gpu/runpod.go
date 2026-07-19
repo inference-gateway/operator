@@ -170,7 +170,7 @@ func httpPort(ports []string) int32 {
 		if !ok || proto != "http" {
 			continue
 		}
-		if n, err := strconv.Atoi(p); err == nil {
+		if n, err := strconv.ParseInt(p, 10, 32); err == nil {
 			return int32(n)
 		}
 	}
