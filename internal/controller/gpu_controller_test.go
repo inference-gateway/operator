@@ -31,7 +31,7 @@ import (
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
-	"github.com/inference-gateway/operator/internal/gpu"
+	gpu "github.com/inference-gateway/operator/internal/gpu"
 )
 
 // fakeGPUProvider is an in-memory Provider that models idempotent-by-UID
