@@ -31,6 +31,7 @@ var SupportedProviders = []string{
 	"deepseek",
 	"google",
 	"groq",
+	"llamacpp",
 	"minimax",
 	"mistral",
 	"moonshot",

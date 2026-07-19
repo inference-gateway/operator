@@ -36,6 +36,8 @@ func TestIsSupported(t *testing.T) {
 		{name: "google is not dropped", in: "google", want: true},
 		{name: "mistral", in: "mistral", want: true},
 		{name: "ollama_cloud", in: "ollama_cloud", want: true},
+		{name: "llamacpp", in: "llamacpp", want: true},
+		{name: "llamacpp is case-insensitive", in: "Llamacpp", want: true},
 		{name: "custom passthrough", in: "custom", want: true},
 		{name: "custom is case-insensitive", in: "Custom", want: true},
 		{name: "unknown provider", in: "totally-made-up", want: false},
