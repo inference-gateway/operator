@@ -10,17 +10,24 @@ spec:
   credentialsRef:
     name: runpod-credentials
     key: api-key
-  image: ghcr.io/ggml-org/llama.cpp:server-cuda
+  # Serve Ornith-1.0 with vLLM's OpenAI-compatible API. vLLM pulls the weights
+  # from Hugging Face by id, so nothing has to be baked into the image.
+  image: vllm/vllm-openai:latest
   command:
     - "--model"
-    - "/models/qwen.gguf"
+    - "deepreinforce-ai/Ornith-1.0-9B"
+    - "--served-model-name"
+    - "Ornith-1.0"
     - "--host"
     - "0.0.0.0"
     - "--port"
-    - "8080"
+    - "8000"
+    - "--max-model-len"
+    - "32768"
   gpuTypes:
-    - NVIDIA RTX A6000
+    - NVIDIA A100 80GB PCIe
+    - NVIDIA H100 80GB HBM3
   endpoint:
-    port: 8080
-    readinessPath: /v1/models
+    port: 8000
+    readinessPath: /health
   maxRuntime: 2h
