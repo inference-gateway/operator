@@ -27,8 +27,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	types "k8s.io/apimachinery/pkg/types"
+	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 	"github.com/inference-gateway/operator/internal/gpu"
