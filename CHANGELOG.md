@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.1](https://github.com/inference-gateway/operator/compare/v0.19.0...v0.19.1) (2026-07-19)
+
+### 🐛 Bug Fixes
+
+* **ci:** attach release manifests via semantic-release assets ([#162](https://github.com/inference-gateway/operator/issues/162)) ([9e95459](https://github.com/inference-gateway/operator/commit/9e9545987ae43cdb383140f3f5a2da7f12f52b93))
+
 ## [0.19.0](https://github.com/inference-gateway/operator/compare/v0.18.0...v0.19.0) (2026-07-19)
 
 ### ✨ Features
