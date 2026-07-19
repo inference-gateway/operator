@@ -217,7 +217,6 @@ var _ = Describe("GPU Controller", func() {
 		Expect(g.Status.Phase).To(Equal(v1alpha1.GPUPhaseExpired))
 		Expect(fake.destroyed).To(ContainElement(instanceID))
 
-		// An Expired resource is terminal: further reconciles must not reprovision.
 		provisionsBefore := fake.provisionCount
 		reconcileOnce(nn)
 		reconcileOnce(nn)
