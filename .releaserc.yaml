@@ -52,6 +52,8 @@ plugins:
   - - "@semantic-release/github"
     - assets:
         - CHANGELOG.md
+        - manifests/crds.yaml
+        - manifests/install.yaml
       releasedLabels: ["released"]
       releaseNameTemplate: "🚀 Version <%= nextRelease.version %>"
       releaseBodyTemplate: |

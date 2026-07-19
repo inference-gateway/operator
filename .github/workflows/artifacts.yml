@@ -52,14 +52,6 @@ jobs:
         run: |
           goreleaser release --clean
 
-      - name: Upload installation manifests to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
-        run: |
-          gh release upload ${TAG} manifests/crds.yaml --clobber
-          gh release upload ${TAG} manifests/install.yaml --clobber
-
       - name: Push container images
         env:
           TAG: ${{ github.event.release.tag_name }}
