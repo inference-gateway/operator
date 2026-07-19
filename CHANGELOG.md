@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.0](https://github.com/inference-gateway/operator/compare/v0.18.0...v0.19.0) (2026-07-19)
+
+### ✨ Features
+
+* add llamacpp provider support ([#161](https://github.com/inference-gateway/operator/issues/161)) ([732158d](https://github.com/inference-gateway/operator/commit/732158d68dff785d9037cc0318b8f692b66e8efd))
+
 ## [0.18.0](https://github.com/inference-gateway/operator/compare/v0.17.1...v0.18.0) (2026-07-17)
 
 ### ✨ Features
