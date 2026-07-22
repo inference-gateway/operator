@@ -75,6 +75,11 @@ type AgentSpec struct {
 	// +optional
 	Queue QueueSpec `json:"queue,omitempty"`
 
+	// MCP configures the agent's MCP client (connecting to MCP servers to expose
+	// their tools to the LLM). Distinct from the MCP CRD, which deploys a server.
+	// +optional
+	MCP MCPClientSpec `json:"mcp,omitempty"`
+
 	// TLS configuration for the agent HTTP server.
 	// +optional
 	TLS TLSSpec `json:"tls,omitempty"`
@@ -118,6 +123,64 @@ type QueueSpec struct {
 	// Only meaningful when enabled is true.
 	// +optional
 	CleanupInterval string `json:"cleanupInterval,omitempty"`
+}
+
+// MCPClientSpec configures the agent's MCP client. The agent connects to the
+// listed MCP servers, discovers their tools, and exposes them to the LLM via the
+// mcp_list_tools / mcp_call_tool selector tools. Emitted as A2A_MCP_* env vars,
+// disabled by default. This is the client side, distinct from the MCP CRD, which
+// deploys an MCP server workload.
+type MCPClientSpec struct {
+	// Enable toggles the MCP client. Emitted as A2A_MCP_ENABLE.
+	// +optional
+	Enable bool `json:"enable,omitempty"`
+
+	// Servers is the list of MCP server base URLs (e.g. http://mcp:8080).
+	// Emitted as a comma-separated A2A_MCP_SERVERS; omitted when empty.
+	// +optional
+	Servers []string `json:"servers,omitempty"`
+
+	// Endpoint is the MCP path appended to each server base URL.
+	// Emitted as A2A_MCP_ENDPOINT.
+	// +optional
+	// +kubebuilder:default="/mcp"
+	Endpoint string `json:"endpoint,omitempty"`
+
+	// RefreshInterval is how often the agent re-discovers server tools.
+	// Emitted as A2A_MCP_REFRESH_INTERVAL.
+	// +optional
+	// +kubebuilder:default="5m"
+	RefreshInterval string `json:"refreshInterval,omitempty"`
+
+	// DialTimeout bounds establishing a connection to an MCP server.
+	// Emitted as A2A_MCP_DIAL_TIMEOUT.
+	// +optional
+	// +kubebuilder:default="30s"
+	DialTimeout string `json:"dialTimeout,omitempty"`
+
+	// CallTimeout bounds a single MCP tool call.
+	// Emitted as A2A_MCP_CALL_TIMEOUT.
+	// +optional
+	// +kubebuilder:default="30s"
+	CallTimeout string `json:"callTimeout,omitempty"`
+
+	// MaxRetries is the maximum number of connection retries (0 = retry forever).
+	// Emitted as A2A_MCP_MAX_RETRIES.
+	// +optional
+	// +kubebuilder:default=0
+	MaxRetries int32 `json:"maxRetries,omitempty"`
+
+	// RetryInterval is the initial backoff between connection retries.
+	// Emitted as A2A_MCP_RETRY_INTERVAL.
+	// +optional
+	// +kubebuilder:default="2s"
+	RetryInterval string `json:"retryInterval,omitempty"`
+
+	// RetryMaxInterval caps the backoff between connection retries.
+	// Emitted as A2A_MCP_RETRY_MAX_INTERVAL.
+	// +optional
+	// +kubebuilder:default="30s"
+	RetryMaxInterval string `json:"retryMaxInterval,omitempty"`
 }
 
 type TLSSpec struct {

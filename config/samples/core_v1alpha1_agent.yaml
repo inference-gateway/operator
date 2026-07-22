@@ -21,6 +21,12 @@ spec:
       apiKeySecretRef:
         name: inference-gateway-providers-secret
         key: OPENAI_API_KEY
+  mcp:
+    enable: true
+    servers:
+      - "http://mcp-server.inference-gateway.svc.cluster.local:8080"
+    endpoint: "/mcp"
+    refreshInterval: "5m"
   telemetry:
     enabled: true
     traces:

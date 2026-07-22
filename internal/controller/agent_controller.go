@@ -405,6 +405,9 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 	// Telemetry: master switch plus OTel-aligned exporter vars (Go ADK A2A_OTEL_* prefix).
 	envVars = append(envVars, agentTelemetryEnvVars(agent.Spec.Telemetry)...)
 
+	// MCP client: master switch plus connection knobs (Go ADK A2A_MCP_* prefix).
+	envVars = append(envVars, agentMCPEnvVars(agent.Spec.MCP)...)
+
 	llm := agent.Spec.Agent.LLM
 
 	if llm.Model != "" {
@@ -544,6 +547,41 @@ func agentTelemetryEnvVars(tel v1alpha1.TelemetrySpec) []corev1.EnvVar {
 			envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_EXPORTER_PROMETHEUS_PORT", Value: strconv.Itoa(int(metricsProm.Port))})
 		}
 	}
+
+	return envVars
+}
+
+// agentMCPEnvVars maps spec.mcp onto the Go ADK's MCP client env vars (A2A_MCP_*
+// prefix from adk#251). A2A_MCP_ENABLE is always emitted; the connection knobs
+// only when the client is enabled. A2A_MCP_SERVERS is emitted only when at least
+// one server URL is set, and the string knobs only when non-empty, so a
+// zero-valued field never clobbers the ADK's own default with an empty value.
+func agentMCPEnvVars(mcp v1alpha1.MCPClientSpec) []corev1.EnvVar {
+	envVars := []corev1.EnvVar{
+		{Name: "A2A_MCP_ENABLE", Value: strconv.FormatBool(mcp.Enable)},
+	}
+	if !mcp.Enable {
+		return envVars
+	}
+
+	if len(mcp.Servers) > 0 {
+		envVars = append(envVars, corev1.EnvVar{Name: "A2A_MCP_SERVERS", Value: strings.Join(mcp.Servers, ",")})
+	}
+
+	for _, kv := range []struct{ name, value string }{
+		{"A2A_MCP_ENDPOINT", mcp.Endpoint},
+		{"A2A_MCP_REFRESH_INTERVAL", mcp.RefreshInterval},
+		{"A2A_MCP_DIAL_TIMEOUT", mcp.DialTimeout},
+		{"A2A_MCP_CALL_TIMEOUT", mcp.CallTimeout},
+		{"A2A_MCP_RETRY_INTERVAL", mcp.RetryInterval},
+		{"A2A_MCP_RETRY_MAX_INTERVAL", mcp.RetryMaxInterval},
+	} {
+		if kv.value != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: kv.name, Value: kv.value})
+		}
+	}
+
+	envVars = append(envVars, corev1.EnvVar{Name: "A2A_MCP_MAX_RETRIES", Value: strconv.Itoa(int(mcp.MaxRetries))})
 
 	return envVars
 }
