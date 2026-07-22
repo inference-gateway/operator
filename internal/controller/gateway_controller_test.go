@@ -699,7 +699,7 @@ var _ = Describe("Gateway controller", func() {
 		})
 
 		DescribeTable("Should create a deployment and configmap with correct telemetry configuration",
-			func(gatewayName, environment string, telemetryEnabled bool, expectedEnvVars []corev1.EnvVar) {
+			func(gatewayName, environment string, telemetrySpec *corev1alpha1.TelemetrySpec, expectedEnvVars []corev1.EnvVar) {
 				gateway := &corev1alpha1.Gateway{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: "core.inference-gateway.com/v1alpha1",
@@ -713,13 +713,7 @@ var _ = Describe("Gateway controller", func() {
 						Environment: environment,
 						Replicas:    &[]int32{1}[0],
 						Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-						Telemetry: &corev1alpha1.TelemetrySpec{
-							Enabled: telemetryEnabled,
-							Metrics: &corev1alpha1.MetricsSpec{
-								Enabled: true,
-								Port:    9464,
-							},
-						},
+						Telemetry:   telemetrySpec,
 						Server: &corev1alpha1.ServerSpec{
 							Host: "0.0.0.0",
 							Port: 8080,
@@ -730,13 +724,42 @@ var _ = Describe("Gateway controller", func() {
 				Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
 				checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, timeout, interval)
 			},
-			Entry("OpenTelemetry enabled", GatewayName+"-otel", "production", true, []corev1.EnvVar{
+			Entry("OpenTelemetry enabled", GatewayName+"-otel", "production", &corev1alpha1.TelemetrySpec{
+				Enabled: true,
+				Metrics: &corev1alpha1.MetricsSpec{
+					Enabled: true,
+					Port:    9464,
+				},
+			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
 				{Name: "TELEMETRY_ENABLE", Value: "true"},
 			}),
-			Entry("Telemetry enabled in development", GatewayName+"-no-telemetry", "development", true, []corev1.EnvVar{
+			Entry("Telemetry enabled in development", GatewayName+"-no-telemetry", "development", &corev1alpha1.TelemetrySpec{
+				Enabled: true,
+				Metrics: &corev1alpha1.MetricsSpec{
+					Enabled: true,
+					Port:    9464,
+				},
+			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "development"},
 				{Name: "TELEMETRY_ENABLE", Value: "true"},
+			}),
+			Entry("Traces OTLP exporter", GatewayName+"-traces", "production", &corev1alpha1.TelemetrySpec{
+				Enabled: true,
+				Traces: &corev1alpha1.TracesSpec{
+					Exporter: &corev1alpha1.TracesExporterSpec{
+						OTLP: &corev1alpha1.OTLPExporterSpec{
+							Endpoint: "http://otel-collector:4318",
+							Protocol: "http/protobuf",
+						},
+					},
+				},
+			}, []corev1.EnvVar{
+				{Name: "ENVIRONMENT", Value: "production"},
+				{Name: "TELEMETRY_ENABLE", Value: "true"},
+				{Name: "TRACING_ENABLE", Value: "true"},
+				{Name: "TRACING_OTLP_ENDPOINT", Value: "http://otel-collector:4318"},
+				{Name: "OTEL_EXPORTER_OTLP_PROTOCOL", Value: "http/protobuf"},
 			}),
 		)
 
