@@ -463,6 +463,15 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		},
 	}
 
+	tel := gateway.Spec.Telemetry
+	if tel != nil && tel.Enabled && tel.Traces != nil && tel.Traces.Exporter != nil && tel.Traces.Exporter.OTLP != nil {
+		otlp := tel.Traces.Exporter.OTLP
+		envVars = append(envVars, corev1.EnvVar{Name: "TRACING_ENABLE", Value: "true"})
+		if otlp.Endpoint != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "TRACING_OTLP_ENDPOINT", Value: otlp.Endpoint})
+		}
+	}
+
 	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled && gateway.Spec.Auth.OIDC != nil {
 		oidc := gateway.Spec.Auth.OIDC
 		envVars = append(envVars,
