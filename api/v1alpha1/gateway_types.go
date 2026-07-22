@@ -72,16 +72,15 @@ type GatewaySpec struct {
 	// +optional
 	Service *ServiceSpec `json:"service,omitempty"`
 
-	// Routing configures north-south traffic using the Kubernetes Gateway
+	// GatewayAPI configures north-south traffic using the Kubernetes Gateway
 	// API (gateway.networking.k8s.io). Successor to the removed Ingress field.
 	// +optional
-	Routing *RoutingSpec `json:"routing,omitempty"`
+	GatewayAPI *RoutingSpec `json:"gatewayAPI,omitempty"`
 
-	// ModelRouting configures gateway-native round-robin model routing
-	// (ROUTING_ENABLED / ROUTING_CONFIG_PATH). Distinct from Routing above,
-	// which is north-south Gateway API traffic.
+	// Routing configures gateway-native round-robin model routing
+	// (ROUTING_ENABLED / ROUTING_CONFIG_PATH).
 	// +optional
-	ModelRouting *ModelRoutingSpec `json:"modelRouting,omitempty"`
+	Routing *ModelRoutingSpec `json:"routing,omitempty"`
 
 	// HPA (Horizontal Pod Autoscaler) configuration
 	// +optional

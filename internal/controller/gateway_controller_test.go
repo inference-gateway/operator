@@ -509,7 +509,7 @@ var _ = Describe("Gateway controller", func() {
 					Spec: corev1alpha1.GatewaySpec{
 						Environment: "development",
 						Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-						Routing: &corev1alpha1.RoutingSpec{
+						GatewayAPI: &corev1alpha1.RoutingSpec{
 							Enabled: true,
 							Gateway: &corev1alpha1.RoutingGatewaySpec{
 								GatewayClassName: "envoy",
@@ -576,7 +576,7 @@ var _ = Describe("Gateway controller", func() {
 				Spec: corev1alpha1.GatewaySpec{
 					Environment: "development",
 					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-					Routing: &corev1alpha1.RoutingSpec{
+					GatewayAPI: &corev1alpha1.RoutingSpec{
 						Enabled: true,
 						Gateway: &corev1alpha1.RoutingGatewaySpec{
 							GatewayClassName: "envoy",
@@ -621,7 +621,7 @@ var _ = Describe("Gateway controller", func() {
 				Spec: corev1alpha1.GatewaySpec{
 					Environment: "development",
 					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-					Routing: &corev1alpha1.RoutingSpec{
+					GatewayAPI: &corev1alpha1.RoutingSpec{
 						Enabled: true,
 						Gateway: &corev1alpha1.RoutingGatewaySpec{
 							ParentRefs: []gwapiv1.ParentReference{
@@ -670,7 +670,7 @@ var _ = Describe("Gateway controller", func() {
 				Spec: corev1alpha1.GatewaySpec{
 					Environment: "development",
 					Image:       "ghcr.io/inference-gateway/inference-gateway:latest",
-					Routing: &corev1alpha1.RoutingSpec{
+					GatewayAPI: &corev1alpha1.RoutingSpec{
 						Enabled: true,
 						HTTPRoute: &corev1alpha1.RoutingHTTPRouteSpec{
 							Hostnames: []gwapiv1.Hostname{"disable.example.com"},
@@ -687,7 +687,7 @@ var _ = Describe("Gateway controller", func() {
 
 			updated := &corev1alpha1.Gateway{}
 			Expect(k8sClient.Get(ctx, key, updated)).To(Succeed())
-			updated.Spec.Routing.Enabled = false
+			updated.Spec.GatewayAPI.Enabled = false
 			Expect(k8sClient.Update(ctx, updated)).To(Succeed())
 
 			Eventually(func() bool {
@@ -921,7 +921,7 @@ var _ = Describe("Gateway model routing", func() {
 	makeGateway := func(mr *corev1alpha1.ModelRoutingSpec) *corev1alpha1.Gateway {
 		return &corev1alpha1.Gateway{
 			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
-			Spec:       corev1alpha1.GatewaySpec{ModelRouting: mr},
+			Spec:       corev1alpha1.GatewaySpec{Routing: mr},
 		}
 	}
 
@@ -971,7 +971,7 @@ var _ = Describe("Gateway model routing", func() {
 		Expect(r.reconcileModelRoutingConfig(ctx, gw)).To(Succeed())
 		cm := &corev1.ConfigMap{}
 		Expect(r.Get(ctx, types.NamespacedName{Name: "gw-routing", Namespace: "default"}, cm)).To(Succeed())
-		Expect(cm.Data["routing.yaml"]).To(Equal(gw.Spec.ModelRouting.Config))
+		Expect(cm.Data["routing.yaml"]).To(Equal(gw.Spec.Routing.Config))
 	})
 
 	It("uses the referenced ConfigMap key and does not create an owned one", func() {

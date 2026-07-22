@@ -153,7 +153,7 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 	}
 
 	getHostAndScheme := func(gw *corev1alpha1.Gateway) (string, string) {
-		routing := gw.Spec.Routing
+		routing := gw.Spec.GatewayAPI
 		var host, scheme string
 
 		if routing != nil && routing.Enabled {
@@ -321,7 +321,7 @@ const (
 	// modelRoutingConfigDir is where the routing YAML ConfigMap is mounted in the
 	// gateway pod; ROUTING_CONFIG_PATH points at the file within it.
 	modelRoutingConfigDir = "/etc/inference-gateway/routing"
-	// modelRoutingInlineKey is the ConfigMap key used for inline spec.modelRouting.config.
+	// modelRoutingInlineKey is the ConfigMap key used for inline spec.routing.config.
 	modelRoutingInlineKey = "routing.yaml"
 )
 
@@ -381,7 +381,7 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 	}
 
 	// ponytail: like oidc-ca/tls, the routing config file updates in place but the
-	// gateway reads it at startup - editing modelRouting.config needs a pod restart
+	// gateway reads it at startup - editing routing.config needs a pod restart
 	// to take effect. Add a checksum/config pod annotation here if hot-reload is wanted.
 	if cmName, _ := modelRoutingConfigSource(gateway); cmName != "" {
 		volumes = append(volumes, corev1.Volume{
@@ -590,7 +590,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		)
 	}
 
-	if mr := gateway.Spec.ModelRouting; mr != nil && mr.Enabled {
+	if mr := gateway.Spec.Routing; mr != nil && mr.Enabled {
 		envVars = append(envVars, corev1.EnvVar{Name: "ROUTING_ENABLED", Value: "true"})
 		if path := modelRoutingConfigPath(gateway); path != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "ROUTING_CONFIG_PATH", Value: path})
@@ -852,7 +852,7 @@ func (r *GatewayReconciler) reconcileRouting(ctx context.Context, gateway *corev
 	logger := log.FromContext(ctx)
 	logger.V(1).Info("Reconciling routing", "Gateway.Name", gateway.Name, "Gateway.Namespace", gateway.Namespace)
 
-	if gateway.Spec.Routing == nil || !gateway.Spec.Routing.Enabled {
+	if gateway.Spec.GatewayAPI == nil || !gateway.Spec.GatewayAPI.Enabled {
 		return r.deleteOwnedRouting(ctx, gateway)
 	}
 
@@ -898,10 +898,10 @@ func (r *GatewayReconciler) deleteOwnedRouting(ctx context.Context, gateway *cor
 
 // modelRoutingConfigSource returns the ConfigMap name and key holding the routing
 // YAML, or "","" when model routing is disabled or no config source is set. For
-// inline spec.modelRouting.config the operator owns "<name>-routing"; for
+// inline spec.routing.config the operator owns "<name>-routing"; for
 // configMapRef the user's ConfigMap name/key are used verbatim.
 func modelRoutingConfigSource(gateway *corev1alpha1.Gateway) (name, key string) {
-	mr := gateway.Spec.ModelRouting
+	mr := gateway.Spec.Routing
 	if mr == nil || !mr.Enabled {
 		return "", ""
 	}
@@ -924,7 +924,7 @@ func modelRoutingConfigPath(gateway *corev1alpha1.Gateway) string {
 	return ""
 }
 
-// reconcileModelRoutingConfig renders spec.modelRouting.config into an
+// reconcileModelRoutingConfig renders spec.routing.config into an
 // operator-owned ConfigMap mounted at ROUTING_CONFIG_PATH. When inline config is
 // absent (routing disabled, or a user-supplied configMapRef is used) any
 // previously-owned ConfigMap is removed.
@@ -933,7 +933,7 @@ func (r *GatewayReconciler) reconcileModelRoutingConfig(ctx context.Context, gat
 	name := gateway.Name + "-routing"
 	key := types.NamespacedName{Name: name, Namespace: gateway.Namespace}
 
-	mr := gateway.Spec.ModelRouting
+	mr := gateway.Spec.Routing
 	inline := mr != nil && mr.Enabled && mr.Config != ""
 
 	if !inline {
@@ -1058,7 +1058,7 @@ func (r *GatewayReconciler) reconcileHTTPRoute(ctx context.Context, gateway *cor
 // buildUpstreamGateway constructs the gateway.networking.k8s.io Gateway
 // resource the operator owns in default mode.
 func (r *GatewayReconciler) buildUpstreamGateway(gateway *corev1alpha1.Gateway) *gwapiv1.Gateway {
-	routing := gateway.Spec.Routing
+	routing := gateway.Spec.GatewayAPI
 	gwSpec := routing.Gateway
 
 	className := gwapiv1.ObjectName("envoy")
@@ -1093,7 +1093,7 @@ func (r *GatewayReconciler) buildUpstreamGateway(gateway *corev1alpha1.Gateway) 
 // HTTPS/443 depending on TLS.Enabled) from RoutingHTTPRouteSpec.Hostnames.
 func buildDefaultListener(gateway *corev1alpha1.Gateway) gwapiv1.Listener {
 	tls := tlsSpec(gateway)
-	httpRoute := gateway.Spec.Routing.HTTPRoute
+	httpRoute := gateway.Spec.GatewayAPI.HTTPRoute
 
 	var hostname *gwapiv1.Hostname
 	if httpRoute != nil && len(httpRoute.Hostnames) > 0 {
@@ -1128,7 +1128,7 @@ func buildDefaultListener(gateway *corev1alpha1.Gateway) gwapiv1.Listener {
 // from Routing.Gateway.ParentRefs (advanced) or default to the
 // operator-managed Gateway in the same namespace.
 func (r *GatewayReconciler) buildHTTPRoute(gateway *corev1alpha1.Gateway) *gwapiv1.HTTPRoute {
-	routing := gateway.Spec.Routing
+	routing := gateway.Spec.GatewayAPI
 	httpRouteSpec := routing.HTTPRoute
 
 	parentRefs := defaultParentRefs(gateway)
@@ -1213,10 +1213,10 @@ func gatewayServicePort(gateway *corev1alpha1.Gateway) int32 {
 }
 
 func tlsSpec(gateway *corev1alpha1.Gateway) *corev1alpha1.RoutingTLSSpec {
-	if gateway.Spec.Routing == nil || gateway.Spec.Routing.Gateway == nil {
+	if gateway.Spec.GatewayAPI == nil || gateway.Spec.GatewayAPI.Gateway == nil {
 		return nil
 	}
-	return gateway.Spec.Routing.Gateway.TLS
+	return gateway.Spec.GatewayAPI.Gateway.TLS
 }
 
 func tlsEnabled(gateway *corev1alpha1.Gateway) bool {
@@ -1233,9 +1233,9 @@ func tlsSecretName(gateway *corev1alpha1.Gateway) string {
 }
 
 func isAdvancedRoutingMode(gateway *corev1alpha1.Gateway) bool {
-	return gateway.Spec.Routing != nil &&
-		gateway.Spec.Routing.Gateway != nil &&
-		len(gateway.Spec.Routing.Gateway.ParentRefs) > 0
+	return gateway.Spec.GatewayAPI != nil &&
+		gateway.Spec.GatewayAPI.Gateway != nil &&
+		len(gateway.Spec.GatewayAPI.Gateway.ParentRefs) > 0
 }
 
 // shouldWatchNamespace checks if the operator should watch resources in the given namespace

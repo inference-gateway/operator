@@ -588,13 +588,13 @@ func (in *GatewaySpec) DeepCopyInto(out *GatewaySpec) {
 		*out = new(ServiceSpec)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.Routing != nil {
-		in, out := &in.Routing, &out.Routing
+	if in.GatewayAPI != nil {
+		in, out := &in.GatewayAPI, &out.GatewayAPI
 		*out = new(RoutingSpec)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.ModelRouting != nil {
-		in, out := &in.ModelRouting, &out.ModelRouting
+	if in.Routing != nil {
+		in, out := &in.Routing, &out.Routing
 		*out = new(ModelRoutingSpec)
 		(*in).DeepCopyInto(*out)
 	}

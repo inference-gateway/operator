@@ -14,16 +14,16 @@ metadata:
 spec:
   environment: development
   image: "ghcr.io/inference-gateway/inference-gateway:latest"
-  # modelRouting turns on gateway-native round-robin routing. A client requests a
+  # routing turns on gateway-native round-robin routing. A client requests a
   # logical alias (e.g. {"model": "fast-chat"}) and the gateway rotates round-robin
   # through the alias's deployments, forwarding to the resolved provider/model.
   #
   # This maps to ROUTING_ENABLED=true and ROUTING_CONFIG_PATH on the gateway
   # container. The operator renders `config` into a ConfigMap and mounts it.
   #
-  # Note: this is unrelated to spec.routing, which configures north-south
+  # Note: this is unrelated to spec.gatewayAPI, which configures north-south
   # Kubernetes Gateway API traffic.
-  modelRouting:
+  routing:
     enabled: true
     config: |
       models:
