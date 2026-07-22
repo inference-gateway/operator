@@ -8,6 +8,7 @@ rules:
       - ""
     resources:
       - configmaps
+      - secrets
       - serviceaccounts
       - services
     verbs:
@@ -22,7 +23,6 @@ rules:
       - ""
     resources:
       - namespaces
-      - secrets
     verbs:
       - get
       - list
@@ -56,6 +56,7 @@ rules:
     resources:
       - agents
       - gateways
+      - gpus
       - mcps
       - orchestrators
     verbs:
@@ -71,6 +72,7 @@ rules:
     resources:
       - agents/finalizers
       - gateways/finalizers
+      - gpus/finalizers
       - mcps/finalizers
       - orchestrators/finalizers
     verbs:
@@ -80,6 +82,7 @@ rules:
     resources:
       - agents/status
       - gateways/status
+      - gpus/status
       - mcps/status
       - orchestrators/status
     verbs:

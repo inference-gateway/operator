@@ -1,0 +1,84 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+# RunPod management API key. Read only at reconcile time; never copied into the
+# GPU status, events, or the generated connection Secret.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: runpod-credentials
+  namespace: inference-gateway
+type: Opaque
+stringData:
+  api-key: "REPLACE_WITH_RUNPOD_API_KEY"
+---
+# Lease one RunPod GPU and serve Ornith-1.0 (an agentic-coding model) on it with
+# vLLM's OpenAI-compatible API. vLLM pulls the weights from Hugging Face by id at
+# startup, so nothing has to be baked into the image or mounted.
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: GPU
+metadata:
+  name: ornith
+  namespace: inference-gateway
+spec:
+  provider: runpod
+  credentialsRef:
+    name: runpod-credentials
+    key: api-key
+  image: vllm/vllm-openai:latest
+  # Appended to the image's vLLM entrypoint. The RunPod driver leases a single
+  # GPU, so this uses the dense 9B checkpoint (the 35B/397B MoE checkpoints need
+  # multi-GPU sharding).
+  command:
+    - "--model"
+    - "deepreinforce-ai/Ornith-1.0-9B"
+    - "--served-model-name"
+    - "Ornith-1.0"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8000"
+    - "--max-model-len"
+    - "32768" # cap context so the KV cache fits a single 80GB GPU
+  gpuTypes: # ordered preference; the provider picks the first available
+    - NVIDIA A100 80GB PCIe
+    - NVIDIA H100 80GB HBM3
+  endpoint:
+    port: 8000
+    readinessPath: /health # vLLM answers 200 here once the weights are loaded
+  # Required. The allocation is released and the resource parked in `Expired`
+  # once this elapses; it is NOT reprovisioned automatically.
+  maxRuntime: 2h
+---
+# A Gateway consumes the generated connection Secret (ornith-connection) through
+# the standard provider env/secretKeyRef mechanism. No GPU-specific wiring is
+# needed on the Gateway side.
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway
+  namespace: inference-gateway
+spec:
+  environment: development
+  image: "ghcr.io/inference-gateway/inference-gateway:latest"
+  providers:
+    - name: ornith
+      enabled: true
+      env:
+        # The runtime endpoint URL published by the GPU controller.
+        - name: LLM_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: ornith-connection
+              key: url
+        # The per-allocation token (NOT the RunPod management key).
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ornith-connection
+              key: apiKey

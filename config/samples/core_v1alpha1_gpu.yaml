@@ -1,0 +1,33 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: GPU
+metadata:
+  labels:
+    app.kubernetes.io/name: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: gpu-sample
+spec:
+  provider: runpod
+  credentialsRef:
+    name: runpod-credentials
+    key: api-key
+  # Serve Ornith-1.0 with vLLM's OpenAI-compatible API. vLLM pulls the weights
+  # from Hugging Face by id, so nothing has to be baked into the image.
+  image: vllm/vllm-openai:latest
+  command:
+    - "--model"
+    - "deepreinforce-ai/Ornith-1.0-9B"
+    - "--served-model-name"
+    - "Ornith-1.0"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8000"
+    - "--max-model-len"
+    - "32768"
+  gpuTypes:
+    - NVIDIA A100 80GB PCIe
+    - NVIDIA H100 80GB HBM3
+  endpoint:
+    port: 8000
+    readinessPath: /health
+  maxRuntime: 2h

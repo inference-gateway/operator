@@ -6,6 +6,7 @@ resources:
   - bases/core.inference-gateway.com_agents.yaml
   - bases/core.inference-gateway.com_mcps.yaml
   - bases/core.inference-gateway.com_orchestrators.yaml
+  - bases/core.inference-gateway.com_gpus.yaml
   # +kubebuilder:scaffold:crdkustomizeresource
 # patches:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
