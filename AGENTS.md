@@ -25,6 +25,12 @@ Go code uses tabs and standard `gofmt`/`goimports` formatting. YAML and Markdown
 
 Controller tests use Go test with controller-runtime envtest; e2e tests use Ginkgo. Add or update tests when changing reconciliation behavior, CRD schemas, defaults, validation, or generated manifests. For focused e2e runs, use `task test:e2e:focus FOCUS="test name"`. Maintain or improve coverage where practical; `task test` updates `cover.out`.
 
+## Shared provider list
+
+The set of supported provider identifiers is shared with the gateway and generated from the canonical `inference-gateway/schemas` OpenAPI enum into `internal/providers/zz_generated_providers.go` (a sorted `SupportedProviders` list). To add or remove a provider, run `task generate:providers` (which runs `go generate ./internal/providers/...`) and commit the regenerated file; `task verify-shared-types` fails if it has drifted from the schema. No CRD change is needed - `ProviderSpec.Name` has no `+kubebuilder:validation:Enum`, so provider validation happens at runtime through `providers.IsSupported` (case-insensitive).
+
+When outbound network is blocked, `task generate:providers` and the drift test `TestSupportedProvidersMatchSchema` cannot fetch the schema: the test skips locally but hard-fails when `CI` or `GITHUB_ACTIONS` is set. If you cannot regenerate, hand-edit `zz_generated_providers.go` by inserting the id in alphabetical order (keep it gofmt-clean) and let PR CI run the real drift check. `go test` and `go build` run offline, but `task test` fetches envtest binaries; for a quick offline check of the provider list run only the network-free tests: `go test ./internal/providers/ -run 'TestIsSupported|TestSupportedProvidersHasNoDuplicates' -v`.
+
 ## Commit & Pull Request Guidelines
 
 This repo releases with semantic-release and conventional commits. Prefer messages such as `feat(gateway): Add route weighting`, `fix(agent): Resolve status update error`, or `docs: Update install example`; keep the subject concise and capitalized. PRs should describe the change, link relevant issues, mention API or manifest impacts, and include test results such as `task test` and `task lint`. For API changes, commit regenerated files from `task generate` and `task manifests`.
