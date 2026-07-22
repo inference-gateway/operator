@@ -463,7 +463,6 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		},
 	}
 
-	// Tracing configuration from spec.telemetry.traces.exporter.otlp.
 	tel := gateway.Spec.Telemetry
 	if tel != nil && tel.Traces != nil && tel.Traces.Exporter != nil && tel.Traces.Exporter.OTLP != nil {
 		otlp := tel.Traces.Exporter.OTLP
