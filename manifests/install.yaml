@@ -379,6 +379,65 @@ spec:
                     description: Level sets the log verbosity.
                     type: string
                 type: object
+              mcp:
+                description: |-
+                  MCP configures the agent's MCP client (connecting to MCP servers to expose
+                  their tools to the LLM). Distinct from the MCP CRD, which deploys a server.
+                properties:
+                  callTimeout:
+                    default: 30s
+                    description: |-
+                      CallTimeout bounds a single MCP tool call.
+                      Emitted as A2A_MCP_CALL_TIMEOUT.
+                    type: string
+                  dialTimeout:
+                    default: 30s
+                    description: |-
+                      DialTimeout bounds establishing a connection to an MCP server.
+                      Emitted as A2A_MCP_DIAL_TIMEOUT.
+                    type: string
+                  enable:
+                    description: Enable toggles the MCP client. Emitted as A2A_MCP_ENABLE.
+                    type: boolean
+                  endpoint:
+                    default: /mcp
+                    description: |-
+                      Endpoint is the MCP path appended to each server base URL.
+                      Emitted as A2A_MCP_ENDPOINT.
+                    type: string
+                  maxRetries:
+                    default: 0
+                    description: |-
+                      MaxRetries is the maximum number of connection retries (0 = retry forever).
+                      Emitted as A2A_MCP_MAX_RETRIES.
+                    format: int32
+                    type: integer
+                  refreshInterval:
+                    default: 5m
+                    description: |-
+                      RefreshInterval is how often the agent re-discovers server tools.
+                      Emitted as A2A_MCP_REFRESH_INTERVAL.
+                    type: string
+                  retryInterval:
+                    default: 2s
+                    description: |-
+                      RetryInterval is the initial backoff between connection retries.
+                      Emitted as A2A_MCP_RETRY_INTERVAL.
+                    type: string
+                  retryMaxInterval:
+                    default: 30s
+                    description: |-
+                      RetryMaxInterval caps the backoff between connection retries.
+                      Emitted as A2A_MCP_RETRY_MAX_INTERVAL.
+                    type: string
+                  servers:
+                    description: |-
+                      Servers is the list of MCP server base URLs (e.g. http://mcp:8080).
+                      Emitted as a comma-separated A2A_MCP_SERVERS; omitted when empty.
+                    items:
+                      type: string
+                    type: array
+                type: object
               port:
                 default: 8080
                 description: Port the agent listens on.

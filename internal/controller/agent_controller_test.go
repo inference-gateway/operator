@@ -413,6 +413,62 @@ var _ = Describe("Agent Controller", func() {
 		})
 	})
 
+	Context("agentMCPEnvVars", func() {
+		It("emits A2A_MCP_ENABLE=false and no other MCP vars when disabled", func() {
+			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enable: false})
+
+			enable := findEnvVar(envVars, "A2A_MCP_ENABLE")
+			Expect(enable).NotTo(BeNil())
+			Expect(enable.Value).To(Equal("false"))
+
+			Expect(findEnvVar(envVars, "A2A_MCP_SERVERS")).To(BeNil())
+			Expect(findEnvVar(envVars, "A2A_MCP_ENDPOINT")).To(BeNil())
+			Expect(findEnvVar(envVars, "A2A_MCP_MAX_RETRIES")).To(BeNil())
+		})
+
+		It("emits the A2A_MCP_* knobs when enabled", func() {
+			mcp := v1alpha1.MCPClientSpec{
+				Enable:           true,
+				Servers:          []string{"http://mcp-a:8080", "http://mcp-b:8080"},
+				Endpoint:         "/mcp",
+				RefreshInterval:  "5m",
+				DialTimeout:      "30s",
+				CallTimeout:      "30s",
+				MaxRetries:       0,
+				RetryInterval:    "2s",
+				RetryMaxInterval: "30s",
+			}
+			envVars := agentMCPEnvVars(mcp)
+
+			Expect(findEnvVar(envVars, "A2A_MCP_ENABLE").Value).To(Equal("true"))
+			Expect(findEnvVar(envVars, "A2A_MCP_SERVERS").Value).To(Equal("http://mcp-a:8080,http://mcp-b:8080"))
+			Expect(findEnvVar(envVars, "A2A_MCP_ENDPOINT").Value).To(Equal("/mcp"))
+			Expect(findEnvVar(envVars, "A2A_MCP_REFRESH_INTERVAL").Value).To(Equal("5m"))
+			Expect(findEnvVar(envVars, "A2A_MCP_DIAL_TIMEOUT").Value).To(Equal("30s"))
+			Expect(findEnvVar(envVars, "A2A_MCP_CALL_TIMEOUT").Value).To(Equal("30s"))
+			Expect(findEnvVar(envVars, "A2A_MCP_MAX_RETRIES").Value).To(Equal("0"))
+			Expect(findEnvVar(envVars, "A2A_MCP_RETRY_INTERVAL").Value).To(Equal("2s"))
+			Expect(findEnvVar(envVars, "A2A_MCP_RETRY_MAX_INTERVAL").Value).To(Equal("30s"))
+		})
+
+		It("omits A2A_MCP_SERVERS when no servers are configured", func() {
+			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enable: true, Endpoint: "/mcp"})
+
+			Expect(findEnvVar(envVars, "A2A_MCP_SERVERS")).To(BeNil())
+			Expect(findEnvVar(envVars, "A2A_MCP_ENDPOINT").Value).To(Equal("/mcp"))
+		})
+
+		It("always emits A2A_MCP_ENABLE from buildAgentEnvironmentVars", func() {
+			agent := &v1alpha1.Agent{
+				Spec: v1alpha1.AgentSpec{MCP: v1alpha1.MCPClientSpec{Enable: true, Servers: []string{"http://mcp:8080"}}},
+			}
+			envVars := (&AgentReconciler{}).buildAgentEnvironmentVars(agent)
+
+			Expect(findEnvVar(envVars, "A2A_MCP_ENABLE").Value).To(Equal("true"))
+			Expect(findEnvVar(envVars, "A2A_MCP_SERVERS").Value).To(Equal("http://mcp:8080"))
+		})
+	})
+
 	Context("buildAgentDeployment resources", func() {
 		var reconciler *AgentReconciler
 
