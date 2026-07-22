@@ -966,6 +966,49 @@ spec:
                         type: string
                     type: object
                 type: object
+              modelRouting:
+                description: |-
+                  ModelRouting configures gateway-native round-robin model routing
+                  (ROUTING_ENABLED / ROUTING_CONFIG_PATH). Distinct from Routing above,
+                  which is north-south Gateway API traffic.
+                properties:
+                  config:
+                    description: |-
+                      Config is the inline routing YAML (a `models:` map of alias -> ordered
+                      provider/model deployment pool). The operator renders it into a ConfigMap
+                      mounted at ROUTING_CONFIG_PATH. Mutually exclusive with ConfigMapRef.
+                    type: string
+                  configMapRef:
+                    description: |-
+                      ConfigMapRef mounts an existing ConfigMap key holding the routing YAML
+                      instead of rendering Config. Mutually exclusive with Config.
+                    properties:
+                      key:
+                        description: The key to select.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the ConfigMap or its key must
+                          be defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  enabled:
+                    default: false
+                    description: Enable model routing. Maps to ROUTING_ENABLED on
+                      the gateway container.
+                    type: boolean
+                type: object
               providers:
                 description: Provider configurations for AI/ML backends
                 items:

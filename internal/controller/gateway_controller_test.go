@@ -910,3 +910,103 @@ var _ = Describe("Gateway MCP service discovery", func() {
 		Expect(urls).To(Equal([]string{"https://secure-service.mcp.svc.cluster.local:9443/mcp"}))
 	})
 })
+
+var _ = Describe("Gateway model routing", func() {
+	ctx := context.Background()
+
+	newReconciler := func(objs ...client.Object) *GatewayReconciler {
+		return &GatewayReconciler{Client: testutil.NewFakeClient(objs...), Scheme: gatewayTestScheme}
+	}
+
+	makeGateway := func(mr *corev1alpha1.ModelRoutingSpec) *corev1alpha1.Gateway {
+		return &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       corev1alpha1.GatewaySpec{ModelRouting: mr},
+		}
+	}
+
+	hasEnv := func(env []corev1.EnvVar, name string) bool {
+		for _, e := range env {
+			if e.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	hasVolume := func(vols []corev1.Volume, name string) *corev1.Volume {
+		for i := range vols {
+			if vols[i].Name == name {
+				return &vols[i]
+			}
+		}
+		return nil
+	}
+
+	It("emits no routing env vars or volume when model routing is unset", func() {
+		r := newReconciler()
+		dep := r.buildDeployment(ctx, makeGateway(nil))
+		env := dep.Spec.Template.Spec.Containers[0].Env
+		Expect(hasEnv(env, "ROUTING_ENABLED")).To(BeFalse())
+		Expect(hasEnv(env, "ROUTING_CONFIG_PATH")).To(BeFalse())
+		Expect(hasVolume(dep.Spec.Template.Spec.Volumes, "model-routing")).To(BeNil())
+	})
+
+	It("wires env, volume and an owned ConfigMap for inline config", func() {
+		gw := makeGateway(&corev1alpha1.ModelRoutingSpec{
+			Enabled: true,
+			Config:  "models:\n  fast-chat:\n    deployments:\n      - provider: groq\n        model: a\n      - provider: openai\n        model: b\n",
+		})
+		r := newReconciler()
+
+		dep := r.buildDeployment(ctx, gw)
+		env := dep.Spec.Template.Spec.Containers[0].Env
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "ROUTING_ENABLED", Value: "true"}))
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "ROUTING_CONFIG_PATH", Value: "/etc/inference-gateway/routing/routing.yaml"}))
+
+		vol := hasVolume(dep.Spec.Template.Spec.Volumes, "model-routing")
+		Expect(vol).NotTo(BeNil())
+		Expect(vol.ConfigMap.Name).To(Equal("gw-routing"))
+
+		Expect(r.reconcileModelRoutingConfig(ctx, gw)).To(Succeed())
+		cm := &corev1.ConfigMap{}
+		Expect(r.Get(ctx, types.NamespacedName{Name: "gw-routing", Namespace: "default"}, cm)).To(Succeed())
+		Expect(cm.Data["routing.yaml"]).To(Equal(gw.Spec.ModelRouting.Config))
+	})
+
+	It("uses the referenced ConfigMap key and does not create an owned one", func() {
+		gw := makeGateway(&corev1alpha1.ModelRoutingSpec{
+			Enabled: true,
+			ConfigMapRef: &corev1.ConfigMapKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "my-routing"},
+				Key:                  "custom.yaml",
+			},
+		})
+		r := newReconciler()
+
+		dep := r.buildDeployment(ctx, gw)
+		env := dep.Spec.Template.Spec.Containers[0].Env
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "ROUTING_CONFIG_PATH", Value: "/etc/inference-gateway/routing/custom.yaml"}))
+		vol := hasVolume(dep.Spec.Template.Spec.Volumes, "model-routing")
+		Expect(vol).NotTo(BeNil())
+		Expect(vol.ConfigMap.Name).To(Equal("my-routing"))
+
+		Expect(r.reconcileModelRoutingConfig(ctx, gw)).To(Succeed())
+		cm := &corev1.ConfigMap{}
+		err := r.Get(ctx, types.NamespacedName{Name: "gw-routing", Namespace: "default"}, cm)
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("deletes a previously-owned ConfigMap when routing is disabled", func() {
+		existing := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw-routing", Namespace: "default"},
+			Data:       map[string]string{"routing.yaml": "models: {}"},
+		}
+		r := newReconciler(existing)
+
+		Expect(r.reconcileModelRoutingConfig(ctx, makeGateway(nil))).To(Succeed())
+		cm := &corev1.ConfigMap{}
+		err := r.Get(ctx, types.NamespacedName{Name: "gw-routing", Namespace: "default"}, cm)
+		Expect(err).To(HaveOccurred())
+	})
+})

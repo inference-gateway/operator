@@ -90,6 +90,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	if err := r.reconcileModelRoutingConfig(ctx, gateway); err != nil {
+		logger.Error(err, "Failed to reconcile model routing config")
+		return ctrl.Result{}, err
+	}
+
 	deployment, err := r.reconcileDeployment(ctx, gateway)
 	if err != nil {
 		if errors.IsConflict(err) {
@@ -312,6 +317,14 @@ func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway 
 // a self-signed issuer (e.g. Keycloak) during OIDC discovery.
 const oidcCACertPath = "/usr/local/share/ca-certificates/oidc-ca.crt"
 
+const (
+	// modelRoutingConfigDir is where the routing YAML ConfigMap is mounted in the
+	// gateway pod; ROUTING_CONFIG_PATH points at the file within it.
+	modelRoutingConfigDir = "/etc/inference-gateway/routing"
+	// modelRoutingInlineKey is the ConfigMap key used for inline spec.modelRouting.config.
+	modelRoutingInlineKey = "routing.yaml"
+)
+
 // reconcileDeployment ensures the Deployment exists with the correct configuration
 func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway) (*appsv1.Deployment, error) {
 	deployment := r.buildDeployment(ctx, gateway)
@@ -363,6 +376,25 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 			Name:      "oidc-ca",
 			MountPath: oidcCACertPath,
 			SubPath:   caRef.Key,
+			ReadOnly:  true,
+		})
+	}
+
+	// ponytail: like oidc-ca/tls, the routing config file updates in place but the
+	// gateway reads it at startup - editing modelRouting.config needs a pod restart
+	// to take effect. Add a checksum/config pod annotation here if hot-reload is wanted.
+	if cmName, _ := modelRoutingConfigSource(gateway); cmName != "" {
+		volumes = append(volumes, corev1.Volume{
+			Name: "model-routing",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: cmName},
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "model-routing",
+			MountPath: modelRoutingConfigDir,
 			ReadOnly:  true,
 		})
 	}
@@ -556,6 +588,13 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 				}(),
 			},
 		)
+	}
+
+	if mr := gateway.Spec.ModelRouting; mr != nil && mr.Enabled {
+		envVars = append(envVars, corev1.EnvVar{Name: "ROUTING_ENABLED", Value: "true"})
+		if path := modelRoutingConfigPath(gateway); path != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "ROUTING_CONFIG_PATH", Value: path})
+		}
 	}
 
 	providerEnvVars := []corev1.EnvVar{}
@@ -854,6 +893,92 @@ func (r *GatewayReconciler) deleteOwnedRouting(ctx context.Context, gateway *cor
 		return err
 	}
 
+	return nil
+}
+
+// modelRoutingConfigSource returns the ConfigMap name and key holding the routing
+// YAML, or "","" when model routing is disabled or no config source is set. For
+// inline spec.modelRouting.config the operator owns "<name>-routing"; for
+// configMapRef the user's ConfigMap name/key are used verbatim.
+func modelRoutingConfigSource(gateway *corev1alpha1.Gateway) (name, key string) {
+	mr := gateway.Spec.ModelRouting
+	if mr == nil || !mr.Enabled {
+		return "", ""
+	}
+	switch {
+	case mr.Config != "":
+		return gateway.Name + "-routing", modelRoutingInlineKey
+	case mr.ConfigMapRef != nil && mr.ConfigMapRef.Name != "":
+		return mr.ConfigMapRef.Name, mr.ConfigMapRef.Key
+	default:
+		return "", ""
+	}
+}
+
+// modelRoutingConfigPath returns the value for ROUTING_CONFIG_PATH, or "" when no
+// routing config is mounted.
+func modelRoutingConfigPath(gateway *corev1alpha1.Gateway) string {
+	if _, key := modelRoutingConfigSource(gateway); key != "" {
+		return modelRoutingConfigDir + "/" + key
+	}
+	return ""
+}
+
+// reconcileModelRoutingConfig renders spec.modelRouting.config into an
+// operator-owned ConfigMap mounted at ROUTING_CONFIG_PATH. When inline config is
+// absent (routing disabled, or a user-supplied configMapRef is used) any
+// previously-owned ConfigMap is removed.
+func (r *GatewayReconciler) reconcileModelRoutingConfig(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+	logger := log.FromContext(ctx)
+	name := gateway.Name + "-routing"
+	key := types.NamespacedName{Name: name, Namespace: gateway.Namespace}
+
+	mr := gateway.Spec.ModelRouting
+	inline := mr != nil && mr.Enabled && mr.Config != ""
+
+	if !inline {
+		existing := &corev1.ConfigMap{}
+		err := r.Get(ctx, key, existing)
+		switch {
+		case errors.IsNotFound(err):
+			return nil
+		case err != nil:
+			return err
+		}
+		logger.Info("Deleting model-routing ConfigMap (inline routing config not set)", "ConfigMap.Name", name)
+		if err := r.Delete(ctx, existing); err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	desired := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: gateway.Namespace,
+			Labels:    map[string]string{"app": gateway.Name},
+		},
+		Data: map[string]string{modelRoutingInlineKey: mr.Config},
+	}
+	if err := controllerutil.SetControllerReference(gateway, desired, r.Scheme); err != nil {
+		return err
+	}
+
+	found := &corev1.ConfigMap{}
+	err := r.Get(ctx, key, found)
+	switch {
+	case errors.IsNotFound(err):
+		logger.Info("Creating model-routing ConfigMap", "ConfigMap.Name", name)
+		return r.Create(ctx, desired)
+	case err != nil:
+		return err
+	}
+
+	if !reflect.DeepEqual(found.Data, desired.Data) {
+		found.Data = desired.Data
+		logger.Info("Updating model-routing ConfigMap", "ConfigMap.Name", name)
+		return r.Update(ctx, found)
+	}
 	return nil
 }
 
@@ -1435,6 +1560,7 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&corev1alpha1.Gateway{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
+		Owns(&corev1.ConfigMap{}).
 		Owns(&gwapiv1.Gateway{}).
 		Owns(&gwapiv1.HTTPRoute{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).

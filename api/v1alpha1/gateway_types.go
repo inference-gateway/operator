@@ -77,6 +77,12 @@ type GatewaySpec struct {
 	// +optional
 	Routing *RoutingSpec `json:"routing,omitempty"`
 
+	// ModelRouting configures gateway-native round-robin model routing
+	// (ROUTING_ENABLED / ROUTING_CONFIG_PATH). Distinct from Routing above,
+	// which is north-south Gateway API traffic.
+	// +optional
+	ModelRouting *ModelRoutingSpec `json:"modelRouting,omitempty"`
+
 	// HPA (Horizontal Pod Autoscaler) configuration
 	// +optional
 	HPA *HPASpec `json:"hpa,omitempty"`
@@ -577,6 +583,30 @@ type RoutingHTTPRouteSpec struct {
 	// the hostnames of the operator-managed Gateway listener.
 	// +optional
 	Hostnames []gwapiv1.Hostname `json:"hostnames,omitempty"`
+}
+
+// ModelRoutingSpec configures gateway-native round-robin model routing over
+// upstream provider pools (gateway env vars ROUTING_ENABLED / ROUTING_CONFIG_PATH).
+//
+// NOTE: This is unrelated to RoutingSpec above. RoutingSpec configures
+// north-south Kubernetes Gateway API traffic; ModelRoutingSpec configures the
+// gateway's internal model-alias -> provider/model pool routing.
+type ModelRoutingSpec struct {
+	// Enable model routing. Maps to ROUTING_ENABLED on the gateway container.
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Config is the inline routing YAML (a `models:` map of alias -> ordered
+	// provider/model deployment pool). The operator renders it into a ConfigMap
+	// mounted at ROUTING_CONFIG_PATH. Mutually exclusive with ConfigMapRef.
+	// +optional
+	Config string `json:"config,omitempty"`
+
+	// ConfigMapRef mounts an existing ConfigMap key holding the routing YAML
+	// instead of rendering Config. Mutually exclusive with Config.
+	// +optional
+	ConfigMapRef *corev1.ConfigMapKeySelector `json:"configMapRef,omitempty"`
 }
 
 // GatewayStatus defines the observed state of Gateway.
