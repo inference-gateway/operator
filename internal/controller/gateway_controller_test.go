@@ -761,8 +761,8 @@ var _ = Describe("Gateway controller", func() {
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
 				{Name: "TELEMETRY_ENABLE", Value: "true"},
-				{Name: "TRACING_ENABLE", Value: "true"},
-				{Name: "TRACING_OTLP_ENDPOINT", Value: "http://otel-collector:4318"},
+				{Name: "TELEMETRY_TRACING_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_TRACING_OTLP_ENDPOINT", Value: "http://otel-collector:4318"},
 			}, nil),
 			Entry("Telemetry disabled with traces", GatewayName+"-traces-disabled", "production", &corev1alpha1.TelemetrySpec{
 				Enabled: false,
@@ -778,7 +778,7 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "ENVIRONMENT", Value: "production"},
 				{Name: "TELEMETRY_ENABLE", Value: "false"},
 			}, []corev1.EnvVar{
-				{Name: "TRACING_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_TRACING_ENABLE", Value: "true"},
 			}),
 		)
 

@@ -35,6 +35,13 @@ spec:
     metrics:
       enabled: true
       port: 9464
+    # Emits TELEMETRY_TRACING_ENABLE and TELEMETRY_TRACING_OTLP_ENDPOINT on the
+    # gateway container. Requires telemetry.enabled: true.
+    traces:
+      exporter:
+        otlp:
+          endpoint: "http://otel-collector:4318"
+          protocol: "http/protobuf"
   server:
     timeouts:
       read: "60s"
