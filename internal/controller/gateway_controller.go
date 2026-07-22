@@ -471,10 +471,6 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			envVars = append(envVars, corev1.EnvVar{Name: "TRACING_OTLP_ENDPOINT", Value: otlp.Endpoint})
 		}
 		if otlp.Protocol != "" {
-			// OTEL_EXPORTER_OTLP_PROTOCOL is a standard OpenTelemetry SDK env var.
-			// The gateway binary hardcodes HTTP for its OTLP exporter, so this var
-			// does not affect the gateway's own tracing - it is set for other
-			// components in the pod that may read it.
 			envVars = append(envVars, corev1.EnvVar{Name: "OTEL_EXPORTER_OTLP_PROTOCOL", Value: otlp.Protocol})
 		}
 	}
