@@ -47,7 +47,7 @@ func newFakeMCPClient(objs ...client.Object) client.Client {
 // used to satisfy `Scheme` on reconcilers under unit tests.
 var gatewayTestScheme = testutil.Scheme()
 
-func checkGatewayDeploymentEnvVars(ctx context.Context, k8sClient client.Client, gateway *corev1alpha1.Gateway, expectedEnvVars []corev1.EnvVar, timeout time.Duration, interval time.Duration) {
+func checkGatewayDeploymentEnvVars(ctx context.Context, k8sClient client.Client, gateway *corev1alpha1.Gateway, expectedEnvVars, notExpectedEnvVars []corev1.EnvVar, timeout time.Duration, interval time.Duration) {
 	gatewayLookupKey := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
 	createdGateway := &corev1alpha1.Gateway{}
 
@@ -84,6 +84,10 @@ func checkGatewayDeploymentEnvVars(ctx context.Context, k8sClient client.Client,
 
 	for _, expected := range expectedEnvVars {
 		Expect(envVars).To(ContainElement(expected))
+	}
+
+	for _, notExpected := range notExpectedEnvVars {
+		Expect(envVars).NotTo(ContainElement(notExpected))
 	}
 
 	Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
@@ -722,7 +726,7 @@ var _ = Describe("Gateway controller", func() {
 					},
 				}
 				Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
-				checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, timeout, interval)
+				checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, nil, timeout, interval)
 			},
 			Entry("OpenTelemetry enabled", GatewayName+"-otel", "production", &corev1alpha1.TelemetrySpec{
 				Enabled: true,
@@ -760,6 +764,20 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "TRACING_ENABLE", Value: "true"},
 				{Name: "TRACING_OTLP_ENDPOINT", Value: "http://otel-collector:4318"},
 				{Name: "OTEL_EXPORTER_OTLP_PROTOCOL", Value: "http/protobuf"},
+			}),
+			Entry("Telemetry disabled with traces", GatewayName+"-traces-disabled", "production", &corev1alpha1.TelemetrySpec{
+				Enabled: false,
+				Traces: &corev1alpha1.TracesSpec{
+					Exporter: &corev1alpha1.TracesExporterSpec{
+						OTLP: &corev1alpha1.OTLPExporterSpec{
+							Endpoint: "http://otel-collector:4318",
+							Protocol: "http/protobuf",
+						},
+					},
+				},
+			}, []corev1.EnvVar{
+				{Name: "ENVIRONMENT", Value: "production"},
+				{Name: "TELEMETRY_ENABLE", Value: "false"},
 			}),
 		)
 
