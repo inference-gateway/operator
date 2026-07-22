@@ -35,6 +35,11 @@ spec:
     metrics:
       enabled: true
       port: 9464
+    traces:
+      exporter:
+        otlp:
+          endpoint: "http://otel-collector:4318"
+          protocol: "http/protobuf"
   server:
     timeouts:
       read: "60s"
