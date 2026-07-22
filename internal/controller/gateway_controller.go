@@ -470,9 +470,8 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		if otlp.Endpoint != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "TRACING_OTLP_ENDPOINT", Value: otlp.Endpoint})
 		}
-		if otlp.Protocol != "" {
-			envVars = append(envVars, corev1.EnvVar{Name: "OTEL_EXPORTER_OTLP_PROTOCOL", Value: otlp.Protocol})
-		}
+		// otlp.Protocol is intentionally not mapped: the gateway binary hardcodes
+		// otlptracehttp and never reads OTEL_EXPORTER_OTLP_PROTOCOL, so grpc is a no-op today.
 	}
 
 	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled && gateway.Spec.Auth.OIDC != nil {

@@ -703,7 +703,7 @@ var _ = Describe("Gateway controller", func() {
 		})
 
 		DescribeTable("Should create a deployment and configmap with correct telemetry configuration",
-			func(gatewayName, environment string, telemetrySpec *corev1alpha1.TelemetrySpec, expectedEnvVars []corev1.EnvVar) {
+			func(gatewayName, environment string, telemetrySpec *corev1alpha1.TelemetrySpec, expectedEnvVars, notExpectedEnvVars []corev1.EnvVar) {
 				gateway := &corev1alpha1.Gateway{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: "core.inference-gateway.com/v1alpha1",
@@ -726,7 +726,7 @@ var _ = Describe("Gateway controller", func() {
 					},
 				}
 				Expect(k8sClient.Create(ctx, gateway)).Should(Succeed())
-				checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, nil, timeout, interval)
+				checkGatewayDeploymentEnvVars(ctx, k8sClient, gateway, expectedEnvVars, notExpectedEnvVars, timeout, interval)
 			},
 			Entry("OpenTelemetry enabled", GatewayName+"-otel", "production", &corev1alpha1.TelemetrySpec{
 				Enabled: true,
@@ -737,7 +737,7 @@ var _ = Describe("Gateway controller", func() {
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
 				{Name: "TELEMETRY_ENABLE", Value: "true"},
-			}),
+			}, nil),
 			Entry("Telemetry enabled in development", GatewayName+"-no-telemetry", "development", &corev1alpha1.TelemetrySpec{
 				Enabled: true,
 				Metrics: &corev1alpha1.MetricsSpec{
@@ -747,7 +747,7 @@ var _ = Describe("Gateway controller", func() {
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "development"},
 				{Name: "TELEMETRY_ENABLE", Value: "true"},
-			}),
+			}, nil),
 			Entry("Traces OTLP exporter", GatewayName+"-traces", "production", &corev1alpha1.TelemetrySpec{
 				Enabled: true,
 				Traces: &corev1alpha1.TracesSpec{
@@ -763,8 +763,7 @@ var _ = Describe("Gateway controller", func() {
 				{Name: "TELEMETRY_ENABLE", Value: "true"},
 				{Name: "TRACING_ENABLE", Value: "true"},
 				{Name: "TRACING_OTLP_ENDPOINT", Value: "http://otel-collector:4318"},
-				{Name: "OTEL_EXPORTER_OTLP_PROTOCOL", Value: "http/protobuf"},
-			}),
+			}, nil),
 			Entry("Telemetry disabled with traces", GatewayName+"-traces-disabled", "production", &corev1alpha1.TelemetrySpec{
 				Enabled: false,
 				Traces: &corev1alpha1.TracesSpec{
@@ -778,6 +777,8 @@ var _ = Describe("Gateway controller", func() {
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
 				{Name: "TELEMETRY_ENABLE", Value: "false"},
+			}, []corev1.EnvVar{
+				{Name: "TRACING_ENABLE", Value: "true"},
 			}),
 		)
 
