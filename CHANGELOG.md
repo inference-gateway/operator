@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.20.0](https://github.com/inference-gateway/operator/compare/v0.19.1...v0.20.0) (2026-07-22)
+
+### ✨ Features
+
+* add GPU CRD to lease cloud GPU runtimes via a provider interface ([#164](https://github.com/inference-gateway/operator/issues/164)) ([3e582f1](https://github.com/inference-gateway/operator/commit/3e582f11bb277bfdcc04d63f198c90d4777feca9))
+
+### 🐛 Bug Fixes
+
+* **gateway:** Map telemetry.traces.exporter.otlp to TRACING_OTLP_ENDPOINT env vars ([#169](https://github.com/inference-gateway/operator/issues/169)) ([7ddf4a8](https://github.com/inference-gateway/operator/commit/7ddf4a83f30414976fcbe0d991d1bcdea5508eb7))
+
+### 👷 CI
+
+* **deps:** bump sigs.k8s.io/gateway-api in the gomod group ([#165](https://github.com/inference-gateway/operator/issues/165)) ([9f55bd8](https://github.com/inference-gateway/operator/commit/9f55bd8031ec474ffd28c7ed0dc3ff1877ce6697))
+* **deps:** bump the github-actions group with 2 updates ([#166](https://github.com/inference-gateway/operator/issues/166)) ([26c8846](https://github.com/inference-gateway/operator/commit/26c8846bfe5bbdea3bc1cff8a66d54021520d341))
+
 ## [0.19.1](https://github.com/inference-gateway/operator/compare/v0.19.0...v0.19.1) (2026-07-19)
 
 ### 🐛 Bug Fixes
