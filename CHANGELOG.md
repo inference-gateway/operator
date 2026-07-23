@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.21.0](https://github.com/inference-gateway/operator/compare/v0.20.0...v0.21.0) (2026-07-23)
+
+### ✨ Features
+
+* **agent:** surface ADK MCP client config as A2A_MCP_* ([#172](https://github.com/inference-gateway/operator/issues/172)) ([fbab300](https://github.com/inference-gateway/operator/commit/fbab300161adbf4b4dd3db92748e1253f21b888d)), closes [#171](https://github.com/inference-gateway/operator/issues/171)
+* **gateway:** add round-robin model routing config ([#176](https://github.com/inference-gateway/operator/issues/176)) ([062f48a](https://github.com/inference-gateway/operator/commit/062f48a18a85fb108c788b865964f061b44fc052)), closes [#175](https://github.com/inference-gateway/operator/issues/175)
+
+### 🐛 Bug Fixes
+
+* **gateway:** emit TELEMETRY_TRACING_* env vars ([#170](https://github.com/inference-gateway/operator/issues/170)) ([691e3a5](https://github.com/inference-gateway/operator/commit/691e3a51184319be5852cfa6bb300ee95810343e))
+
+### 📚 Documentation
+
+* document shared provider list in AGENTS.md ([#174](https://github.com/inference-gateway/operator/issues/174)) ([1533f59](https://github.com/inference-gateway/operator/commit/1533f597710114b1d64e32f3150fbb23a553bafb))
+
+### 🔧 Miscellaneous
+
+* add skills for both claude and regular agents ([9f3bdf4](https://github.com/inference-gateway/operator/commit/9f3bdf498dbf9ea24be62f86ed32549de19fce48))
+
 ## [0.20.0](https://github.com/inference-gateway/operator/compare/v0.19.1...v0.20.0) (2026-07-22)
 
 ### ✨ Features
