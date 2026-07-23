@@ -380,9 +380,6 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 		})
 	}
 
-	// ponytail: like oidc-ca/tls, the routing config file updates in place but the
-	// gateway reads it at startup - editing routing.config needs a pod restart
-	// to take effect. Add a checksum/config pod annotation here if hot-reload is wanted.
 	if cmName, _ := modelRoutingConfigSource(gateway); cmName != "" {
 		volumes = append(volumes, corev1.Volume{
 			Name: "model-routing",
