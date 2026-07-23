@@ -1020,7 +1020,7 @@ metadata:
 spec:
   environment: development
   image: ghcr.io/inference-gateway/inference-gateway:latest
-  routing:
+  gatewayAPI:
     enabled: true
     gateway:
       gatewayClassName: envoy
@@ -1085,7 +1085,7 @@ metadata:
 spec:
   environment: development
   image: ghcr.io/inference-gateway/inference-gateway:latest
-  routing:
+  gatewayAPI:
     enabled: true
     gateway:
       gatewayClassName: envoy
@@ -1111,7 +1111,7 @@ spec:
 				Eventually(func() bool { return verifyHTTPRouteHost(initialHost) }, 2*time.Minute, 2*time.Second).Should(BeTrue())
 
 				By("patching the Gateway to update the hostname")
-				patch := fmt.Sprintf(`{"spec":{"routing":{"enabled":true,"gateway":{"gatewayClassName":"envoy"},"httpRoute":{"hostnames":["%s"]}}}}`, updatedHost)
+				patch := fmt.Sprintf(`{"spec":{"gatewayAPI":{"enabled":true,"gateway":{"gatewayClassName":"envoy"},"httpRoute":{"hostnames":["%s"]}}}}`, updatedHost)
 				cmd = exec.Command("kubectl", "patch", "gateway.core.inference-gateway.com", gwName, "-n", gwNs, "--type=merge", "-p", patch)
 				_, err = utils.Run(cmd)
 				Expect(err).NotTo(HaveOccurred(), "Failed to patch Gateway routing hostname")
@@ -1162,7 +1162,7 @@ metadata:
 spec:
   environment: development
   image: ghcr.io/inference-gateway/inference-gateway:latest
-  routing:
+  gatewayAPI:
     enabled: true
     gateway:
       parentRefs:

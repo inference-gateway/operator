@@ -72,10 +72,15 @@ type GatewaySpec struct {
 	// +optional
 	Service *ServiceSpec `json:"service,omitempty"`
 
-	// Routing configures north-south traffic using the Kubernetes Gateway
+	// GatewayAPI configures north-south traffic using the Kubernetes Gateway
 	// API (gateway.networking.k8s.io). Successor to the removed Ingress field.
 	// +optional
-	Routing *RoutingSpec `json:"routing,omitempty"`
+	GatewayAPI *RoutingSpec `json:"gatewayAPI,omitempty"`
+
+	// Routing configures gateway-native round-robin model routing
+	// (ROUTING_ENABLED / ROUTING_CONFIG_PATH).
+	// +optional
+	Routing *ModelRoutingSpec `json:"routing,omitempty"`
 
 	// HPA (Horizontal Pod Autoscaler) configuration
 	// +optional
@@ -577,6 +582,30 @@ type RoutingHTTPRouteSpec struct {
 	// the hostnames of the operator-managed Gateway listener.
 	// +optional
 	Hostnames []gwapiv1.Hostname `json:"hostnames,omitempty"`
+}
+
+// ModelRoutingSpec configures gateway-native round-robin model routing over
+// upstream provider pools (gateway env vars ROUTING_ENABLED / ROUTING_CONFIG_PATH).
+//
+// NOTE: This is unrelated to RoutingSpec above. RoutingSpec configures
+// north-south Kubernetes Gateway API traffic; ModelRoutingSpec configures the
+// gateway's internal model-alias -> provider/model pool routing.
+type ModelRoutingSpec struct {
+	// Enable model routing. Maps to ROUTING_ENABLED on the gateway container.
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Config is the inline routing YAML (a `models:` map of alias -> ordered
+	// provider/model deployment pool). The operator renders it into a ConfigMap
+	// mounted at ROUTING_CONFIG_PATH. Mutually exclusive with ConfigMapRef.
+	// +optional
+	Config string `json:"config,omitempty"`
+
+	// ConfigMapRef mounts an existing ConfigMap key holding the routing YAML
+	// instead of rendering Config. Mutually exclusive with Config.
+	// +optional
+	ConfigMapRef *corev1.ConfigMapKeySelector `json:"configMapRef,omitempty"`
 }
 
 // GatewayStatus defines the observed state of Gateway.
