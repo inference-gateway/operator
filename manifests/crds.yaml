@@ -1198,11 +1198,6 @@ spec:
                     - deny
                     - allow
                     type: string
-                  policyDir:
-                    default: /etc/inference-gateway/guardrails
-                    description: PolicyDir is the directory where Rego policy files
-                      are mounted
-                    type: string
                 type: object
               hpa:
                 description: HPA (Horizontal Pod Autoscaler) configuration

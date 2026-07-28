@@ -619,11 +619,6 @@ type GuardrailsSpec struct {
 	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 
-	// PolicyDir is the directory where Rego policy files are mounted
-	// +optional
-	// +kubebuilder:default="/etc/inference-gateway/guardrails"
-	PolicyDir string `json:"policyDir,omitempty"`
-
 	// FailMode determines behavior when a policy evaluation fails
 	// +optional
 	// +kubebuilder:validation:Enum=deny;allow

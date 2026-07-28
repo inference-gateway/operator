@@ -622,9 +622,9 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		}
 		if gr.ExternalURL != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "GUARDRAILS_EXTERNAL_URL", Value: gr.ExternalURL})
-		}
-		if gr.ExternalTimeout != "" {
-			envVars = append(envVars, corev1.EnvVar{Name: "GUARDRAILS_EXTERNAL_TIMEOUT", Value: gr.ExternalTimeout})
+			if gr.ExternalTimeout != "" {
+				envVars = append(envVars, corev1.EnvVar{Name: "GUARDRAILS_EXTERNAL_TIMEOUT", Value: gr.ExternalTimeout})
+			}
 		}
 	}
 
