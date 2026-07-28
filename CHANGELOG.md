@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.0](https://github.com/inference-gateway/operator/compare/v0.21.0...v0.22.0) (2026-07-28)
+
+### ⚠ BREAKING CHANGES
+
+* **gateway:** the gateway no longer recognizes the old _ENABLE suffix.
+
+  Renamed env vars:
+
+  - TELEMETRY_ENABLE -> TELEMETRY_ENABLED
+
+  - AUTH_ENABLE -> AUTH_ENABLED
+
+  - TELEMETRY_TRACING_ENABLE -> TELEMETRY_TRACING_ENABLED
+
+  - MCP_ENABLE -> MCP_ENABLED
+
+  Updated gateway_controller.go, gateway_controller_test.go, and e2e_test.go.
+
+### ✨ Features
+
+* **gateway:** add GuardrailsSpec to GatewaySpec for OPA/Rego policy enforcement ([#188](https://github.com/inference-gateway/operator/issues/188)) ([40c6406](https://github.com/inference-gateway/operator/commit/40c64069ed61070cafae00d465c06bdfaeb5c734)), references [#4](https://github.com/inference-gateway/operator/issues/4)
+
+### ♻️ Improvements
+
+* **gateway:** rename _ENABLE env vars to _ENABLED (schemas v0.15.3) ([#189](https://github.com/inference-gateway/operator/issues/189)) ([872c496](https://github.com/inference-gateway/operator/commit/872c49617ac31129aaf6909b67d626d2e5efc05e)), closes [#187](https://github.com/inference-gateway/operator/issues/187)
+
+### 🐛 Bug Fixes
+
+* **ci:** update maintainer app ID to client ID in workflows and documentation ([f3ac8d1](https://github.com/inference-gateway/operator/commit/f3ac8d1cfb08007a884aee04bf76caf2b985765f))
+
+### 👷 CI
+
+* **claude:** centralize claude.yml via reusable workflow ([#178](https://github.com/inference-gateway/operator/issues/178)) ([050d7ee](https://github.com/inference-gateway/operator/commit/050d7ee31c4ab8c04b7a9c8884ed4a9358ac408a))
+* **claude:** centralize claude.yml via reusable workflow ([#180](https://github.com/inference-gateway/operator/issues/180)) ([6f715e5](https://github.com/inference-gateway/operator/commit/6f715e51f51f13b8d7ee0c3c3f088d5ca3b9aa70))
+* **claude:** centralize claude.yml via reusable workflow ([#185](https://github.com/inference-gateway/operator/issues/185)) ([8b58ea8](https://github.com/inference-gateway/operator/commit/8b58ea8f77a6ec4978a848997f85979e0c40584d))
+* **deps:** bump github.com/google/cel-go from 0.26.0 to 0.29.0 ([#183](https://github.com/inference-gateway/operator/issues/183)) ([ffd366d](https://github.com/inference-gateway/operator/commit/ffd366d4959470a0cb8969e51e08ed1daaa745a9))
+* **deps:** bump google.golang.org/grpc from 1.79.3 to 1.82.1 ([#179](https://github.com/inference-gateway/operator/issues/179)) ([b3df4b5](https://github.com/inference-gateway/operator/commit/b3df4b590c477dbba9c71b7a82dea51245133faf))
+* **deps:** bump the github-actions group with 2 updates ([#181](https://github.com/inference-gateway/operator/issues/181)) ([fa56908](https://github.com/inference-gateway/operator/commit/fa5690894161323d17f1a6740c1ca3c64a5e4d25))
+* **deps:** bump the gomod group with 3 updates ([#182](https://github.com/inference-gateway/operator/issues/182)) ([eec7ea0](https://github.com/inference-gateway/operator/commit/eec7ea0310eabddb2cc0fa250842e74a83d52974))
+
+### 🔧 Miscellaneous
+
+* **deps:** bump infer CLI v0.147.1 -> v0.153.1 ([#184](https://github.com/inference-gateway/operator/issues/184)) ([0765180](https://github.com/inference-gateway/operator/commit/07651801544f0df0c838585d57618a669ee42195))
+
 ## [0.21.0](https://github.com/inference-gateway/operator/compare/v0.20.0...v0.21.0) (2026-07-23)
 
 ### ✨ Features
