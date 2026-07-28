@@ -89,6 +89,10 @@ type GatewaySpec struct {
 	// ServiceAccount configuration for RBAC
 	// +optional
 	ServiceAccount *ServiceAccountSpec `json:"serviceAccount,omitempty"`
+
+	// Guardrails configuration for OPA/Rego policy enforcement
+	// +optional
+	Guardrails *GuardrailsSpec `json:"guardrails,omitempty"`
 }
 
 // ServiceAccountSpec contains service account configuration for RBAC
@@ -606,6 +610,39 @@ type ModelRoutingSpec struct {
 	// instead of rendering Config. Mutually exclusive with Config.
 	// +optional
 	ConfigMapRef *corev1.ConfigMapKeySelector `json:"configMapRef,omitempty"`
+}
+
+// GuardrailsSpec contains guardrails (OPA/Rego policy enforcement) configuration.
+type GuardrailsSpec struct {
+	// Enable guardrails policy enforcement
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// PolicyDir is the directory where Rego policy files are mounted
+	// +optional
+	// +kubebuilder:default="/etc/inference-gateway/guardrails"
+	PolicyDir string `json:"policyDir,omitempty"`
+
+	// FailMode determines behavior when a policy evaluation fails
+	// +optional
+	// +kubebuilder:validation:Enum=deny;allow
+	// +kubebuilder:default="deny"
+	FailMode string `json:"failMode,omitempty"`
+
+	// ExternalURL is the URL of an external OPA policy evaluation endpoint
+	// +optional
+	ExternalURL string `json:"externalUrl,omitempty"`
+
+	// ExternalTimeout is the timeout for external OPA policy evaluation
+	// +optional
+	// +kubebuilder:default="5s"
+	ExternalTimeout string `json:"externalTimeout,omitempty"`
+
+	// ConfigMapRef references a ConfigMap containing Rego policy files
+	// to be mounted into the policy directory
+	// +optional
+	ConfigMapRef *corev1.LocalObjectReference `json:"configMapRef,omitempty"`
 }
 
 // GatewayStatus defines the observed state of Gateway.

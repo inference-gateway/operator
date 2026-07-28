@@ -1167,6 +1167,52 @@ spec:
                         type: array
                     type: object
                 type: object
+              guardrails:
+                description: Guardrails configuration for OPA/Rego policy enforcement
+                properties:
+                  configMapRef:
+                    description: |-
+                      ConfigMapRef references a ConfigMap containing Rego policy files
+                      to be mounted into the policy directory
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  enabled:
+                    default: false
+                    description: Enable guardrails policy enforcement
+                    type: boolean
+                  externalTimeout:
+                    default: 5s
+                    description: ExternalTimeout is the timeout for external OPA policy
+                      evaluation
+                    type: string
+                  externalUrl:
+                    description: ExternalURL is the URL of an external OPA policy
+                      evaluation endpoint
+                    type: string
+                  failMode:
+                    default: deny
+                    description: FailMode determines behavior when a policy evaluation
+                      fails
+                    enum:
+                    - deny
+                    - allow
+                    type: string
+                  policyDir:
+                    default: /etc/inference-gateway/guardrails
+                    description: PolicyDir is the directory where Rego policy files
+                      are mounted
+                    type: string
+                type: object
               hpa:
                 description: HPA (Horizontal Pod Autoscaler) configuration
                 properties:

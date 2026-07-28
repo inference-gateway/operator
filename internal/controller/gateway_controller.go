@@ -323,6 +323,8 @@ const (
 	modelRoutingConfigDir = "/etc/inference-gateway/routing"
 	// modelRoutingInlineKey is the ConfigMap key used for inline spec.routing.config.
 	modelRoutingInlineKey = "routing.yaml"
+	// guardrailsPolicyDir is the default directory where Rego policy files are mounted.
+	guardrailsPolicyDir = "/etc/inference-gateway/guardrails"
 )
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
@@ -392,6 +394,22 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      "model-routing",
 			MountPath: modelRoutingConfigDir,
+			ReadOnly:  true,
+		})
+	}
+
+	if gateway.Spec.Guardrails != nil && gateway.Spec.Guardrails.Enabled && gateway.Spec.Guardrails.ConfigMapRef != nil {
+		volumes = append(volumes, corev1.Volume{
+			Name: "guardrails-policies",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: *gateway.Spec.Guardrails.ConfigMapRef,
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "guardrails-policies",
+			MountPath: guardrailsPolicyDir,
 			ReadOnly:  true,
 		})
 	}
@@ -591,6 +609,22 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		envVars = append(envVars, corev1.EnvVar{Name: "ROUTING_ENABLED", Value: "true"})
 		if path := modelRoutingConfigPath(gateway); path != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "ROUTING_CONFIG_PATH", Value: path})
+		}
+	}
+
+	if gr := gateway.Spec.Guardrails; gr != nil && gr.Enabled {
+		envVars = append(envVars,
+			corev1.EnvVar{Name: "GUARDRAILS_ENABLED", Value: "true"},
+			corev1.EnvVar{Name: "GUARDRAILS_POLICY_DIR", Value: guardrailsPolicyDir},
+		)
+		if gr.FailMode != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "GUARDRAILS_FAIL_MODE", Value: gr.FailMode})
+		}
+		if gr.ExternalURL != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "GUARDRAILS_EXTERNAL_URL", Value: gr.ExternalURL})
+		}
+		if gr.ExternalTimeout != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "GUARDRAILS_EXTERNAL_TIMEOUT", Value: gr.ExternalTimeout})
 		}
 	}
 
