@@ -1010,3 +1010,64 @@ var _ = Describe("Gateway model routing", func() {
 		Expect(err).To(HaveOccurred())
 	})
 })
+
+var _ = Describe("Gateway guardrails", func() {
+	ctx := context.Background()
+
+	newReconciler := func(objs ...client.Object) *GatewayReconciler {
+		return &GatewayReconciler{Client: testutil.NewFakeClient(objs...), Scheme: gatewayTestScheme}
+	}
+
+	makeGateway := func(gr *corev1alpha1.GuardrailsSpec) *corev1alpha1.Gateway {
+		return &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       corev1alpha1.GatewaySpec{Guardrails: gr},
+		}
+	}
+
+	hasEnv := func(env []corev1.EnvVar, name string) bool {
+		for _, e := range env {
+			if e.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	hasVolume := func(vols []corev1.Volume, name string) *corev1.Volume {
+		for i := range vols {
+			if vols[i].Name == name {
+				return &vols[i]
+			}
+		}
+		return nil
+	}
+
+	It("emits no guardrails env vars or volume when guardrails is unset", func() {
+		r := newReconciler()
+		dep := r.buildDeployment(ctx, makeGateway(nil))
+		env := dep.Spec.Template.Spec.Containers[0].Env
+		Expect(hasEnv(env, "GUARDRAILS_ENABLED")).To(BeFalse())
+		Expect(hasEnv(env, "GUARDRAILS_POLICY_DIR")).To(BeFalse())
+		Expect(hasEnv(env, "GUARDRAILS_FAIL_MODE")).To(BeFalse())
+		Expect(hasVolume(dep.Spec.Template.Spec.Volumes, "guardrails-policies")).To(BeNil())
+	})
+
+	It("wires env vars and a ConfigMap volume when guardrails is enabled with configMapRef", func() {
+		r := newReconciler()
+		dep := r.buildDeployment(ctx, makeGateway(&corev1alpha1.GuardrailsSpec{
+			Enabled:      true,
+			ConfigMapRef: &corev1.LocalObjectReference{Name: "guardrails-policies"},
+		}))
+		env := dep.Spec.Template.Spec.Containers[0].Env
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "GUARDRAILS_ENABLED", Value: "true"}))
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "GUARDRAILS_POLICY_DIR", Value: "/etc/inference-gateway/guardrails"}))
+
+		vol := hasVolume(dep.Spec.Template.Spec.Volumes, "guardrails-policies")
+		Expect(vol).NotTo(BeNil())
+		Expect(vol.ConfigMap.Name).To(Equal("guardrails-policies"))
+		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(ContainElement(
+			corev1.VolumeMount{Name: "guardrails-policies", MountPath: "/etc/inference-gateway/guardrails", ReadOnly: true},
+		))
+	})
+})
