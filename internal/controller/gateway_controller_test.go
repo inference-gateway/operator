@@ -209,11 +209,11 @@ var _ = Describe("Gateway controller", func() {
 				Value: "production",
 			}))
 			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "TELEMETRY_ENABLE",
+				Name:  "TELEMETRY_ENABLED",
 				Value: "true",
 			}))
 			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "AUTH_ENABLE",
+				Name:  "AUTH_ENABLED",
 				Value: "true",
 			}))
 			Expect(envVars).To(ContainElement(corev1.EnvVar{
@@ -736,7 +736,7 @@ var _ = Describe("Gateway controller", func() {
 				},
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
-				{Name: "TELEMETRY_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_ENABLED", Value: "true"},
 			}, nil),
 			Entry("Telemetry enabled in development", GatewayName+"-no-telemetry", "development", &corev1alpha1.TelemetrySpec{
 				Enabled: true,
@@ -746,7 +746,7 @@ var _ = Describe("Gateway controller", func() {
 				},
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "development"},
-				{Name: "TELEMETRY_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_ENABLED", Value: "true"},
 			}, nil),
 			Entry("Traces OTLP exporter", GatewayName+"-traces", "production", &corev1alpha1.TelemetrySpec{
 				Enabled: true,
@@ -760,8 +760,8 @@ var _ = Describe("Gateway controller", func() {
 				},
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
-				{Name: "TELEMETRY_ENABLE", Value: "true"},
-				{Name: "TELEMETRY_TRACING_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_ENABLED", Value: "true"},
+				{Name: "TELEMETRY_TRACING_ENABLED", Value: "true"},
 				{Name: "TELEMETRY_TRACING_OTLP_ENDPOINT", Value: "http://otel-collector:4318"},
 			}, nil),
 			Entry("Telemetry disabled with traces", GatewayName+"-traces-disabled", "production", &corev1alpha1.TelemetrySpec{
@@ -776,9 +776,9 @@ var _ = Describe("Gateway controller", func() {
 				},
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
-				{Name: "TELEMETRY_ENABLE", Value: "false"},
+				{Name: "TELEMETRY_ENABLED", Value: "false"},
 			}, []corev1.EnvVar{
-				{Name: "TELEMETRY_TRACING_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_TRACING_ENABLED", Value: "true"},
 			}),
 		)
 
