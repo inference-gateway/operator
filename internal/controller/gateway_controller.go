@@ -501,11 +501,11 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			Value: gateway.Spec.Environment,
 		},
 		{
-			Name:  "TELEMETRY_ENABLE",
+			Name:  "TELEMETRY_ENABLED",
 			Value: strconv.FormatBool(gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled),
 		},
 		{
-			Name:  "AUTH_ENABLE",
+			Name:  "AUTH_ENABLED",
 			Value: strconv.FormatBool(gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled),
 		},
 	}
@@ -513,7 +513,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 	tel := gateway.Spec.Telemetry
 	if tel != nil && tel.Enabled && tel.Traces != nil && tel.Traces.Exporter != nil && tel.Traces.Exporter.OTLP != nil {
 		otlp := tel.Traces.Exporter.OTLP
-		envVars = append(envVars, corev1.EnvVar{Name: "TELEMETRY_TRACING_ENABLE", Value: "true"})
+		envVars = append(envVars, corev1.EnvVar{Name: "TELEMETRY_TRACING_ENABLED", Value: "true"})
 		if otlp.Endpoint != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "TELEMETRY_TRACING_OTLP_ENDPOINT", Value: otlp.Endpoint})
 		}
@@ -555,7 +555,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 	if gateway.Spec.MCP != nil && gateway.Spec.MCP.Enabled {
 		envVars = append(envVars,
 			corev1.EnvVar{
-				Name:  "MCP_ENABLE",
+				Name:  "MCP_ENABLED",
 				Value: fmt.Sprintf("%t", gateway.Spec.MCP.Enabled),
 			},
 			corev1.EnvVar{
