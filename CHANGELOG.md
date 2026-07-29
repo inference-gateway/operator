@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.23.0](https://github.com/inference-gateway/operator/compare/v0.22.0...v0.23.0) (2026-07-29)
+
+### ✨ Features
+
+* **gateway:** add mcp toolMode surfacing MCP_TOOL_MODE ([#191](https://github.com/inference-gateway/operator/issues/191)) ([18a334b](https://github.com/inference-gateway/operator/commit/18a334bd264ef12fde58e8d50e46fb006fbfda67))
+
+### 👷 CI
+
+* **claude:** centralize claude.yml via reusable workflow ([#190](https://github.com/inference-gateway/operator/issues/190)) ([e7937e2](https://github.com/inference-gateway/operator/commit/e7937e226751c82276686e2197fb26004e59638a))
+
 ## [0.22.0](https://github.com/inference-gateway/operator/compare/v0.21.0...v0.22.0) (2026-07-28)
 
 ### ⚠ BREAKING CHANGES
