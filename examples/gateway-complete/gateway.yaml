@@ -139,6 +139,10 @@ spec:
   mcp:
     enabled: false
     expose: false
+    # selector (default) exposes two meta-tools and resolves discovery/dispatch in
+    # the gateway; direct injects every tool schema on every request (pre-0.x
+    # behaviour, only sane for small tool sets).
+    toolMode: selector
     timeouts:
       client: "10s"
       dial: "5s"
