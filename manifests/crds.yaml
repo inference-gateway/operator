@@ -2018,6 +2018,17 @@ spec:
                         description: TLS handshake timeout
                         type: string
                     type: object
+                  toolMode:
+                    default: selector
+                    description: |-
+                      ToolMode controls how MCP tools are exposed to the model. "selector" injects
+                      two meta-tools (mcp_tools_get / mcp_tools_execute) and resolves discovery and
+                      dispatch gateway-side; "direct" injects every tool schema on every request.
+                      Emitted as MCP_TOOL_MODE.
+                    enum:
+                    - selector
+                    - direct
+                    type: string
                 type: object
               providers:
                 description: Provider configurations for AI/ML backends

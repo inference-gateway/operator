@@ -380,6 +380,15 @@ type MCPServersSpec struct {
 	// +kubebuilder:default=false
 	Expose bool `json:"expose,omitempty"`
 
+	// ToolMode controls how MCP tools are exposed to the model. "selector" injects
+	// two meta-tools (mcp_tools_get / mcp_tools_execute) and resolves discovery and
+	// dispatch gateway-side; "direct" injects every tool schema on every request.
+	// Emitted as MCP_TOOL_MODE.
+	// +optional
+	// +kubebuilder:validation:Enum=selector;direct
+	// +kubebuilder:default=selector
+	ToolMode string `json:"toolMode,omitempty"`
+
 	// MCP client timeouts
 	// +optional
 	Timeouts *MCPTimeouts `json:"timeouts,omitempty"`

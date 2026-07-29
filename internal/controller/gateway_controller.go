@@ -563,6 +563,15 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 				Value: fmt.Sprintf("%t", gateway.Spec.MCP.Expose),
 			},
 			corev1.EnvVar{
+				Name: "MCP_TOOL_MODE",
+				Value: func() string {
+					if gateway.Spec.MCP.ToolMode != "" {
+						return gateway.Spec.MCP.ToolMode
+					}
+					return "selector"
+				}(),
+			},
+			corev1.EnvVar{
 				Name:  "MCP_SERVERS",
 				Value: strings.Join(r.assembleMCPServerURLs(ctx, gateway), ","),
 			},

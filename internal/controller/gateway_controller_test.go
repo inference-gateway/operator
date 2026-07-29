@@ -1071,3 +1071,30 @@ var _ = Describe("Gateway guardrails", func() {
 		))
 	})
 })
+
+var _ = Describe("Gateway MCP tool mode", func() {
+	ctx := context.Background()
+
+	buildEnv := func(mcp *corev1alpha1.MCPServersSpec) []corev1.EnvVar {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		gw := &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       corev1alpha1.GatewaySpec{MCP: mcp},
+		}
+		return r.buildDeployment(ctx, gw).Spec.Template.Spec.Containers[0].Env
+	}
+
+	It("defaults MCP_TOOL_MODE to selector when unset", func() {
+		env := buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true})
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "MCP_TOOL_MODE", Value: "selector"}))
+	})
+
+	It("emits the configured MCP_TOOL_MODE", func() {
+		env := buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true, ToolMode: "direct"})
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "MCP_TOOL_MODE", Value: "direct"}))
+	})
+
+	It("omits MCP_TOOL_MODE when MCP is disabled", func() {
+		Expect(findEnvVar(buildEnv(nil), "MCP_TOOL_MODE")).To(BeNil())
+	})
+})
