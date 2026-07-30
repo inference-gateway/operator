@@ -476,7 +476,6 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orch
 		Resources: orch.Spec.Resources,
 	}
 
-	// Add containerPort when the OTLP receiver is enabled.
 	if orch.Spec.Telemetry != nil && orch.Spec.Telemetry.Receiver != nil && orch.Spec.Telemetry.Receiver.Enabled {
 		port := orch.Spec.Telemetry.Receiver.Port
 		if port == 0 {
@@ -684,7 +683,6 @@ func orchestratorTelemetryEnvVars(tel *v1alpha1.TelemetrySpec) []corev1.EnvVar {
 		return envVars
 	}
 
-	// Receiver env var.
 	if tel.Receiver != nil && tel.Receiver.Enabled {
 		port := tel.Receiver.Port
 		if port == 0 {
@@ -769,7 +767,6 @@ func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, o
 		return r.Delete(ctx, found)
 	}
 
-	// Update if spec changed.
 	if !reflect.DeepEqual(found.Spec, svc.Spec) {
 		found.Spec = svc.Spec
 		logger.Info("updating receiver service", "Service.Name", svcName)
@@ -918,7 +915,6 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *v1alpha
 		setCondition(&orch.Status.Conditions, discoveredMCPCondition)
 	}
 
-	// Warn when both receiver and channels are enabled (port contention).
 	if orch.Spec.Telemetry != nil && orch.Spec.Telemetry.Receiver != nil && orch.Spec.Telemetry.Receiver.Enabled &&
 		orch.Spec.Channels.Telegram.Enabled {
 		setCondition(&orch.Status.Conditions, metav1.Condition{
