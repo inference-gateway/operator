@@ -176,6 +176,14 @@ type TelemetrySpec struct {
 	// +optional
 	// +kubebuilder:default={enabled: false, port: 9464}
 	Metrics *MetricsSpec `json:"metrics,omitempty"`
+
+	// Receiver configures an OTLP receiver that the orchestrator exposes so
+	// that other processes (e.g. the gateway, A2A agents) can push spans to
+	// it. Only one process per pod can bind the receiver port; enabling both
+	// receiver and channels causes a port conflict because agent subprocesses
+	// spawned by the channels-manager would contend for it.
+	// +optional
+	Receiver *ReceiverSpec `json:"receiver,omitempty"`
 }
 
 // MetricsSpec contains metrics configuration
@@ -224,9 +232,28 @@ type MetricsExporterSpec struct {
 	Prometheus *PrometheusExporterSpec `json:"prometheus,omitempty"`
 }
 
+// ReceiverSpec configures an OTLP receiver (listener) that the orchestrator
+// exposes for other processes to push spans to. Only one process per pod can
+// bind the receiver port.
+type ReceiverSpec struct {
+	// Enable the OTLP receiver. When true, the orchestrator controller sets
+	// INFER_TELEMETRY_RECEIVER_ADDRESS=0.0.0.0:<port>, adds the containerPort,
+	// and creates a Service targeting it.
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Port is the OTLP HTTP port the receiver listens on.
+	// +optional
+	// +kubebuilder:default=4318
+	// +kubebuilder:validation:Minimum=1024
+	// +kubebuilder:validation:Maximum=65535
+	Port int32 `json:"port,omitempty"`
+}
+
 // OTLPExporterSpec configures an OTLP push exporter for a single signal.
 // The Go ADK exposes a single shared OTLP endpoint, so when both traces and
-// metrics push over OTLP the traces endpoint wins (see agent_controller.go).
+// metrics push over OTLP the endpoint wins (see agent_controller.go).
 type OTLPExporterSpec struct {
 	// Endpoint is the collector endpoint, e.g. http://localhost:4318.
 	// Emitted as A2A_OTEL_EXPORTER_OTLP_ENDPOINT.
