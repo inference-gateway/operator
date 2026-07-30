@@ -1690,6 +1690,30 @@ spec:
                         minimum: 1024
                         type: integer
                     type: object
+                  receiver:
+                    description: |-
+                      Receiver configures an OTLP receiver that the orchestrator exposes so
+                      that other processes (e.g. the gateway, A2A agents) can push spans to
+                      it. Only one process per pod can bind the receiver port; enabling both
+                      receiver and channels causes a port conflict because agent subprocesses
+                      spawned by the channels-manager would contend for it.
+                    properties:
+                      enabled:
+                        default: false
+                        description: |-
+                          Enable the OTLP receiver. When true, the orchestrator controller sets
+                          INFER_TELEMETRY_RECEIVER_ADDRESS=0.0.0.0:<port>, adds the containerPort,
+                          and creates a Service targeting it.
+                        type: boolean
+                      port:
+                        default: 4318
+                        description: Port is the OTLP HTTP port the receiver listens
+                          on.
+                        format: int32
+                        maximum: 65535
+                        minimum: 1024
+                        type: integer
+                    type: object
                   traces:
                     description: Traces configures the tracing (spans) signal exporter.
                     properties:

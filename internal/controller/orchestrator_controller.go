@@ -35,6 +35,7 @@ import (
 	labels "k8s.io/apimachinery/pkg/labels"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -56,6 +57,7 @@ type OrchestratorReconciler struct {
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=agents,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=mcps,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile drives an Orchestrator resource toward its desired state.
 //
@@ -106,6 +108,11 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
 		}
 		logger.Error(err, "failed to reconcile deployment")
+		return ctrl.Result{}, err
+	}
+
+	if err := r.reconcileReceiverService(ctx, &orch); err != nil {
+		logger.Error(err, "failed to reconcile receiver service")
 		return ctrl.Result{}, err
 	}
 
@@ -469,6 +476,19 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orch
 		Resources: orch.Spec.Resources,
 	}
 
+	// Add containerPort when the OTLP receiver is enabled.
+	if orch.Spec.Telemetry != nil && orch.Spec.Telemetry.Receiver != nil && orch.Spec.Telemetry.Receiver.Enabled {
+		port := orch.Spec.Telemetry.Receiver.Port
+		if port == 0 {
+			port = 4318
+		}
+		container.Ports = append(container.Ports, corev1.ContainerPort{
+			Name:          "otlp-http",
+			ContainerPort: port,
+			Protocol:      corev1.ProtocolTCP,
+		})
+	}
+
 	podSpec := corev1.PodSpec{
 		Containers: []corev1.Container{container},
 	}
@@ -664,6 +684,18 @@ func orchestratorTelemetryEnvVars(tel *v1alpha1.TelemetrySpec) []corev1.EnvVar {
 		return envVars
 	}
 
+	// Receiver env var.
+	if tel.Receiver != nil && tel.Receiver.Enabled {
+		port := tel.Receiver.Port
+		if port == 0 {
+			port = 4318
+		}
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "INFER_TELEMETRY_RECEIVER_ADDRESS",
+			Value: fmt.Sprintf("0.0.0.0:%d", port),
+		})
+	}
+
 	var otlp *v1alpha1.OTLPExporterSpec
 	if tel.Traces != nil && tel.Traces.Exporter != nil {
 		otlp = tel.Traces.Exporter.OTLP
@@ -679,6 +711,72 @@ func orchestratorTelemetryEnvVars(tel *v1alpha1.TelemetrySpec) []corev1.EnvVar {
 	}
 
 	return envVars
+}
+
+// reconcileReceiverService creates or removes the Service exposing the OTLP
+// receiver port based on spec.telemetry.receiver.enabled. The Service uses the
+// same labels as the Deployment so the selector stays in sync with the controller.
+func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, orch *v1alpha1.Orchestrator) error {
+	logger := logf.FromContext(ctx)
+
+	enabled := orch.Spec.Telemetry != nil && orch.Spec.Telemetry.Receiver != nil && orch.Spec.Telemetry.Receiver.Enabled
+
+	svcName := orch.Name + "-receiver"
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      svcName,
+			Namespace: orch.Namespace,
+			Labels:    map[string]string{"app": orch.Name},
+		},
+	}
+
+	if enabled {
+		port := orch.Spec.Telemetry.Receiver.Port
+		if port == 0 {
+			port = 4318
+		}
+		svc.Spec = corev1.ServiceSpec{
+			Selector: map[string]string{"app": orch.Name},
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "otlp-http",
+					Protocol:   corev1.ProtocolTCP,
+					Port:       port,
+					TargetPort: intstr.FromInt32(port),
+				},
+			},
+		}
+	}
+
+	if err := controllerutil.SetControllerReference(orch, svc, r.Scheme); err != nil {
+		return err
+	}
+
+	found := &corev1.Service{}
+	err := r.Get(ctx, types.NamespacedName{Name: svcName, Namespace: orch.Namespace}, found)
+	if err != nil && apiErrors.IsNotFound(err) {
+		if !enabled {
+			return nil
+		}
+		logger.Info("creating receiver service", "Service.Name", svcName)
+		return r.Create(ctx, svc)
+	} else if err != nil {
+		return err
+	}
+
+	if !enabled {
+		logger.Info("deleting receiver service", "Service.Name", svcName)
+		return r.Delete(ctx, found)
+	}
+
+	// Update if spec changed.
+	if !reflect.DeepEqual(found.Spec, svc.Spec) {
+		found.Spec = svc.Spec
+		logger.Info("updating receiver service", "Service.Name", svcName)
+		return r.Update(ctx, found)
+	}
+
+	return nil
 }
 
 // createOrUpdateOrchestratorDeployment creates the Deployment if missing, otherwise reconciles drift.
@@ -820,6 +918,28 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *v1alpha
 		setCondition(&orch.Status.Conditions, discoveredMCPCondition)
 	}
 
+	// Warn when both receiver and channels are enabled (port contention).
+	if orch.Spec.Telemetry != nil && orch.Spec.Telemetry.Receiver != nil && orch.Spec.Telemetry.Receiver.Enabled &&
+		orch.Spec.Channels.Telegram.Enabled {
+		setCondition(&orch.Status.Conditions, metav1.Condition{
+			Type:               "ReceiverPortContention",
+			Status:             metav1.ConditionTrue,
+			Reason:             "ChannelsAndReceiverEnabled",
+			Message:            "telemetry.receiver.enabled and channels are both enabled - agent subprocesses spawned by channels-manager contend for the receiver port",
+			ObservedGeneration: orch.Generation,
+			LastTransitionTime: metav1.Now(),
+		})
+	} else {
+		setCondition(&orch.Status.Conditions, metav1.Condition{
+			Type:               "ReceiverPortContention",
+			Status:             metav1.ConditionFalse,
+			Reason:             "NoContention",
+			Message:            "no port contention detected",
+			ObservedGeneration: orch.Generation,
+			LastTransitionTime: metav1.Now(),
+		})
+	}
+
 	return r.Status().Patch(ctx, orch, patch)
 }
 
@@ -951,6 +1071,7 @@ func (r *OrchestratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&v1alpha1.Orchestrator{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Service{}).
 		Watches(
 			&v1alpha1.Agent{},
 			handler.EnqueueRequestsFromMapFunc(r.agentToOrchestratorRequests),

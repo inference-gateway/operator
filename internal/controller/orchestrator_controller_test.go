@@ -349,6 +349,52 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 		Expect(envs["INFER_TELEMETRY_ENABLED"].Value).To(Equal("true"))
 		Expect(envs["INFER_TELEMETRY_OTLP_ENDPOINT"].Value).To(Equal("http://otel:4318"))
 	})
+
+	It("emits INFER_TELEMETRY_RECEIVER_ADDRESS when receiver is enabled", func() {
+		tel := &v1alpha1.TelemetrySpec{
+			Enabled: true,
+			Receiver: &v1alpha1.ReceiverSpec{
+				Enabled: true,
+				Port:    4318,
+			},
+		}
+		envVars := orchestratorTelemetryEnvVars(tel)
+		envs := envByNameFn(envVars)
+		Expect(envs["INFER_TELEMETRY_RECEIVER_ADDRESS"].Value).To(Equal("0.0.0.0:4318"))
+	})
+
+	It("defaults receiver port to 4318 when port is zero", func() {
+		tel := &v1alpha1.TelemetrySpec{
+			Enabled: true,
+			Receiver: &v1alpha1.ReceiverSpec{
+				Enabled: true,
+				Port:    0,
+			},
+		}
+		envVars := orchestratorTelemetryEnvVars(tel)
+		envs := envByNameFn(envVars)
+		Expect(envs["INFER_TELEMETRY_RECEIVER_ADDRESS"].Value).To(Equal("0.0.0.0:4318"))
+	})
+
+	It("omits INFER_TELEMETRY_RECEIVER_ADDRESS when receiver is disabled", func() {
+		tel := &v1alpha1.TelemetrySpec{
+			Enabled: true,
+			Receiver: &v1alpha1.ReceiverSpec{
+				Enabled: false,
+				Port:    4318,
+			},
+		}
+		envVars := orchestratorTelemetryEnvVars(tel)
+		envs := envByNameFn(envVars)
+		Expect(envs).NotTo(HaveKey("INFER_TELEMETRY_RECEIVER_ADDRESS"))
+	})
+
+	It("omits INFER_TELEMETRY_RECEIVER_ADDRESS when receiver is nil", func() {
+		tel := &v1alpha1.TelemetrySpec{Enabled: true}
+		envVars := orchestratorTelemetryEnvVars(tel)
+		envs := envByNameFn(envVars)
+		Expect(envs).NotTo(HaveKey("INFER_TELEMETRY_RECEIVER_ADDRESS"))
+	})
 })
 
 var _ = Describe("buildAgentsYAML", func() {
