@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.0](https://github.com/inference-gateway/operator/compare/v0.23.0...v0.24.0) (2026-08-01)
+
+### ✨ Features
+
+* **orchestrator:** expose OTLP receiver via CRD instead of hand-written Service ([#193](https://github.com/inference-gateway/operator/issues/193)) ([a06cfee](https://github.com/inference-gateway/operator/commit/a06cfeeb67012c5b5950009e286d8a1ddd4d5fb6)), closes [#192](https://github.com/inference-gateway/operator/issues/192)
+
+### ♻️ Improvements
+
+* **agent:** rename ADK env vars from _ENABLE to _ENABLED ([#197](https://github.com/inference-gateway/operator/issues/197)) ([1e748ad](https://github.com/inference-gateway/operator/commit/1e748ad14fd1df35938cd46973e60d98eefa9d03))
+
+### 👷 CI
+
+* **claude:** centralize claude.yml via reusable workflow ([#195](https://github.com/inference-gateway/operator/issues/195)) ([5fd493c](https://github.com/inference-gateway/operator/commit/5fd493c871e343a581ca76086a65652420849d15))
+* **claude:** centralize claude.yml via reusable workflow ([#196](https://github.com/inference-gateway/operator/issues/196)) ([ab488df](https://github.com/inference-gateway/operator/commit/ab488dfc6474320e3232759c7e34a6d4b51f8cfe))
+
+### 🔧 Miscellaneous
+
+* **deps:** bump infer CLI v0.153.1 -> v0.155.0 ([#194](https://github.com/inference-gateway/operator/issues/194)) ([922cb8d](https://github.com/inference-gateway/operator/commit/922cb8d16f7f24dcc44ae68229068086195f7633))
+
 ## [0.23.0](https://github.com/inference-gateway/operator/compare/v0.22.0...v0.23.0) (2026-07-29)
 
 ### ✨ Features
