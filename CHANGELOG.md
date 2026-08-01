@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.1](https://github.com/inference-gateway/operator/compare/v0.24.0...v0.24.1) (2026-08-01)
+
+### ♻️ Improvements
+
+* **agent:** rename MCPClientSpec.Enable to Enabled for consistency ([#198](https://github.com/inference-gateway/operator/issues/198)) ([e80289e](https://github.com/inference-gateway/operator/commit/e80289e8eab3f7e06b7d534110f829a712ab7b76))
+
 ## [0.24.0](https://github.com/inference-gateway/operator/compare/v0.23.0...v0.24.0) (2026-08-01)
 
 ### ✨ Features
