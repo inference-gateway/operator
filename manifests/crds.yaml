@@ -387,8 +387,8 @@ spec:
                       DialTimeout bounds establishing a connection to an MCP server.
                       Emitted as A2A_MCP_DIAL_TIMEOUT.
                     type: string
-                  enable:
-                    description: Enable toggles the MCP client. Emitted as A2A_MCP_ENABLED.
+                  enabled:
+                    description: Enabled toggles the MCP client. Emitted as A2A_MCP_ENABLED.
                     type: boolean
                   endpoint:
                     default: /mcp

@@ -558,9 +558,9 @@ func agentTelemetryEnvVars(tel v1alpha1.TelemetrySpec) []corev1.EnvVar {
 // zero-valued field never clobbers the ADK's own default with an empty value.
 func agentMCPEnvVars(mcp v1alpha1.MCPClientSpec) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{
-		{Name: "A2A_MCP_ENABLED", Value: strconv.FormatBool(mcp.Enable)},
+		{Name: "A2A_MCP_ENABLED", Value: strconv.FormatBool(mcp.Enabled)},
 	}
-	if !mcp.Enable {
+	if !mcp.Enabled {
 		return envVars
 	}
 
