@@ -163,7 +163,7 @@ type CustomHorizontalPodAutoscalerSpec struct {
 // prometheus = pull). Omitting a signal disables it.
 type TelemetrySpec struct {
 	// Enable telemetry collection. Master switch mapped to the Go ADK's
-	// A2A_TELEMETRY_ENABLE; when false the traces/metrics exporter blocks are ignored.
+	// A2A_TELEMETRY_ENABLED; when false the traces/metrics exporter blocks are ignored.
 	// +optional
 	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
