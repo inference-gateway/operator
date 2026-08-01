@@ -415,7 +415,7 @@ var _ = Describe("Agent Controller", func() {
 
 	Context("agentMCPEnvVars", func() {
 		It("emits A2A_MCP_ENABLED=false and no other MCP vars when disabled", func() {
-			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enable: false})
+			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enabled: false})
 
 			enable := findEnvVar(envVars, "A2A_MCP_ENABLED")
 			Expect(enable).NotTo(BeNil())
@@ -428,7 +428,7 @@ var _ = Describe("Agent Controller", func() {
 
 		It("emits the A2A_MCP_* knobs when enabled", func() {
 			mcp := v1alpha1.MCPClientSpec{
-				Enable:           true,
+				Enabled:          true,
 				Servers:          []string{"http://mcp-a:8080", "http://mcp-b:8080"},
 				Endpoint:         "/mcp",
 				RefreshInterval:  "5m",
@@ -452,7 +452,7 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("omits A2A_MCP_SERVERS when no servers are configured", func() {
-			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enable: true, Endpoint: "/mcp"})
+			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enabled: true, Endpoint: "/mcp"})
 
 			Expect(findEnvVar(envVars, "A2A_MCP_SERVERS")).To(BeNil())
 			Expect(findEnvVar(envVars, "A2A_MCP_ENDPOINT").Value).To(Equal("/mcp"))
@@ -460,7 +460,7 @@ var _ = Describe("Agent Controller", func() {
 
 		It("always emits A2A_MCP_ENABLED from buildAgentEnvironmentVars", func() {
 			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{MCP: v1alpha1.MCPClientSpec{Enable: true, Servers: []string{"http://mcp:8080"}}},
+				Spec: v1alpha1.AgentSpec{MCP: v1alpha1.MCPClientSpec{Enabled: true, Servers: []string{"http://mcp:8080"}}},
 			}
 			envVars := (&AgentReconciler{}).buildAgentEnvironmentVars(agent)
 

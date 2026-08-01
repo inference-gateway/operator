@@ -22,7 +22,7 @@ spec:
         name: inference-gateway-providers-secret
         key: OPENAI_API_KEY
   mcp:
-    enable: true
+    enabled: true
     servers:
       - "http://mcp-server.inference-gateway.svc.cluster.local:8080"
     endpoint: "/mcp"
