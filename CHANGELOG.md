@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.2](https://github.com/inference-gateway/operator/compare/v0.24.1...v0.24.2) (2026-08-03)
+
+### 👷 CI
+
+* **deps:** bump docker/login-action in the github-actions group ([#199](https://github.com/inference-gateway/operator/issues/199)) ([626a4db](https://github.com/inference-gateway/operator/commit/626a4dbc3883687ebba4768694f8d143a7aadc9b))
+
 ## [0.24.1](https://github.com/inference-gateway/operator/compare/v0.24.0...v0.24.1) (2026-08-01)
 
 ### ♻️ Improvements
