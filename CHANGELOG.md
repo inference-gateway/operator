@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.3](https://github.com/inference-gateway/operator/compare/v0.24.2...v0.24.3) (2026-08-29)
+
+### 🐛 Bug Fixes
+
+* **gateway:** Correct A2A_TELEMETRY_ENABLED env var name in TelemetrySpec doc ([#206](https://github.com/inference-gateway/operator/issues/206)) ([3107d28](https://github.com/inference-gateway/operator/commit/3107d28a32b9f57d12b74ee164107beeb40e89cc))
+
+### 👷 CI
+
+* **claude:** centralize claude.yml via reusable workflow ([#204](https://github.com/inference-gateway/operator/issues/204)) ([3014ff7](https://github.com/inference-gateway/operator/commit/3014ff7decc071b39b5a7d3e4ea04748c0824872))
+* **deps:** bump github.com/onsi/ginkgo/v2 in the gomod group ([#201](https://github.com/inference-gateway/operator/issues/201)) ([1de2c99](https://github.com/inference-gateway/operator/commit/1de2c9909b43a96bfd654b8c4bf6045dd29bae1a))
+* **deps:** bump the gomod group with 3 updates ([#202](https://github.com/inference-gateway/operator/issues/202)) ([b28b710](https://github.com/inference-gateway/operator/commit/b28b710bb540d0f2df0861ebbab3552af0483474))
+
+### 🔧 Miscellaneous
+
+* **deps:** bump claude-code 2.1.201 -> 2.1.238 ([#203](https://github.com/inference-gateway/operator/issues/203)) ([24badaf](https://github.com/inference-gateway/operator/commit/24badaf474d5651d49d8cf8d96df8a8426541ee7))
+* **deps:** bump infer CLI v0.155.0 -> v0.164.0 ([#200](https://github.com/inference-gateway/operator/issues/200)) ([fae5b92](https://github.com/inference-gateway/operator/commit/fae5b925fd1daa9c3d929d4fcb717c9880454365))
+* **deps:** bump infer CLI v0.164.0 -> v0.183.0 ([#205](https://github.com/inference-gateway/operator/issues/205)) ([454e9d3](https://github.com/inference-gateway/operator/commit/454e9d343e94edb9c80df19459a0d9713ac8b35c))
+
 ## [0.24.2](https://github.com/inference-gateway/operator/compare/v0.24.1...v0.24.2) (2026-08-03)
 
 ### 👷 CI
