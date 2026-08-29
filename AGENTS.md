@@ -1,40 +1,46 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Project Structure & Module Organization
+Kubernetes operator for Inference Gateway, built with controller-runtime and kubebuilder conventions. Go 1.26+.
 
-This repository contains the Kubernetes operator for Inference Gateway. API types live in `api/v1alpha1/`; generated deepcopy code is kept alongside those types. The operator entry point is `cmd/main.go`, and reconcilers plus unit/integration-style controller tests live in `internal/controller/`. Kubernetes manifests are organized under `config/`, with generated release artifacts in `manifests/`. End-to-end tests and helpers are in `test/e2e/` and `test/utils/`. Runnable examples are under `examples/`, including Gateway, Agent, MCP, and Orchestrator samples.
+## Commands
 
-## Build, Test, and Development Commands
+All workflows run through [Task](https://taskfile.dev) (`task --list` for the full set):
 
-Use `task --list` to see all available workflows.
+- `task build` — regenerate manifests/code, format, vet, build `bin/manager`.
+- `task test` — unit/integration tests via envtest (excludes e2e), writes `cover.out`.
+- `task test:e2e` — Ginkgo e2e against a local k3d cluster (requires `ctlptl` + `k3d`).
+- `task lint` — `golangci-lint`.
+- `task generate` — regenerate deepcopy code after API changes.
+- `task manifests` — regenerate CRDs, RBAC, and `manifests/install.yaml` + `crds.yaml`.
+- `task run` — run the controller locally from `cmd/main.go`.
 
-- `task build`: regenerates manifests/code, formats, vets, and builds `bin/manager`.
-- `task run`: runs the controller locally from `cmd/main.go`.
-- `task test`: runs Go tests excluding e2e tests, using envtest and writing `cover.out`.
-- `task test:e2e`: runs Ginkgo e2e tests against a local k3d cluster managed through `ctlptl`.
-- `task lint`: runs `golangci-lint`.
-- `task generate`: refreshes generated Go code after API changes.
-- `task manifests`: regenerates CRDs, RBAC, and install manifests.
-- `task docker-build IMG=ghcr.io/inference-gateway/operator:dev`: builds the manager image.
+`task test` fetches envtest binaries and Gateway API CRDs, so it needs network on first run. `go build`/`go test` run offline.
 
-## Coding Style & Naming Conventions
+## Layout
 
-Go code uses tabs and standard `gofmt`/`goimports` formatting. YAML and Markdown use two-space indentation, LF endings, final newlines, and trimmed trailing whitespace per `.editorconfig`. Keep API types in `api/v1alpha1/*_types.go`, reconcilers in `internal/controller/*_controller.go`, and tests in matching `*_test.go` files. Run `task fmt`, `task vet`, and `task lint` before submitting changes.
+- `api/v1alpha1/` — CRD types (`gateway_types.go`, `agent_types.go`, `mcp_types.go`, `orchestrator_types.go`, `gpu_types.go`) plus generated deepcopy.
+- `internal/controller/` — reconcilers, one per CRD, with matching `*_test.go`.
+- `internal/providers/` — shared provider list (see below).
+- `config/` — kustomize bases; `manifests/` — generated release artifacts (committed).
+- `test/e2e/` — Ginkgo suites; `examples/` — runnable samples.
 
-## Testing Guidelines
+## Conventions
 
-Controller tests use Go test with controller-runtime envtest; e2e tests use Ginkgo. Add or update tests when changing reconciliation behavior, CRD schemas, defaults, validation, or generated manifests. For focused e2e runs, use `task test:e2e:focus FOCUS="test name"`. Maintain or improve coverage where practical; `task test` updates `cover.out`.
+- Go: tabs, `gofmt`/`goimports`. YAML/Markdown: two-space indent, LF, trailing newline (`.editorconfig`).
+- Keep API types in `api/v1alpha1/*_types.go`, reconcilers in `internal/controller/*_controller.go`, tests alongside.
+- Run `task fmt`, `task vet`, and `task lint` before submitting.
+- Add/update tests when changing reconciliation behavior, CRD schemas, defaults, or validation.
 
 ## Shared provider list
 
-The set of supported provider identifiers is shared with the gateway and generated from the canonical `inference-gateway/schemas` OpenAPI enum into `internal/providers/zz_generated_providers.go` (a sorted `SupportedProviders` list). To add or remove a provider, run `task generate:providers` (which runs `go generate ./internal/providers/...`) and commit the regenerated file; `task verify-shared-types` fails if it has drifted from the schema. No CRD change is needed - `ProviderSpec.Name` has no `+kubebuilder:validation:Enum`, so provider validation happens at runtime through `providers.IsSupported` (case-insensitive).
+`internal/providers/zz_generated_providers.go` is generated from the canonical `inference-gateway/schemas` OpenAPI enum. To add/remove a provider, run `task generate:providers` and commit the result; `task verify-shared-types` fails on drift. `ProviderSpec.Name` has no CRD enum — validation is runtime via `providers.IsSupported` (case-insensitive).
 
-When outbound network is blocked, `task generate:providers` and the drift test `TestSupportedProvidersMatchSchema` cannot fetch the schema: the test skips locally but hard-fails when `CI` or `GITHUB_ACTIONS` is set. If you cannot regenerate, hand-edit `zz_generated_providers.go` by inserting the id in alphabetical order (keep it gofmt-clean) and let PR CI run the real drift check. `go test` and `go build` run offline, but `task test` fetches envtest binaries; for a quick offline check of the provider list run only the network-free tests: `go test ./internal/providers/ -run 'TestIsSupported|TestSupportedProvidersHasNoDuplicates' -v`.
+When offline, the drift test skips locally but hard-fails in CI. Hand-edit the file (alphabetical, gofmt-clean) and let CI run the real check. Quick offline check: `go test ./internal/providers/ -run 'TestIsSupported|TestSupportedProvidersHasNoDuplicates' -v`.
 
-## Commit & Pull Request Guidelines
+## Commits & releases
 
-This repo releases with semantic-release and conventional commits. Prefer messages such as `feat(gateway): Add route weighting`, `fix(agent): Resolve status update error`, or `docs: Update install example`; keep the subject concise and capitalized. PRs should describe the change, link relevant issues, mention API or manifest impacts, and include test results such as `task test` and `task lint`. For API changes, commit regenerated files from `task generate` and `task manifests`.
+semantic-release + conventional commits. Subjects like `feat(gateway): Add route weighting`, `fix(agent): Resolve status update error`, `docs: Update install example`. For API changes, commit regenerated output from `task generate` and `task manifests`.
 
-## Security & Configuration Tips
+## Security
 
-Do not commit secrets in samples or manifests. Use Kubernetes Secrets for tokens and credentials, and keep local cluster configuration outside the repository. Verify generated CRDs and install manifests before release-facing changes.
+Never commit secrets in samples or manifests — use Kubernetes Secrets. Keep local cluster config out of the repo. Verify generated CRDs/install manifests before release-facing changes.
