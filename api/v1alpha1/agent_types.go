@@ -131,9 +131,9 @@ type QueueSpec struct {
 // disabled by default. This is the client side, distinct from the MCP CRD, which
 // deploys an MCP server workload.
 type MCPClientSpec struct {
-	// Enable toggles the MCP client. Emitted as A2A_MCP_ENABLE.
+	// Enabled toggles the MCP client. Emitted as A2A_MCP_ENABLED.
 	// +optional
-	Enable bool `json:"enable,omitempty"`
+	Enabled bool `json:"enabled,omitempty"`
 
 	// Servers is the list of MCP server base URLs (e.g. http://mcp:8080).
 	// Emitted as a comma-separated A2A_MCP_SERVERS; omitted when empty.

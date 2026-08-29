@@ -209,11 +209,11 @@ var _ = Describe("Gateway controller", func() {
 				Value: "production",
 			}))
 			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "TELEMETRY_ENABLE",
+				Name:  "TELEMETRY_ENABLED",
 				Value: "true",
 			}))
 			Expect(envVars).To(ContainElement(corev1.EnvVar{
-				Name:  "AUTH_ENABLE",
+				Name:  "AUTH_ENABLED",
 				Value: "true",
 			}))
 			Expect(envVars).To(ContainElement(corev1.EnvVar{
@@ -736,7 +736,7 @@ var _ = Describe("Gateway controller", func() {
 				},
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
-				{Name: "TELEMETRY_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_ENABLED", Value: "true"},
 			}, nil),
 			Entry("Telemetry enabled in development", GatewayName+"-no-telemetry", "development", &corev1alpha1.TelemetrySpec{
 				Enabled: true,
@@ -746,7 +746,7 @@ var _ = Describe("Gateway controller", func() {
 				},
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "development"},
-				{Name: "TELEMETRY_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_ENABLED", Value: "true"},
 			}, nil),
 			Entry("Traces OTLP exporter", GatewayName+"-traces", "production", &corev1alpha1.TelemetrySpec{
 				Enabled: true,
@@ -760,8 +760,8 @@ var _ = Describe("Gateway controller", func() {
 				},
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
-				{Name: "TELEMETRY_ENABLE", Value: "true"},
-				{Name: "TELEMETRY_TRACING_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_ENABLED", Value: "true"},
+				{Name: "TELEMETRY_TRACING_ENABLED", Value: "true"},
 				{Name: "TELEMETRY_TRACING_OTLP_ENDPOINT", Value: "http://otel-collector:4318"},
 			}, nil),
 			Entry("Telemetry disabled with traces", GatewayName+"-traces-disabled", "production", &corev1alpha1.TelemetrySpec{
@@ -776,9 +776,9 @@ var _ = Describe("Gateway controller", func() {
 				},
 			}, []corev1.EnvVar{
 				{Name: "ENVIRONMENT", Value: "production"},
-				{Name: "TELEMETRY_ENABLE", Value: "false"},
+				{Name: "TELEMETRY_ENABLED", Value: "false"},
 			}, []corev1.EnvVar{
-				{Name: "TELEMETRY_TRACING_ENABLE", Value: "true"},
+				{Name: "TELEMETRY_TRACING_ENABLED", Value: "true"},
 			}),
 		)
 
@@ -1008,5 +1008,93 @@ var _ = Describe("Gateway model routing", func() {
 		cm := &corev1.ConfigMap{}
 		err := r.Get(ctx, types.NamespacedName{Name: "gw-routing", Namespace: "default"}, cm)
 		Expect(err).To(HaveOccurred())
+	})
+})
+
+var _ = Describe("Gateway guardrails", func() {
+	ctx := context.Background()
+
+	newReconciler := func(objs ...client.Object) *GatewayReconciler {
+		return &GatewayReconciler{Client: testutil.NewFakeClient(objs...), Scheme: gatewayTestScheme}
+	}
+
+	makeGateway := func(gr *corev1alpha1.GuardrailsSpec) *corev1alpha1.Gateway {
+		return &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       corev1alpha1.GatewaySpec{Guardrails: gr},
+		}
+	}
+
+	hasEnv := func(env []corev1.EnvVar, name string) bool {
+		for _, e := range env {
+			if e.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	hasVolume := func(vols []corev1.Volume, name string) *corev1.Volume {
+		for i := range vols {
+			if vols[i].Name == name {
+				return &vols[i]
+			}
+		}
+		return nil
+	}
+
+	It("emits no guardrails env vars or volume when guardrails is unset", func() {
+		r := newReconciler()
+		dep := r.buildDeployment(ctx, makeGateway(nil))
+		env := dep.Spec.Template.Spec.Containers[0].Env
+		Expect(hasEnv(env, "GUARDRAILS_ENABLED")).To(BeFalse())
+		Expect(hasEnv(env, "GUARDRAILS_POLICY_DIR")).To(BeFalse())
+		Expect(hasEnv(env, "GUARDRAILS_FAIL_MODE")).To(BeFalse())
+		Expect(hasVolume(dep.Spec.Template.Spec.Volumes, "guardrails-policies")).To(BeNil())
+	})
+
+	It("wires env vars and a ConfigMap volume when guardrails is enabled with configMapRef", func() {
+		r := newReconciler()
+		dep := r.buildDeployment(ctx, makeGateway(&corev1alpha1.GuardrailsSpec{
+			Enabled:      true,
+			ConfigMapRef: &corev1.LocalObjectReference{Name: "guardrails-policies"},
+		}))
+		env := dep.Spec.Template.Spec.Containers[0].Env
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "GUARDRAILS_ENABLED", Value: "true"}))
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "GUARDRAILS_POLICY_DIR", Value: "/etc/inference-gateway/guardrails"}))
+
+		vol := hasVolume(dep.Spec.Template.Spec.Volumes, "guardrails-policies")
+		Expect(vol).NotTo(BeNil())
+		Expect(vol.ConfigMap.Name).To(Equal("guardrails-policies"))
+		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(ContainElement(
+			corev1.VolumeMount{Name: "guardrails-policies", MountPath: "/etc/inference-gateway/guardrails", ReadOnly: true},
+		))
+	})
+})
+
+var _ = Describe("Gateway MCP tool mode", func() {
+	ctx := context.Background()
+
+	buildEnv := func(mcp *corev1alpha1.MCPServersSpec) []corev1.EnvVar {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		gw := &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       corev1alpha1.GatewaySpec{MCP: mcp},
+		}
+		return r.buildDeployment(ctx, gw).Spec.Template.Spec.Containers[0].Env
+	}
+
+	It("defaults MCP_TOOL_MODE to selector when unset", func() {
+		env := buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true})
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "MCP_TOOL_MODE", Value: "selector"}))
+	})
+
+	It("emits the configured MCP_TOOL_MODE", func() {
+		env := buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true, ToolMode: "direct"})
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "MCP_TOOL_MODE", Value: "direct"}))
+	})
+
+	It("omits MCP_TOOL_MODE when MCP is disabled", func() {
+		Expect(findEnvVar(buildEnv(nil), "MCP_TOOL_MODE")).To(BeNil())
 	})
 })

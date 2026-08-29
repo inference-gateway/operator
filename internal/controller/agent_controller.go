@@ -485,7 +485,7 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 
 // agentTelemetryEnvVars maps spec.telemetry onto the Go ADK's OpenTelemetry env
 // vars, mirroring adl-cli's internal/templates/telemetry_env.go for the Go
-// (A2A_) prefix. A2A_TELEMETRY_ENABLE is always emitted; the OTEL_* exporter
+// (A2A_) prefix. A2A_TELEMETRY_ENABLED is always emitted; the OTEL_* exporter
 // vars only when telemetry is enabled.
 //
 // The Go ADK exposes a single shared OTLP endpoint pair (no per-signal OTLP
@@ -493,7 +493,7 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 // wins and the metrics endpoint can't be expressed - adl-cli does the same.
 func agentTelemetryEnvVars(tel v1alpha1.TelemetrySpec) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{
-		{Name: "A2A_TELEMETRY_ENABLE", Value: strconv.FormatBool(tel.Enabled)},
+		{Name: "A2A_TELEMETRY_ENABLED", Value: strconv.FormatBool(tel.Enabled)},
 	}
 	if !tel.Enabled {
 		return envVars
@@ -552,15 +552,15 @@ func agentTelemetryEnvVars(tel v1alpha1.TelemetrySpec) []corev1.EnvVar {
 }
 
 // agentMCPEnvVars maps spec.mcp onto the Go ADK's MCP client env vars (A2A_MCP_*
-// prefix from adk#251). A2A_MCP_ENABLE is always emitted; the connection knobs
+// prefix from adk#251). A2A_MCP_ENABLED is always emitted; the connection knobs
 // only when the client is enabled. A2A_MCP_SERVERS is emitted only when at least
 // one server URL is set, and the string knobs only when non-empty, so a
 // zero-valued field never clobbers the ADK's own default with an empty value.
 func agentMCPEnvVars(mcp v1alpha1.MCPClientSpec) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{
-		{Name: "A2A_MCP_ENABLE", Value: strconv.FormatBool(mcp.Enable)},
+		{Name: "A2A_MCP_ENABLED", Value: strconv.FormatBool(mcp.Enabled)},
 	}
-	if !mcp.Enable {
+	if !mcp.Enabled {
 		return envVars
 	}
 

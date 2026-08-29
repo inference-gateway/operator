@@ -331,10 +331,10 @@ var _ = Describe("Agent Controller", func() {
 	})
 
 	Context("agentTelemetryEnvVars", func() {
-		It("emits A2A_TELEMETRY_ENABLE=false and no OTEL vars when telemetry is disabled", func() {
+		It("emits A2A_TELEMETRY_ENABLED=false and no OTEL vars when telemetry is disabled", func() {
 			envVars := agentTelemetryEnvVars(v1alpha1.TelemetrySpec{Enabled: false})
 
-			enable := findEnvVar(envVars, "A2A_TELEMETRY_ENABLE")
+			enable := findEnvVar(envVars, "A2A_TELEMETRY_ENABLED")
 			Expect(enable).NotTo(BeNil())
 			Expect(enable.Value).To(Equal("false"))
 
@@ -342,14 +342,14 @@ var _ = Describe("Agent Controller", func() {
 			Expect(findEnvVar(envVars, "A2A_OTEL_METRICS_EXPORTER")).To(BeNil())
 		})
 
-		It("emits A2A_TELEMETRY_ENABLE (not the legacy TELEMETRY_ENABLED) from buildAgentEnvironmentVars", func() {
+		It("emits A2A_TELEMETRY_ENABLED (not the legacy TELEMETRY_ENABLED) from buildAgentEnvironmentVars", func() {
 			agent := &v1alpha1.Agent{
 				Spec: v1alpha1.AgentSpec{Telemetry: v1alpha1.TelemetrySpec{Enabled: true}},
 			}
 			envVars := (&AgentReconciler{}).buildAgentEnvironmentVars(agent)
 
-			Expect(findEnvVar(envVars, "TELEMETRY_ENABLED")).To(BeNil(), "the Go ADK reads A2A_TELEMETRY_ENABLE, not TELEMETRY_ENABLED")
-			Expect(findEnvVar(envVars, "A2A_TELEMETRY_ENABLE")).NotTo(BeNil())
+			Expect(findEnvVar(envVars, "TELEMETRY_ENABLED")).To(BeNil(), "the Go ADK reads A2A_TELEMETRY_ENABLED, not TELEMETRY_ENABLED")
+			Expect(findEnvVar(envVars, "A2A_TELEMETRY_ENABLED")).NotTo(BeNil())
 		})
 
 		It("maps traces OTLP and metrics Prometheus to A2A_OTEL_* vars", func() {
@@ -364,7 +364,7 @@ var _ = Describe("Agent Controller", func() {
 			}
 			envVars := agentTelemetryEnvVars(tel)
 
-			Expect(findEnvVar(envVars, "A2A_TELEMETRY_ENABLE").Value).To(Equal("true"))
+			Expect(findEnvVar(envVars, "A2A_TELEMETRY_ENABLED").Value).To(Equal("true"))
 			Expect(findEnvVar(envVars, "A2A_OTEL_TRACES_EXPORTER").Value).To(Equal("otlp"))
 			Expect(findEnvVar(envVars, "A2A_OTEL_METRICS_EXPORTER").Value).To(Equal("prometheus"))
 			Expect(findEnvVar(envVars, "A2A_OTEL_EXPORTER_OTLP_ENDPOINT").Value).To(Equal("http://localhost:4318"))
@@ -414,10 +414,10 @@ var _ = Describe("Agent Controller", func() {
 	})
 
 	Context("agentMCPEnvVars", func() {
-		It("emits A2A_MCP_ENABLE=false and no other MCP vars when disabled", func() {
-			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enable: false})
+		It("emits A2A_MCP_ENABLED=false and no other MCP vars when disabled", func() {
+			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enabled: false})
 
-			enable := findEnvVar(envVars, "A2A_MCP_ENABLE")
+			enable := findEnvVar(envVars, "A2A_MCP_ENABLED")
 			Expect(enable).NotTo(BeNil())
 			Expect(enable.Value).To(Equal("false"))
 
@@ -428,7 +428,7 @@ var _ = Describe("Agent Controller", func() {
 
 		It("emits the A2A_MCP_* knobs when enabled", func() {
 			mcp := v1alpha1.MCPClientSpec{
-				Enable:           true,
+				Enabled:          true,
 				Servers:          []string{"http://mcp-a:8080", "http://mcp-b:8080"},
 				Endpoint:         "/mcp",
 				RefreshInterval:  "5m",
@@ -440,7 +440,7 @@ var _ = Describe("Agent Controller", func() {
 			}
 			envVars := agentMCPEnvVars(mcp)
 
-			Expect(findEnvVar(envVars, "A2A_MCP_ENABLE").Value).To(Equal("true"))
+			Expect(findEnvVar(envVars, "A2A_MCP_ENABLED").Value).To(Equal("true"))
 			Expect(findEnvVar(envVars, "A2A_MCP_SERVERS").Value).To(Equal("http://mcp-a:8080,http://mcp-b:8080"))
 			Expect(findEnvVar(envVars, "A2A_MCP_ENDPOINT").Value).To(Equal("/mcp"))
 			Expect(findEnvVar(envVars, "A2A_MCP_REFRESH_INTERVAL").Value).To(Equal("5m"))
@@ -452,19 +452,19 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("omits A2A_MCP_SERVERS when no servers are configured", func() {
-			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enable: true, Endpoint: "/mcp"})
+			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enabled: true, Endpoint: "/mcp"})
 
 			Expect(findEnvVar(envVars, "A2A_MCP_SERVERS")).To(BeNil())
 			Expect(findEnvVar(envVars, "A2A_MCP_ENDPOINT").Value).To(Equal("/mcp"))
 		})
 
-		It("always emits A2A_MCP_ENABLE from buildAgentEnvironmentVars", func() {
+		It("always emits A2A_MCP_ENABLED from buildAgentEnvironmentVars", func() {
 			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{MCP: v1alpha1.MCPClientSpec{Enable: true, Servers: []string{"http://mcp:8080"}}},
+				Spec: v1alpha1.AgentSpec{MCP: v1alpha1.MCPClientSpec{Enabled: true, Servers: []string{"http://mcp:8080"}}},
 			}
 			envVars := (&AgentReconciler{}).buildAgentEnvironmentVars(agent)
 
-			Expect(findEnvVar(envVars, "A2A_MCP_ENABLE").Value).To(Equal("true"))
+			Expect(findEnvVar(envVars, "A2A_MCP_ENABLED").Value).To(Equal("true"))
 			Expect(findEnvVar(envVars, "A2A_MCP_SERVERS").Value).To(Equal("http://mcp:8080"))
 		})
 	})

@@ -1,4 +1,4 @@
-schema-version = "1.13.0"
+schema-version = "1.15.0"
 
 [install]
 go.pkg-path = "go"
@@ -23,9 +23,9 @@ kustomize.pkg-path = "kustomize"
 kustomize.version = "5.8.1"
 prettier.pkg-path = "prettier"
 prettier.version = "^3.8.3"
-infer.flake = "github:inference-gateway/cli/v0.147.1"
+infer.flake = "github:inference-gateway/cli/v0.183.0"
 claude-code.pkg-path = "claude-code"
-claude-code.version = "^2.1.201"
+claude-code.version = "^2.1.238"
 claude-code.pkg-group = "claude-code"
 codex.pkg-path = "codex"
 codex.version = "^0.135.0"
