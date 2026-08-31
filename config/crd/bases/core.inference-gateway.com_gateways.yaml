@@ -78,7 +78,9 @@ spec:
                           SSL_CERT_FILE at it so the Go runtime trusts the issuer during OIDC discovery.
                         properties:
                           key:
-                            description: The key to select.
+                            description: |-
+                              The key to select from the ConfigMap's Data field.
+                              Keys in the BinaryData field are not currently propagated to container env vars.
                             type: string
                           name:
                             default: ""
@@ -497,9 +499,6 @@ spec:
                                   For example, if autoscaling is configured with a memory consumption target of 100Mi,
                                   and scale-down and scale-up tolerances of 5% and 1% respectively, scaling will be
                                   triggered when the actual consumption falls below 95Mi or exceeds 101Mi.
-
-                                  This is an beta field and requires the HPAConfigurableTolerance feature
-                                  gate to be enabled.
                                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                 x-kubernetes-int-or-string: true
                             type: object
@@ -572,9 +571,6 @@ spec:
                                   For example, if autoscaling is configured with a memory consumption target of 100Mi,
                                   and scale-down and scale-up tolerances of 5% and 1% respectively, scaling will be
                                   triggered when the actual consumption falls below 95Mi or exceeds 101Mi.
-
-                                  This is an beta field and requires the HPAConfigurableTolerance feature
-                                  gate to be enabled.
                                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                                 x-kubernetes-int-or-string: true
                             type: object
@@ -1288,7 +1284,9 @@ spec:
                                 description: Selects a key of a ConfigMap.
                                 properties:
                                   key:
-                                    description: The key to select.
+                                    description: |-
+                                      The key to select from the ConfigMap's Data field.
+                                      Keys in the BinaryData field are not currently propagated to container env vars.
                                     type: string
                                   name:
                                     default: ""
@@ -1470,7 +1468,9 @@ spec:
                       instead of rendering Config. Mutually exclusive with Config.
                     properties:
                       key:
-                        description: The key to select.
+                        description: |-
+                          The key to select from the ConfigMap's Data field.
+                          Keys in the BinaryData field are not currently propagated to container env vars.
                         type: string
                       name:
                         default: ""
