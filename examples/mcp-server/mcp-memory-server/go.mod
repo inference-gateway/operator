@@ -1,6 +1,6 @@
 module github.com/inference-gateway/operator/examples/mcp-server/mcp-memory-server
 
-go 1.26.2
+go 1.26.7
 
 require github.com/metoro-io/mcp-golang v0.16.1
 

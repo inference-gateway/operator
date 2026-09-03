@@ -292,7 +292,7 @@ cd operator
 # Install CRDs
 task install
 
-# Build and deploy operator (requires Go 1.26.2+)
+# Build and deploy operator (requires Go 1.26.7+)
 task deploy IMG=ghcr.io/inference-gateway/operator:latest
 ```
 
