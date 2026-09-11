@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.0](https://github.com/inference-gateway/operator/compare/v0.24.3...v0.25.0) (2026-09-11)
+
+### ✨ Features
+
+* **gateway:** add spec.auth.oidc.audiences rendered to AUTH_OIDC_AUDIENCE ([#217](https://github.com/inference-gateway/operator/issues/217)) ([01f7dec](https://github.com/inference-gateway/operator/commit/01f7dec417a3f7a71aa950c2bd3666648c7d72ce)), closes [#216](https://github.com/inference-gateway/operator/issues/216)
+
+### 👷 CI
+
+* **deps:** bump google.golang.org/grpc from 1.82.1 to 1.83.1 ([#209](https://github.com/inference-gateway/operator/issues/209)) ([8e3711a](https://github.com/inference-gateway/operator/commit/8e3711a3597cdae80caf0c3c2fbd3f27d5482933))
+* **deps:** bump google.golang.org/grpc from 1.83.1 to 1.83.2 ([#215](https://github.com/inference-gateway/operator/issues/215)) ([b3c78bb](https://github.com/inference-gateway/operator/commit/b3c78bb842cf938763a8b1f29745839aacce98f8))
+* **deps:** bump the gomod group with 2 updates ([#214](https://github.com/inference-gateway/operator/issues/214)) ([5f03f10](https://github.com/inference-gateway/operator/commit/5f03f10a22b038441bcacd75f613a0c1b5697288))
+* **deps:** bump the gomod group with 3 updates ([#208](https://github.com/inference-gateway/operator/issues/208)) ([03aa829](https://github.com/inference-gateway/operator/commit/03aa829434b18ba4d0af19565d809427fb24fc15))
+
+### 📚 Documentation
+
+* Condense AGENTS.md into concise agent instructions ([#207](https://github.com/inference-gateway/operator/issues/207)) ([12bc01b](https://github.com/inference-gateway/operator/commit/12bc01bda4cbfa2213e0e71a4f5511dba85776db))
+
+### 🔧 Miscellaneous
+
+* **deps:** bump claude-code 2.1.238 -> 2.1.245 ([#210](https://github.com/inference-gateway/operator/issues/210)) ([dc6b3a9](https://github.com/inference-gateway/operator/commit/dc6b3a99e0bf08d05e840537ccdb2f5c32f2d750))
+* **deps:** bump go toolchain to 1.26.7 and pin explicitly ([#212](https://github.com/inference-gateway/operator/issues/212)) ([6345c09](https://github.com/inference-gateway/operator/commit/6345c090d330fa0b16ec8dc5c6508ce47f3c965a))
+
 ## [0.24.3](https://github.com/inference-gateway/operator/compare/v0.24.2...v0.24.3) (2026-08-29)
 
 ### 🐛 Bug Fixes
