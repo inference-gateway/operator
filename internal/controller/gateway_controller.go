@@ -531,6 +531,12 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 				Value: oidc.ClientID,
 			},
 		)
+		if len(oidc.Audiences) > 0 {
+			envVars = append(envVars, corev1.EnvVar{
+				Name:  "AUTH_OIDC_AUDIENCE",
+				Value: strings.Join(oidc.Audiences, ","),
+			})
+		}
 		if oidc.ClientSecretRef != nil {
 			envVars = append(envVars, corev1.EnvVar{
 				Name: "AUTH_OIDC_CLIENT_SECRET",

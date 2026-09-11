@@ -500,6 +500,9 @@ spec:
     oidc:
       issuerUrl: "https://auth.company.com/realms/ai"
       clientId: "inference-gateway"
+      # Optional: aud values to accept instead of clientId (AUTH_OIDC_AUDIENCE)
+      audiences:
+        - "api://inference-gateway"
       clientSecretRef:
         name: auth-secrets
         key: client-secret
