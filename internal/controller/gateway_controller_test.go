@@ -132,6 +132,7 @@ var _ = Describe("Gateway controller", func() {
 						OIDC: &corev1alpha1.OIDCSpec{
 							IssuerURL: "https://auth.example.com",
 							ClientID:  "test-client",
+							Audiences: []string{"api://inference-gateway", "inference-gateway-client"},
 							ClientSecretRef: &corev1.SecretKeySelector{
 								LocalObjectReference: corev1.LocalObjectReference{
 									Name: "oidc-secret",
@@ -223,6 +224,10 @@ var _ = Describe("Gateway controller", func() {
 			Expect(envVars).To(ContainElement(corev1.EnvVar{
 				Name:  "AUTH_OIDC_CLIENT_ID",
 				Value: "test-client",
+			}))
+			Expect(envVars).To(ContainElement(corev1.EnvVar{
+				Name:  "AUTH_OIDC_AUDIENCE",
+				Value: "api://inference-gateway,inference-gateway-client",
 			}))
 			Expect(envVars).To(ContainElement(MatchFields(IgnoreExtras, Fields{
 				"Name":      Equal("AUTH_OIDC_CLIENT_SECRET"),

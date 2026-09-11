@@ -888,6 +888,14 @@ spec:
                   oidc:
                     description: OIDC configuration
                     properties:
+                      audiences:
+                        description: |-
+                          Audiences lists the token aud values the gateway accepts, for example an
+                          API identifier. Rendered comma-separated into AUTH_OIDC_AUDIENCE. When
+                          empty the gateway falls back to ClientID.
+                        items:
+                          type: string
+                        type: array
                       caCertRef:
                         description: |-
                           CACertRef references a ConfigMap key holding a PEM-encoded CA certificate

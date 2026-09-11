@@ -310,6 +310,12 @@ type OIDCSpec struct {
 	// +kubebuilder:default="inference-gateway-client"
 	ClientID string `json:"clientId,omitempty"`
 
+	// Audiences lists the token aud values the gateway accepts, for example an
+	// API identifier. Rendered comma-separated into AUTH_OIDC_AUDIENCE. When
+	// empty the gateway falls back to ClientID.
+	// +optional
+	Audiences []string `json:"audiences,omitempty"`
+
 	// Reference to a secret containing the client secret
 	// +optional
 	ClientSecretRef *corev1.SecretKeySelector `json:"clientSecretRef,omitempty"`
