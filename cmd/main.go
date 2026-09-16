@@ -22,25 +22,21 @@ import (
 	"os"
 	"path/filepath"
 
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-
-	"k8s.io/apimachinery/pkg/runtime"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	certwatcher "sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	healthz "sigs.k8s.io/controller-runtime/pkg/healthz"
+	zap "sigs.k8s.io/controller-runtime/pkg/log/zap"
+	filters "sigs.k8s.io/controller-runtime/pkg/metrics/filters"
+	server "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	webhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
-	"github.com/inference-gateway/operator/internal/controller"
-	// +kubebuilder:scaffold:imports
+	controller "github.com/inference-gateway/operator/internal/controller"
 )
 
 var (
@@ -139,7 +135,7 @@ func main() {
 	// More info:
 	// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/metrics/server
 	// - https://book.kubebuilder.io/reference/metrics.html
-	metricsServerOptions := metricsserver.Options{
+	metricsServerOptions := server.Options{
 		BindAddress:   metricsAddr,
 		SecureServing: secureMetrics,
 		TLSOpts:       tlsOpts,

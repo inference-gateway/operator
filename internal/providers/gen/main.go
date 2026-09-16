@@ -29,7 +29,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/inference-gateway/operator/internal/providers/schema"
+	schema "github.com/inference-gateway/operator/internal/providers/schema"
 )
 
 // outputFile is written relative to the generator's working directory. Under

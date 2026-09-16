@@ -22,10 +22,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -105,7 +106,7 @@ var _ = Describe("Agent invalid spec handling", func() {
 		updated := &corev1alpha1.Agent{}
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, key, updated)).To(Succeed())
-			cond := apimeta.FindStatusCondition(updated.Status.Conditions, "Ready")
+			cond := meta.FindStatusCondition(updated.Status.Conditions, "Ready")
 			g.Expect(cond).NotTo(BeNil())
 			g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 			g.Expect(cond.Reason).To(Equal("InvalidSpec"))

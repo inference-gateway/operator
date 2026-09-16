@@ -25,7 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	errors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -33,9 +33,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	log "sigs.k8s.io/controller-runtime/pkg/log"
 
-	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
 const (
@@ -95,7 +95,7 @@ type MCPReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *MCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 	logger.Info("reconciling mcp", "mcp", req.NamespacedName)
 
 	if !r.shouldWatchNamespace(ctx, req.Namespace) {
@@ -103,7 +103,7 @@ func (r *MCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, nil
 	}
 
-	var mcp v1alpha1.MCP
+	var mcp corev1alpha1.MCP
 	if err := r.Get(ctx, req.NamespacedName, &mcp); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			logger.V(1).Info("mcp not found, probably deleted")
@@ -145,8 +145,8 @@ func (r *MCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 }
 
 // reconcileHPA reconciles the Horizontal Pod Autoscaler for the MCP.
-func (r *MCPReconciler) reconcileHPA(ctx context.Context, mcp *v1alpha1.MCP, deployment *appsv1.Deployment) (*autoscalingv2.HorizontalPodAutoscaler, error) {
-	logger := logf.FromContext(ctx)
+func (r *MCPReconciler) reconcileHPA(ctx context.Context, mcp *corev1alpha1.MCP, deployment *appsv1.Deployment) (*autoscalingv2.HorizontalPodAutoscaler, error) {
+	logger := log.FromContext(ctx)
 
 	switch {
 	case mcp.Spec.HPA == nil:
@@ -164,7 +164,7 @@ func (r *MCPReconciler) reconcileHPA(ctx context.Context, mcp *v1alpha1.MCP, dep
 	hpaConfig := mcp.Spec.HPA.Config
 	if hpaConfig == nil {
 		logger.V(1).Info("hpa config is nil, using default values", "mcp", mcp.Name)
-		hpaConfig = &v1alpha1.CustomHorizontalPodAutoscalerSpec{
+		hpaConfig = &corev1alpha1.CustomHorizontalPodAutoscalerSpec{
 			MinReplicas: &defaultMinReplicas,
 			MaxReplicas: defaultMaxReplicas,
 			Metrics:     []autoscalingv2.MetricSpec{},
@@ -202,13 +202,13 @@ func (r *MCPReconciler) reconcileHPA(ctx context.Context, mcp *v1alpha1.MCP, dep
 
 // createOrUpdateHPA creates or updates the HPA resource
 func (r *MCPReconciler) createOrUpdateHPA(ctx context.Context, desiredHPA *autoscalingv2.HorizontalPodAutoscaler) (*autoscalingv2.HorizontalPodAutoscaler, error) {
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	found := &autoscalingv2.HorizontalPodAutoscaler{}
 	err := r.Get(ctx, types.NamespacedName{Name: desiredHPA.Name, Namespace: desiredHPA.Namespace}, found)
 
 	switch {
-	case errors.IsNotFound(err):
+	case apierrors.IsNotFound(err):
 		logger.Info("creating hpa", "hpa", desiredHPA.Name)
 		if err := r.Create(ctx, desiredHPA); err != nil {
 			return nil, fmt.Errorf("failed to create hpa %s: %w", desiredHPA.Name, err)
@@ -232,8 +232,8 @@ func (r *MCPReconciler) createOrUpdateHPA(ctx context.Context, desiredHPA *autos
 }
 
 // reconcileDeployment reconciles the Deployment for the MCP.
-func (r *MCPReconciler) reconcileDeployment(ctx context.Context, mcp *v1alpha1.MCP) (*appsv1.Deployment, error) {
-	logger := logf.FromContext(ctx)
+func (r *MCPReconciler) reconcileDeployment(ctx context.Context, mcp *corev1alpha1.MCP) (*appsv1.Deployment, error) {
+	logger := log.FromContext(ctx)
 	if mcp == nil {
 		logger.Error(nil, "MCP is nil, cannot reconcile deployment")
 		return nil, fmt.Errorf("MCP is nil")
@@ -251,7 +251,7 @@ func (r *MCPReconciler) reconcileDeployment(ctx context.Context, mcp *v1alpha1.M
 	return r.createOrUpdateDeployment(ctx, mcp, deployment)
 }
 
-func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
+func (r *MCPReconciler) buildDeployment(mcp *corev1alpha1.MCP) *appsv1.Deployment {
 	if mcp == nil {
 		return nil
 	}
@@ -363,8 +363,8 @@ func (r *MCPReconciler) buildDeployment(mcp *v1alpha1.MCP) *appsv1.Deployment {
 }
 
 // createOrUpdateDeployment creates or updates the Deployment resource
-func (r *MCPReconciler) createOrUpdateDeployment(ctx context.Context, mcp *v1alpha1.MCP, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	logger := logf.FromContext(ctx)
+func (r *MCPReconciler) createOrUpdateDeployment(ctx context.Context, mcp *corev1alpha1.MCP, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+	logger := log.FromContext(ctx)
 
 	if deployment == nil {
 		logger.V(1).Info("deployment spec is nil, skipping deployment creation", "mcp", mcp.Name)
@@ -375,7 +375,7 @@ func (r *MCPReconciler) createOrUpdateDeployment(ctx context.Context, mcp *v1alp
 	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
 
 	switch {
-	case errors.IsNotFound(err):
+	case apierrors.IsNotFound(err):
 		logger.Info("creating deployment", "deployment", deployment.Name)
 		if err = r.Create(ctx, deployment); err != nil {
 			return nil, fmt.Errorf("failed to create deployment %s: %w", deployment.Name, err)
@@ -388,8 +388,8 @@ func (r *MCPReconciler) createOrUpdateDeployment(ctx context.Context, mcp *v1alp
 	return r.updateDeploymentIfNeeded(ctx, mcp, deployment, found)
 }
 
-func (r *MCPReconciler) updateDeploymentIfNeeded(ctx context.Context, _ *v1alpha1.MCP, deployment *appsv1.Deployment, found *appsv1.Deployment) (*appsv1.Deployment, error) {
-	logger := logf.FromContext(ctx)
+func (r *MCPReconciler) updateDeploymentIfNeeded(ctx context.Context, _ *corev1alpha1.MCP, deployment *appsv1.Deployment, found *appsv1.Deployment) (*appsv1.Deployment, error) {
+	logger := log.FromContext(ctx)
 
 	if reflect.DeepEqual(&deployment.Spec, &found.Spec) {
 		logger.V(1).Info("deployment up-to-date, no update needed", "deployment", found.Name)
@@ -407,7 +407,7 @@ func (r *MCPReconciler) updateDeploymentIfNeeded(ctx context.Context, _ *v1alpha
 }
 
 // reconcileService reconciles the Service for the MCP.
-func (r *MCPReconciler) reconcileService(ctx context.Context, mcp *v1alpha1.MCP) (*corev1.Service, error) {
+func (r *MCPReconciler) reconcileService(ctx context.Context, mcp *corev1alpha1.MCP) (*corev1.Service, error) {
 	if mcp == nil {
 		return nil, fmt.Errorf("mcp is nil")
 	}
@@ -425,7 +425,7 @@ func (r *MCPReconciler) reconcileService(ctx context.Context, mcp *v1alpha1.MCP)
 }
 
 // buildService builds the Service resource for the MCP.
-func (r *MCPReconciler) buildService(mcp *v1alpha1.MCP) *corev1.Service {
+func (r *MCPReconciler) buildService(mcp *corev1alpha1.MCP) *corev1.Service {
 	if mcp == nil {
 		return nil
 	}
@@ -463,13 +463,13 @@ func (r *MCPReconciler) buildService(mcp *v1alpha1.MCP) *corev1.Service {
 
 // createOrUpdateService creates or updates the Service resource
 func (r *MCPReconciler) createOrUpdateService(ctx context.Context, desiredService *corev1.Service) (*corev1.Service, error) {
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	found := &corev1.Service{}
 	err := r.Get(ctx, types.NamespacedName{Name: desiredService.Name, Namespace: desiredService.Namespace}, found)
 
 	switch {
-	case errors.IsNotFound(err):
+	case apierrors.IsNotFound(err):
 		logger.Info("creating service", "service", desiredService.Name)
 		if err := r.Create(ctx, desiredService); err != nil {
 			return nil, fmt.Errorf("failed to create service %s: %w", desiredService.Name, err)
@@ -496,8 +496,8 @@ func (r *MCPReconciler) createOrUpdateService(ctx context.Context, desiredServic
 }
 
 // updateStatus updates the MCP status with URL and ready state
-func (r *MCPReconciler) updateStatus(ctx context.Context, mcp *v1alpha1.MCP, service *corev1.Service, deployment *appsv1.Deployment) error {
-	logger := logf.FromContext(ctx)
+func (r *MCPReconciler) updateStatus(ctx context.Context, mcp *corev1alpha1.MCP, service *corev1.Service, deployment *appsv1.Deployment) error {
+	logger := log.FromContext(ctx)
 
 	url := r.buildServiceURL(mcp, service)
 
@@ -531,7 +531,7 @@ func (r *MCPReconciler) updateStatus(ctx context.Context, mcp *v1alpha1.MCP, ser
 }
 
 // buildServiceURL constructs the URL for the MCP service
-func (r *MCPReconciler) buildServiceURL(mcp *v1alpha1.MCP, service *corev1.Service) string {
+func (r *MCPReconciler) buildServiceURL(mcp *corev1alpha1.MCP, service *corev1.Service) string {
 	if service == nil {
 		return ""
 	}
@@ -552,7 +552,7 @@ func (r *MCPReconciler) buildServiceURL(mcp *v1alpha1.MCP, service *corev1.Servi
 // mcpProtocolPath returns the MCP protocol path for the given MCP CR, defaulting
 // to "/mcp" when unset. The kubebuilder default fills this in for new resources;
 // the explicit fallback keeps older objects and unit-test fixtures working.
-func mcpProtocolPath(mcp *v1alpha1.MCP) string {
+func mcpProtocolPath(mcp *corev1alpha1.MCP) string {
 	if mcp.Spec.Server == nil || mcp.Spec.Server.Path == "" {
 		return "/mcp"
 	}
@@ -595,7 +595,7 @@ func (r *MCPReconciler) shouldWatchNamespace(ctx context.Context, namespace stri
 // SetupWithManager sets up the controller with the Manager.
 func (r *MCPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.MCP{}).
+		For(&corev1alpha1.MCP{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).

@@ -27,13 +27,12 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	errors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
 var _ = Describe("MCP Controller", func() {
@@ -81,11 +80,11 @@ var _ = Describe("MCP Controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 				}
 
-				resource := &v1alpha1.MCP{}
+				resource := &corev1alpha1.MCP{}
 				getErr := k8sClient.Get(ctx, nn, resource)
 
 				if tc.expectNotFound {
-					Expect(errors.IsNotFound(getErr)).To(BeTrue())
+					Expect(apierrors.IsNotFound(getErr)).To(BeTrue())
 				} else {
 					Expect(getErr).NotTo(HaveOccurred())
 				}
@@ -95,7 +94,7 @@ var _ = Describe("MCP Controller", func() {
 
 			Entry("resource exists and reconciles successfully", "exists", testCase{
 				setup: func(ctx context.Context, nn types.NamespacedName) {
-					Expect(k8sClient.Create(ctx, &v1alpha1.MCP{
+					Expect(k8sClient.Create(ctx, &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      nn.Name,
 							Namespace: nn.Namespace,
@@ -111,7 +110,7 @@ var _ = Describe("MCP Controller", func() {
 
 			Entry("resource marked for deletion", "deleting", testCase{
 				setup: func(ctx context.Context, nn types.NamespacedName) {
-					Expect(k8sClient.Create(ctx, &v1alpha1.MCP{
+					Expect(k8sClient.Create(ctx, &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:              nn.Name,
 							Namespace:         nn.Namespace,
@@ -123,19 +122,19 @@ var _ = Describe("MCP Controller", func() {
 
 			Entry("resource with invalid spec", "invalid-spec", testCase{
 				setup: func(ctx context.Context, nn types.NamespacedName) {
-					Expect(k8sClient.Create(ctx, &v1alpha1.MCP{
+					Expect(k8sClient.Create(ctx, &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      nn.Name,
 							Namespace: nn.Namespace,
 						},
-						Spec: v1alpha1.MCPSpec{},
+						Spec: corev1alpha1.MCPSpec{},
 					})).To(Succeed())
 				},
 			}),
 
 			Entry("resource already deleted before reconcile", "already-deleted", testCase{
 				setup: func(ctx context.Context, nn types.NamespacedName) {
-					mcp := &v1alpha1.MCP{
+					mcp := &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      nn.Name,
 							Namespace: nn.Namespace,
@@ -149,7 +148,7 @@ var _ = Describe("MCP Controller", func() {
 
 			Entry("resource with finalizer", "has-finalizer", testCase{
 				setup: func(ctx context.Context, nn types.NamespacedName) {
-					Expect(k8sClient.Create(ctx, &v1alpha1.MCP{
+					Expect(k8sClient.Create(ctx, &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:       nn.Name,
 							Namespace:  nn.Namespace,
@@ -167,24 +166,24 @@ var _ = Describe("MCPReconciler", func() {
 		var (
 			ctx        context.Context
 			reconciler *MCPReconciler
-			baseMCP    *v1alpha1.MCP
+			baseMCP    *corev1alpha1.MCP
 		)
 
 		BeforeEach(func() {
 			ctx = context.Background()
 			reconciler = &MCPReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
 
-			baseMCP = &v1alpha1.MCP{
+			baseMCP = &corev1alpha1.MCP{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-mcp",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.MCPSpec{},
+				Spec: corev1alpha1.MCPSpec{},
 			}
 		})
 
 		DescribeTable("HPA reconciliation cases",
-			func(modifyMCP func(m *v1alpha1.MCP), deploymentFunc func() *appsv1.Deployment, expectNil, expectErr, expectDefaults bool) {
+			func(modifyMCP func(m *corev1alpha1.MCP), deploymentFunc func() *appsv1.Deployment, expectNil, expectErr, expectDefaults bool) {
 				mcp := baseMCP.DeepCopy()
 				if modifyMCP != nil {
 					modifyMCP(mcp)
@@ -227,25 +226,25 @@ var _ = Describe("MCPReconciler", func() {
 			Entry("returns nil if HPA spec is nil", nil, nil, true, false, false),
 
 			Entry("returns nil if HPA is disabled",
-				func(m *v1alpha1.MCP) {
-					m.Spec.HPA = &v1alpha1.HPASpec{Enabled: false}
+				func(m *corev1alpha1.MCP) {
+					m.Spec.HPA = &corev1alpha1.HPASpec{Enabled: false}
 				}, nil, true, false, false),
 
 			Entry("returns error if deployment is nil and HPA is enabled",
-				func(m *v1alpha1.MCP) {
+				func(m *corev1alpha1.MCP) {
 					m.Spec.Image = "test:image"
-					m.Spec.HPA = &v1alpha1.HPASpec{Enabled: true}
+					m.Spec.HPA = &corev1alpha1.HPASpec{Enabled: true}
 				}, nil, false, true, false),
 
 			Entry("returns nil if HPA is enabled but no image is set (deployment would be nil)",
-				func(m *v1alpha1.MCP) {
-					m.Spec.HPA = &v1alpha1.HPASpec{Enabled: true}
+				func(m *corev1alpha1.MCP) {
+					m.Spec.HPA = &corev1alpha1.HPASpec{Enabled: true}
 				}, nil, false, true, false),
 
 			Entry("uses default HPA config if config is nil",
-				func(m *v1alpha1.MCP) {
+				func(m *corev1alpha1.MCP) {
 					m.Spec.Image = "test:image"
-					m.Spec.HPA = &v1alpha1.HPASpec{Enabled: true, Config: nil}
+					m.Spec.HPA = &corev1alpha1.HPASpec{Enabled: true, Config: nil}
 				}, func() *appsv1.Deployment {
 					return &appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
@@ -272,7 +271,7 @@ var _ = Describe("MCPReconciler", func() {
 		})
 
 		DescribeTable("reconcileService scenarios",
-			func(mcpFunc func() *v1alpha1.MCP, expectErr bool, expectNil bool, validateService func(*corev1.Service)) {
+			func(mcpFunc func() *corev1alpha1.MCP, expectErr bool, expectNil bool, validateService func(*corev1.Service)) {
 				mcp := mcpFunc()
 				DeferCleanup(func() {
 					if mcp != nil {
@@ -301,13 +300,13 @@ var _ = Describe("MCPReconciler", func() {
 			},
 
 			Entry("creates service with default port for basic MCP",
-				func() *v1alpha1.MCP {
-					mcp := &v1alpha1.MCP{
+				func() *corev1alpha1.MCP {
+					mcp := &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test-service-basic",
 							Namespace: "default",
 						},
-						Spec: v1alpha1.MCPSpec{
+						Spec: corev1alpha1.MCPSpec{
 							Image: "test:image",
 						},
 					}
@@ -323,15 +322,15 @@ var _ = Describe("MCPReconciler", func() {
 				}),
 
 			Entry("creates service with custom port",
-				func() *v1alpha1.MCP {
-					mcp := &v1alpha1.MCP{
+				func() *corev1alpha1.MCP {
+					mcp := &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test-service-custom-port",
 							Namespace: "default",
 						},
-						Spec: v1alpha1.MCPSpec{
+						Spec: corev1alpha1.MCPSpec{
 							Image: "test:image",
-							Server: &v1alpha1.MCPServerSpec{
+							Server: &corev1alpha1.MCPServerSpec{
 								Port: 8080,
 							},
 						},
@@ -343,13 +342,13 @@ var _ = Describe("MCPReconciler", func() {
 				}),
 
 			Entry("returns error for nil MCP",
-				func() *v1alpha1.MCP {
+				func() *corev1alpha1.MCP {
 					return nil
 				}, true, true, nil),
 		)
 
 		DescribeTable("buildServiceURL scenarios",
-			func(mcpFunc func() *v1alpha1.MCP, serviceFunc func() *corev1.Service, expectedURL string) {
+			func(mcpFunc func() *corev1alpha1.MCP, serviceFunc func() *corev1.Service, expectedURL string) {
 				mcp := mcpFunc()
 				service := serviceFunc()
 
@@ -358,13 +357,13 @@ var _ = Describe("MCPReconciler", func() {
 			},
 
 			Entry("builds HTTP URL with default port",
-				func() *v1alpha1.MCP {
-					return &v1alpha1.MCP{
+				func() *corev1alpha1.MCP {
+					return &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test-url",
 							Namespace: "default",
 						},
-						Spec: v1alpha1.MCPSpec{
+						Spec: corev1alpha1.MCPSpec{
 							Image: "test:image",
 						},
 					}
@@ -380,17 +379,17 @@ var _ = Describe("MCPReconciler", func() {
 				"http://test-url-service.default.svc.cluster.local:3000/mcp"),
 
 			Entry("builds HTTPS URL when TLS is enabled",
-				func() *v1alpha1.MCP {
-					return &v1alpha1.MCP{
+				func() *corev1alpha1.MCP {
+					return &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test-url-tls",
 							Namespace: "default",
 						},
-						Spec: v1alpha1.MCPSpec{
+						Spec: corev1alpha1.MCPSpec{
 							Image: "test:image",
-							Server: &v1alpha1.MCPServerSpec{
+							Server: &corev1alpha1.MCPServerSpec{
 								Port: 8443,
-								TLS: &v1alpha1.MCPTLSConfig{
+								TLS: &corev1alpha1.MCPTLSConfig{
 									Enabled:    true,
 									SecretName: "tls-secret",
 								},
@@ -409,15 +408,15 @@ var _ = Describe("MCPReconciler", func() {
 				"https://test-url-tls-service.default.svc.cluster.local:8443/mcp"),
 
 			Entry("builds URL with custom port",
-				func() *v1alpha1.MCP {
-					return &v1alpha1.MCP{
+				func() *corev1alpha1.MCP {
+					return &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test-url-custom",
 							Namespace: "default",
 						},
-						Spec: v1alpha1.MCPSpec{
+						Spec: corev1alpha1.MCPSpec{
 							Image: "test:image",
-							Server: &v1alpha1.MCPServerSpec{
+							Server: &corev1alpha1.MCPServerSpec{
 								Port: 9090,
 							},
 						},
@@ -434,8 +433,8 @@ var _ = Describe("MCPReconciler", func() {
 				"http://test-url-custom-service.production.svc.cluster.local:9090/mcp"),
 
 			Entry("returns empty string for nil service",
-				func() *v1alpha1.MCP {
-					return &v1alpha1.MCP{
+				func() *corev1alpha1.MCP {
+					return &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test-url-nil",
 							Namespace: "default",
@@ -547,15 +546,15 @@ var _ = Describe("MCPReconciler", func() {
 		})
 
 		It("should update status with URL and ready state", func() {
-			mcp := &v1alpha1.MCP{
+			mcp := &corev1alpha1.MCP{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "test-status-update",
 					Namespace:  "default",
 					Generation: 1,
 				},
-				Spec: v1alpha1.MCPSpec{
+				Spec: corev1alpha1.MCPSpec{
 					Image: "test:image",
-					Server: &v1alpha1.MCPServerSpec{
+					Server: &corev1alpha1.MCPServerSpec{
 						Port: 8080,
 					},
 				},
@@ -584,7 +583,7 @@ var _ = Describe("MCPReconciler", func() {
 			err := reconciler.updateStatus(ctx, mcp, service, deployment)
 			Expect(err).NotTo(HaveOccurred())
 
-			updatedMCP := &v1alpha1.MCP{}
+			updatedMCP := &corev1alpha1.MCP{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      "test-status-update",
 				Namespace: "default",
@@ -596,16 +595,16 @@ var _ = Describe("MCPReconciler", func() {
 		})
 
 		It("should not update status if nothing changed", func() {
-			mcp := &v1alpha1.MCP{
+			mcp := &corev1alpha1.MCP{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:       "test-no-status-change",
 					Namespace:  "default",
 					Generation: 1,
 				},
-				Spec: v1alpha1.MCPSpec{
+				Spec: corev1alpha1.MCPSpec{
 					Image: "test:image",
 				},
-				Status: v1alpha1.MCPStatus{
+				Status: corev1alpha1.MCPStatus{
 					URL:                "http://test-no-status-change-service.default.svc.cluster.local:3000/mcp",
 					Ready:              false,
 					ObservedGeneration: 1,
@@ -635,7 +634,7 @@ var _ = Describe("MCPReconciler", func() {
 			err := reconciler.updateStatus(ctx, mcp, service, deployment)
 			Expect(err).NotTo(HaveOccurred())
 
-			updatedMCP := &v1alpha1.MCP{}
+			updatedMCP := &corev1alpha1.MCP{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      "test-no-status-change",
 				Namespace: "default",
@@ -658,7 +657,7 @@ var _ = Describe("MCPReconciler", func() {
 		})
 
 		DescribeTable("buildService scenarios",
-			func(mcpFunc func() *v1alpha1.MCP, expectNil bool, validateService func(*corev1.Service)) {
+			func(mcpFunc func() *corev1alpha1.MCP, expectNil bool, validateService func(*corev1.Service)) {
 				mcp := mcpFunc()
 				service := reconciler.buildService(mcp)
 
@@ -673,18 +672,18 @@ var _ = Describe("MCPReconciler", func() {
 			},
 
 			Entry("returns nil for nil MCP",
-				func() *v1alpha1.MCP {
+				func() *corev1alpha1.MCP {
 					return nil
 				}, true, nil),
 
 			Entry("builds service with default configuration",
-				func() *v1alpha1.MCP {
-					return &v1alpha1.MCP{
+				func() *corev1alpha1.MCP {
+					return &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test-build-default",
 							Namespace: "default",
 						},
-						Spec: v1alpha1.MCPSpec{
+						Spec: corev1alpha1.MCPSpec{
 							Image: "test:image",
 						},
 					}
@@ -701,15 +700,15 @@ var _ = Describe("MCPReconciler", func() {
 				}),
 
 			Entry("builds service with custom port",
-				func() *v1alpha1.MCP {
-					return &v1alpha1.MCP{
+				func() *corev1alpha1.MCP {
+					return &corev1alpha1.MCP{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test-build-custom",
 							Namespace: "custom-ns",
 						},
-						Spec: v1alpha1.MCPSpec{
+						Spec: corev1alpha1.MCPSpec{
 							Image: "test:image",
-							Server: &v1alpha1.MCPServerSpec{
+							Server: &corev1alpha1.MCPServerSpec{
 								Port: 9999,
 							},
 						},
@@ -737,14 +736,14 @@ var _ = Describe("MCPReconciler", func() {
 		})
 
 		It("should create Service during full reconciliation", func() {
-			mcp := &v1alpha1.MCP{
+			mcp := &corev1alpha1.MCP{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-integration-service",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.MCPSpec{
+				Spec: corev1alpha1.MCPSpec{
 					Image: "test:image",
-					Server: &v1alpha1.MCPServerSpec{
+					Server: &corev1alpha1.MCPServerSpec{
 						Port: 8080,
 					},
 				},
@@ -776,7 +775,7 @@ var _ = Describe("MCPReconciler", func() {
 				Namespace: "default",
 			}, deployment)).To(Succeed())
 
-			updatedMCP := &v1alpha1.MCP{}
+			updatedMCP := &corev1alpha1.MCP{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      "test-integration-service",
 				Namespace: "default",
@@ -792,14 +791,14 @@ var _ = Describe("MCPReconciler", func() {
 		})
 
 		It("should update existing Service when MCP spec changes", func() {
-			mcp := &v1alpha1.MCP{
+			mcp := &corev1alpha1.MCP{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-service-update",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.MCPSpec{
+				Spec: corev1alpha1.MCPSpec{
 					Image: "test:image",
-					Server: &v1alpha1.MCPServerSpec{
+					Server: &corev1alpha1.MCPServerSpec{
 						Port: 8080,
 					},
 				},
@@ -844,7 +843,7 @@ var _ = Describe("MCPReconciler", func() {
 			}, updatedService)).To(Succeed())
 			Expect(updatedService.Spec.Ports[0].Port).To(Equal(int32(9090)))
 
-			updatedMCP := &v1alpha1.MCP{}
+			updatedMCP := &corev1alpha1.MCP{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      "test-service-update",
 				Namespace: "default",
@@ -861,16 +860,16 @@ var _ = Describe("MCPReconciler", func() {
 		})
 
 		It("should handle TLS configuration in URL generation", func() {
-			mcp := &v1alpha1.MCP{
+			mcp := &corev1alpha1.MCP{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-tls-url",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.MCPSpec{
+				Spec: corev1alpha1.MCPSpec{
 					Image: "test:image",
-					Server: &v1alpha1.MCPServerSpec{
+					Server: &corev1alpha1.MCPServerSpec{
 						Port: 8443,
-						TLS: &v1alpha1.MCPTLSConfig{
+						TLS: &corev1alpha1.MCPTLSConfig{
 							Enabled:    true,
 							SecretName: "tls-secret",
 						},
@@ -888,7 +887,7 @@ var _ = Describe("MCPReconciler", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			updatedMCP := &v1alpha1.MCP{}
+			updatedMCP := &corev1alpha1.MCP{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name:      "test-tls-url",
 				Namespace: "default",

@@ -22,7 +22,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/inference-gateway/operator/internal/providers/schema"
+	schema "github.com/inference-gateway/operator/internal/providers/schema"
 )
 
 func TestIsSupported(t *testing.T) {
