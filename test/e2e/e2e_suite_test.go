@@ -26,7 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/inference-gateway/operator/test/utils"
+	utils "github.com/inference-gateway/operator/test/utils"
 )
 
 var (

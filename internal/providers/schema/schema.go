@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	"sigs.k8s.io/yaml"
+	yaml "sigs.k8s.io/yaml"
 )
 
 // DefaultSource is the canonical schema location: the same file the gateway

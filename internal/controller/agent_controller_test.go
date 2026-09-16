@@ -33,7 +33,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
 // findEnvVar is a helper that returns the EnvVar with the given name, or nil.
@@ -56,18 +56,18 @@ var _ = Describe("Agent Controller", func() {
 			Name:      resourceName,
 			Namespace: "default",
 		}
-		agent := &v1alpha1.Agent{}
+		agent := &corev1alpha1.Agent{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Agent")
 			err := k8sClient.Get(ctx, typeNamespacedName, agent)
 			if err != nil && client.IgnoreNotFound(err) == nil {
-				resource := &v1alpha1.Agent{
+				resource := &corev1alpha1.Agent{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					Spec: v1alpha1.AgentSpec{
+					Spec: corev1alpha1.AgentSpec{
 						Image: "test-image:latest",
 						Port:  8080,
 					},
@@ -78,7 +78,7 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		AfterEach(func() {
-			resource := &v1alpha1.Agent{}
+			resource := &corev1alpha1.Agent{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).To(Not(HaveOccurred()))
 
@@ -120,10 +120,10 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("splits provider/model and emits A2A_AGENT_CLIENT_PROVIDER + A2A_AGENT_CLIENT_MODEL", func() {
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
-						LLM: v1alpha1.LLMSpec{
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
+						LLM: corev1alpha1.LLMSpec{
 							Model: "deepseek/deepseek-v4-flash",
 						},
 					},
@@ -141,10 +141,10 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("emits only A2A_AGENT_CLIENT_MODEL when model has no provider prefix", func() {
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
-						LLM: v1alpha1.LLMSpec{
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
+						LLM: corev1alpha1.LLMSpec{
 							Model: "gpt-4o",
 						},
 					},
@@ -161,10 +161,10 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("emits A2A_AGENT_CLIENT_BASE_URL from spec.agent.llm.baseURL", func() {
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
-						LLM: v1alpha1.LLMSpec{
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
+						LLM: corev1alpha1.LLMSpec{
 							BaseURL: "http://inference-gateway.inference-gateway.svc.cluster.local:8080/v1",
 						},
 					},
@@ -178,10 +178,10 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("does not emit A2A_AGENT_CLIENT_BASE_URL when baseURL is empty", func() {
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
-						LLM: v1alpha1.LLMSpec{},
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
+						LLM: corev1alpha1.LLMSpec{},
 					},
 				},
 			}
@@ -196,10 +196,10 @@ var _ = Describe("Agent Controller", func() {
 				LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
 				Key:                  "DEEPSEEK_API_KEY",
 			}
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
-						LLM: v1alpha1.LLMSpec{
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
+						LLM: corev1alpha1.LLMSpec{
 							APIKeySecretRef: secretRef,
 						},
 					},
@@ -217,10 +217,10 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("does not emit A2A_AGENT_CLIENT_API_KEY when apiKeySecretRef is nil", func() {
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
-						LLM: v1alpha1.LLMSpec{},
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
+						LLM: corev1alpha1.LLMSpec{},
 					},
 				},
 			}
@@ -232,10 +232,10 @@ var _ = Describe("Agent Controller", func() {
 
 		It("emits A2A_AGENT_CLIENT_MAX_TOKENS from spec.agent.llm.maxTokens", func() {
 			tokens := int32(2048)
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
-						LLM: v1alpha1.LLMSpec{
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
+						LLM: corev1alpha1.LLMSpec{
 							MaxTokens: &tokens,
 						},
 					},
@@ -250,10 +250,10 @@ var _ = Describe("Agent Controller", func() {
 
 		It("emits A2A_AGENT_CLIENT_TEMPERATURE from spec.agent.llm.temperature", func() {
 			temp := "0.5"
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
-						LLM: v1alpha1.LLMSpec{
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
+						LLM: corev1alpha1.LLMSpec{
 							Temperature: &temp,
 						},
 					},
@@ -267,9 +267,9 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("emits A2A_AGENT_CLIENT_MAX_CHAT_COMPLETION_ITERATIONS and A2A_AGENT_CLIENT_MAX_RETRIES", func() {
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
 						MaxChatCompletionIterations: 7,
 						MaxRetries:                  4,
 					},
@@ -289,12 +289,12 @@ var _ = Describe("Agent Controller", func() {
 		It("does not emit legacy AGENT_LLM_* or AGENT_MAX_* env vars", func() {
 			tokens := int32(4096)
 			temp := "0.7"
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
-					Agent: v1alpha1.AgentConfigSpec{
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
+					Agent: corev1alpha1.AgentConfigSpec{
 						MaxChatCompletionIterations: 5,
 						MaxRetries:                  3,
-						LLM: v1alpha1.LLMSpec{
+						LLM: corev1alpha1.LLMSpec{
 							Model:       "openai/gpt-4o",
 							MaxTokens:   &tokens,
 							Temperature: &temp,
@@ -317,8 +317,8 @@ var _ = Describe("Agent Controller", func() {
 			userEnv := []corev1.EnvVar{
 				{Name: "MY_CUSTOM_VAR", Value: "custom-value"},
 			}
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{
 					Env: &userEnv,
 				},
 			}
@@ -332,7 +332,7 @@ var _ = Describe("Agent Controller", func() {
 
 	Context("agentTelemetryEnvVars", func() {
 		It("emits A2A_TELEMETRY_ENABLED=false and no OTEL vars when telemetry is disabled", func() {
-			envVars := agentTelemetryEnvVars(v1alpha1.TelemetrySpec{Enabled: false})
+			envVars := agentTelemetryEnvVars(corev1alpha1.TelemetrySpec{Enabled: false})
 
 			enable := findEnvVar(envVars, "A2A_TELEMETRY_ENABLED")
 			Expect(enable).NotTo(BeNil())
@@ -343,8 +343,8 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("emits A2A_TELEMETRY_ENABLED (not the legacy TELEMETRY_ENABLED) from buildAgentEnvironmentVars", func() {
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{Telemetry: v1alpha1.TelemetrySpec{Enabled: true}},
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{Telemetry: corev1alpha1.TelemetrySpec{Enabled: true}},
 			}
 			envVars := (&AgentReconciler{}).buildAgentEnvironmentVars(agent)
 
@@ -353,13 +353,13 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("maps traces OTLP and metrics Prometheus to A2A_OTEL_* vars", func() {
-			tel := v1alpha1.TelemetrySpec{
+			tel := corev1alpha1.TelemetrySpec{
 				Enabled: true,
-				Traces: &v1alpha1.TracesSpec{Exporter: &v1alpha1.TracesExporterSpec{
-					OTLP: &v1alpha1.OTLPExporterSpec{Endpoint: "http://localhost:4318", Protocol: "http/protobuf"},
+				Traces: &corev1alpha1.TracesSpec{Exporter: &corev1alpha1.TracesExporterSpec{
+					OTLP: &corev1alpha1.OTLPExporterSpec{Endpoint: "http://localhost:4318", Protocol: "http/protobuf"},
 				}},
-				Metrics: &v1alpha1.MetricsSpec{Exporter: &v1alpha1.MetricsExporterSpec{
-					Prometheus: &v1alpha1.PrometheusExporterSpec{Port: 9464},
+				Metrics: &corev1alpha1.MetricsSpec{Exporter: &corev1alpha1.MetricsExporterSpec{
+					Prometheus: &corev1alpha1.PrometheusExporterSpec{Port: 9464},
 				}},
 			}
 			envVars := agentTelemetryEnvVars(tel)
@@ -373,13 +373,13 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("shares a single OTLP endpoint (traces preferred) when both signals use OTLP", func() {
-			tel := v1alpha1.TelemetrySpec{
+			tel := corev1alpha1.TelemetrySpec{
 				Enabled: true,
-				Traces: &v1alpha1.TracesSpec{Exporter: &v1alpha1.TracesExporterSpec{
-					OTLP: &v1alpha1.OTLPExporterSpec{Endpoint: "http://traces:4318", Protocol: "grpc"},
+				Traces: &corev1alpha1.TracesSpec{Exporter: &corev1alpha1.TracesExporterSpec{
+					OTLP: &corev1alpha1.OTLPExporterSpec{Endpoint: "http://traces:4318", Protocol: "grpc"},
 				}},
-				Metrics: &v1alpha1.MetricsSpec{Exporter: &v1alpha1.MetricsExporterSpec{
-					OTLP: &v1alpha1.OTLPExporterSpec{Endpoint: "http://metrics:4318", Protocol: "grpc"},
+				Metrics: &corev1alpha1.MetricsSpec{Exporter: &corev1alpha1.MetricsExporterSpec{
+					OTLP: &corev1alpha1.OTLPExporterSpec{Endpoint: "http://metrics:4318", Protocol: "grpc"},
 				}},
 			}
 			envVars := agentTelemetryEnvVars(tel)
@@ -390,10 +390,10 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("falls back to the metrics OTLP endpoint when only metrics uses OTLP", func() {
-			tel := v1alpha1.TelemetrySpec{
+			tel := corev1alpha1.TelemetrySpec{
 				Enabled: true,
-				Metrics: &v1alpha1.MetricsSpec{Exporter: &v1alpha1.MetricsExporterSpec{
-					OTLP: &v1alpha1.OTLPExporterSpec{Endpoint: "http://metrics:4318"},
+				Metrics: &corev1alpha1.MetricsSpec{Exporter: &corev1alpha1.MetricsExporterSpec{
+					OTLP: &corev1alpha1.OTLPExporterSpec{Endpoint: "http://metrics:4318"},
 				}},
 			}
 			envVars := agentTelemetryEnvVars(tel)
@@ -405,7 +405,7 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("defaults both exporters to none when enabled without exporter blocks", func() {
-			envVars := agentTelemetryEnvVars(v1alpha1.TelemetrySpec{Enabled: true})
+			envVars := agentTelemetryEnvVars(corev1alpha1.TelemetrySpec{Enabled: true})
 
 			Expect(findEnvVar(envVars, "A2A_OTEL_TRACES_EXPORTER").Value).To(Equal("none"))
 			Expect(findEnvVar(envVars, "A2A_OTEL_METRICS_EXPORTER").Value).To(Equal("none"))
@@ -415,7 +415,7 @@ var _ = Describe("Agent Controller", func() {
 
 	Context("agentMCPEnvVars", func() {
 		It("emits A2A_MCP_ENABLED=false and no other MCP vars when disabled", func() {
-			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enabled: false})
+			envVars := agentMCPEnvVars(corev1alpha1.MCPClientSpec{Enabled: false})
 
 			enable := findEnvVar(envVars, "A2A_MCP_ENABLED")
 			Expect(enable).NotTo(BeNil())
@@ -427,7 +427,7 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("emits the A2A_MCP_* knobs when enabled", func() {
-			mcp := v1alpha1.MCPClientSpec{
+			mcp := corev1alpha1.MCPClientSpec{
 				Enabled:          true,
 				Servers:          []string{"http://mcp-a:8080", "http://mcp-b:8080"},
 				Endpoint:         "/mcp",
@@ -452,15 +452,15 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("omits A2A_MCP_SERVERS when no servers are configured", func() {
-			envVars := agentMCPEnvVars(v1alpha1.MCPClientSpec{Enabled: true, Endpoint: "/mcp"})
+			envVars := agentMCPEnvVars(corev1alpha1.MCPClientSpec{Enabled: true, Endpoint: "/mcp"})
 
 			Expect(findEnvVar(envVars, "A2A_MCP_SERVERS")).To(BeNil())
 			Expect(findEnvVar(envVars, "A2A_MCP_ENDPOINT").Value).To(Equal("/mcp"))
 		})
 
 		It("always emits A2A_MCP_ENABLED from buildAgentEnvironmentVars", func() {
-			agent := &v1alpha1.Agent{
-				Spec: v1alpha1.AgentSpec{MCP: v1alpha1.MCPClientSpec{Enabled: true, Servers: []string{"http://mcp:8080"}}},
+			agent := &corev1alpha1.Agent{
+				Spec: corev1alpha1.AgentSpec{MCP: corev1alpha1.MCPClientSpec{Enabled: true, Servers: []string{"http://mcp:8080"}}},
 			}
 			envVars := (&AgentReconciler{}).buildAgentEnvironmentVars(agent)
 
@@ -477,12 +477,12 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("does not set container resources when spec.resources is unset", func() {
-			agent := &v1alpha1.Agent{
+			agent := &corev1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "agent-no-resources",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.AgentSpec{
+				Spec: corev1alpha1.AgentSpec{
 					Image: "test-image:latest",
 					Port:  8080,
 				},
@@ -496,12 +496,12 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("propagates spec.resources requests and limits to the agent container", func() {
-			agent := &v1alpha1.Agent{
+			agent := &corev1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "agent-with-resources",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.AgentSpec{
+				Spec: corev1alpha1.AgentSpec{
 					Image: "test-image:latest",
 					Port:  8080,
 					Resources: corev1.ResourceRequirements{
@@ -535,12 +535,12 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("uses defaultAgentPort when spec.port is unset", func() {
-			agent := &v1alpha1.Agent{
+			agent := &corev1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "agent-default-port",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.AgentSpec{
+				Spec: corev1alpha1.AgentSpec{
 					Image: "test-image:latest",
 				},
 			}
@@ -552,12 +552,12 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("uses agent.spec.port for the service when set", func() {
-			agent := &v1alpha1.Agent{
+			agent := &corev1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "agent-custom-port",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.AgentSpec{
+				Spec: corev1alpha1.AgentSpec{
 					Image: "test-image:latest",
 					Port:  9090,
 				},
@@ -570,12 +570,12 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("propagates only requests when limits are unset", func() {
-			agent := &v1alpha1.Agent{
+			agent := &corev1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "agent-requests-only",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.AgentSpec{
+				Spec: corev1alpha1.AgentSpec{
 					Image: "test-image:latest",
 					Port:  8080,
 					Resources: corev1.ResourceRequirements{
@@ -603,7 +603,7 @@ var _ = Describe("Agent Controller", func() {
 
 	Context("agentCardPort", func() {
 		It("returns agent.spec.port when set", func() {
-			agent := &v1alpha1.Agent{Spec: v1alpha1.AgentSpec{Port: 9091}}
+			agent := &corev1alpha1.Agent{Spec: corev1alpha1.AgentSpec{Port: 9091}}
 			svc := &corev1.Service{Spec: corev1.ServiceSpec{
 				Ports: []corev1.ServicePort{{Port: 1234}},
 			}}
@@ -611,7 +611,7 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("falls back to the service port when agent.spec.port is unset", func() {
-			agent := &v1alpha1.Agent{}
+			agent := &corev1alpha1.Agent{}
 			svc := &corev1.Service{Spec: corev1.ServiceSpec{
 				Ports: []corev1.ServicePort{{Port: 1234}},
 			}}
@@ -619,17 +619,17 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("falls back to defaultAgentPort when neither is set", func() {
-			Expect(agentCardPort(&v1alpha1.Agent{}, &corev1.Service{})).To(Equal(defaultAgentPort))
+			Expect(agentCardPort(&corev1alpha1.Agent{}, &corev1.Service{})).To(Equal(defaultAgentPort))
 		})
 	})
 
 	Context("agentCardURLs", func() {
 		It("returns nil when service is nil", func() {
-			Expect(agentCardURLs(&v1alpha1.Agent{}, nil)).To(BeNil())
+			Expect(agentCardURLs(&corev1alpha1.Agent{}, nil)).To(BeNil())
 		})
 
 		It("returns the agent-card.json path before the legacy agent.json path", func() {
-			agent := &v1alpha1.Agent{Spec: v1alpha1.AgentSpec{Port: 8080}}
+			agent := &corev1alpha1.Agent{Spec: corev1alpha1.AgentSpec{Port: 8080}}
 			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-agent",
 				Namespace: "agents",
@@ -642,7 +642,7 @@ var _ = Describe("Agent Controller", func() {
 		})
 
 		It("honors a non-default agent.spec.port in the URL", func() {
-			agent := &v1alpha1.Agent{Spec: v1alpha1.AgentSpec{Port: 9090}}
+			agent := &corev1alpha1.Agent{Spec: corev1alpha1.AgentSpec{Port: 9090}}
 			svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
 				Name:      "alpha",
 				Namespace: "beta",
@@ -657,26 +657,26 @@ var _ = Describe("Agent Controller", func() {
 
 	Context("agentAdvertisedURL", func() {
 		It("returns the in-cluster Service URL when spec.card.url is unset", func() {
-			agent := &v1alpha1.Agent{
+			agent := &corev1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "agents"},
-				Spec:       v1alpha1.AgentSpec{Port: 8080},
+				Spec:       corev1alpha1.AgentSpec{Port: 8080},
 			}
 			Expect(agentAdvertisedURL(agent)).To(Equal("http://my-agent.agents.svc.cluster.local:8080"))
 		})
 
 		It("uses defaultAgentPort when port is unset", func() {
-			agent := &v1alpha1.Agent{
+			agent := &corev1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "ns"},
 			}
 			Expect(agentAdvertisedURL(agent)).To(Equal("http://a.ns.svc.cluster.local:8080"))
 		})
 
 		It("returns spec.card.url when set, ignoring derived URL", func() {
-			agent := &v1alpha1.Agent{
+			agent := &corev1alpha1.Agent{
 				ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "agents"},
-				Spec: v1alpha1.AgentSpec{
+				Spec: corev1alpha1.AgentSpec{
 					Port: 8080,
-					Card: v1alpha1.CardSpec{URL: "https://agent.example.com"},
+					Card: corev1alpha1.CardSpec{URL: "https://agent.example.com"},
 				},
 			}
 			Expect(agentAdvertisedURL(agent)).To(Equal("https://agent.example.com"))
@@ -787,7 +787,7 @@ var _ = Describe("Agent Controller", func() {
 
 	Context("fetchAgentCard fallback behavior", func() {
 		It("returns an error when service is nil", func() {
-			_, err := fetchAgentCard(&v1alpha1.Agent{}, nil)
+			_, err := fetchAgentCard(&corev1alpha1.Agent{}, nil)
 			Expect(err).To(HaveOccurred())
 		})
 	})

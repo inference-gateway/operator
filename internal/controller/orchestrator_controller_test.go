@@ -31,7 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 
-	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
 var _ = Describe("Orchestrator Controller", func() {
@@ -43,21 +43,21 @@ var _ = Describe("Orchestrator Controller", func() {
 			Name:      resourceName,
 			Namespace: "default",
 		}
-		orch := &v1alpha1.Orchestrator{}
+		orch := &corev1alpha1.Orchestrator{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Orchestrator")
 			err := k8sClient.Get(ctx, typeNamespacedName, orch)
 			if err != nil && client.IgnoreNotFound(err) == nil {
-				resource := &v1alpha1.Orchestrator{
+				resource := &corev1alpha1.Orchestrator{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					Spec: v1alpha1.OrchestratorSpec{
+					Spec: corev1alpha1.OrchestratorSpec{
 						Image: "ghcr.io/inference-gateway/cli:test",
-						Channels: v1alpha1.ChannelsSpec{
-							Telegram: v1alpha1.TelegramChannelSpec{
+						Channels: corev1alpha1.ChannelsSpec{
+							Telegram: corev1alpha1.TelegramChannelSpec{
 								Enabled: true,
 								TokenSecretRef: corev1.SecretKeySelector{
 									LocalObjectReference: corev1.LocalObjectReference{Name: "telegram-bot-credentials"},
@@ -65,8 +65,8 @@ var _ = Describe("Orchestrator Controller", func() {
 								},
 							},
 						},
-						Gateway: v1alpha1.OrchestratorGatewaySpec{URL: "http://inference-gateway:8080"},
-						Agent:   v1alpha1.OrchestratorAgentSpec{Model: "test/model"},
+						Gateway: corev1alpha1.OrchestratorGatewaySpec{URL: "http://inference-gateway:8080"},
+						Agent:   corev1alpha1.OrchestratorAgentSpec{Model: "test/model"},
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -74,7 +74,7 @@ var _ = Describe("Orchestrator Controller", func() {
 		})
 
 		AfterEach(func() {
-			resource := &v1alpha1.Orchestrator{}
+			resource := &corev1alpha1.Orchestrator{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -129,32 +129,32 @@ var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 		Key:                  "apiKey",
 	}
 
-	makeOrchestrator := func() *v1alpha1.Orchestrator {
-		return &v1alpha1.Orchestrator{
+	makeOrchestrator := func() *corev1alpha1.Orchestrator {
+		return &corev1alpha1.Orchestrator{
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "default"},
-			Spec: v1alpha1.OrchestratorSpec{
+			Spec: corev1alpha1.OrchestratorSpec{
 				Image: "img",
-				Channels: v1alpha1.ChannelsSpec{
+				Channels: corev1alpha1.ChannelsSpec{
 					MaxWorkers:      &maxWorkers,
 					ImageRetention:  &imageRetention,
 					RequireApproval: &requireApproval,
-					Telegram: v1alpha1.TelegramChannelSpec{
+					Telegram: corev1alpha1.TelegramChannelSpec{
 						Enabled:               true,
 						TokenSecretRef:        tokenRef,
 						AllowedUsersSecretRef: &allowedUsersRef,
 						PollTimeout:           &pollTimeout,
 					},
 				},
-				Gateway: v1alpha1.OrchestratorGatewaySpec{
+				Gateway: corev1alpha1.OrchestratorGatewaySpec{
 					URL:             "http://gw:8080",
 					APIKeySecretRef: &apiKeyRef,
 				},
-				Agent: v1alpha1.OrchestratorAgentSpec{
+				Agent: corev1alpha1.OrchestratorAgentSpec{
 					Model:        "openai/gpt-test",
 					SystemPrompt: "be helpful",
 				},
-				Tools: v1alpha1.OrchestratorToolsSpec{Enabled: true, Schedule: true},
-				A2A:   v1alpha1.OrchestratorA2ASpec{Enabled: true, Agents: []string{"a", "b"}},
+				Tools: corev1alpha1.OrchestratorToolsSpec{Enabled: true, Schedule: true},
+				A2A:   corev1alpha1.OrchestratorA2ASpec{Enabled: true, Agents: []string{"a", "b"}},
 			},
 		}
 	}
@@ -244,7 +244,7 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("emits INFER_TELEMETRY_ENABLED=false when telemetry is disabled", func() {
-		tel := &v1alpha1.TelemetrySpec{Enabled: false}
+		tel := &corev1alpha1.TelemetrySpec{Enabled: false}
 		envVars := orchestratorTelemetryEnvVars(tel)
 		envs := envByNameFn(envVars)
 		Expect(envs["INFER_TELEMETRY_ENABLED"].Value).To(Equal("false"))
@@ -252,11 +252,11 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("emits INFER_TELEMETRY_ENABLED=true and OTLP endpoint from traces", func() {
-		tel := &v1alpha1.TelemetrySpec{
+		tel := &corev1alpha1.TelemetrySpec{
 			Enabled: true,
-			Traces: &v1alpha1.TracesSpec{
-				Exporter: &v1alpha1.TracesExporterSpec{
-					OTLP: &v1alpha1.OTLPExporterSpec{
+			Traces: &corev1alpha1.TracesSpec{
+				Exporter: &corev1alpha1.TracesExporterSpec{
+					OTLP: &corev1alpha1.OTLPExporterSpec{
 						Endpoint: "http://traces:4318",
 						Protocol: "http/protobuf",
 					},
@@ -270,11 +270,11 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("falls back to metrics OTLP endpoint when traces has no exporter", func() {
-		tel := &v1alpha1.TelemetrySpec{
+		tel := &corev1alpha1.TelemetrySpec{
 			Enabled: true,
-			Metrics: &v1alpha1.MetricsSpec{
-				Exporter: &v1alpha1.MetricsExporterSpec{
-					OTLP: &v1alpha1.OTLPExporterSpec{
+			Metrics: &corev1alpha1.MetricsSpec{
+				Exporter: &corev1alpha1.MetricsExporterSpec{
+					OTLP: &corev1alpha1.OTLPExporterSpec{
 						Endpoint: "http://metrics:4318",
 					},
 				},
@@ -287,18 +287,18 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("prefers traces OTLP endpoint over metrics when both are set", func() {
-		tel := &v1alpha1.TelemetrySpec{
+		tel := &corev1alpha1.TelemetrySpec{
 			Enabled: true,
-			Traces: &v1alpha1.TracesSpec{
-				Exporter: &v1alpha1.TracesExporterSpec{
-					OTLP: &v1alpha1.OTLPExporterSpec{
+			Traces: &corev1alpha1.TracesSpec{
+				Exporter: &corev1alpha1.TracesExporterSpec{
+					OTLP: &corev1alpha1.OTLPExporterSpec{
 						Endpoint: "http://traces:4318",
 					},
 				},
 			},
-			Metrics: &v1alpha1.MetricsSpec{
-				Exporter: &v1alpha1.MetricsExporterSpec{
-					OTLP: &v1alpha1.OTLPExporterSpec{
+			Metrics: &corev1alpha1.MetricsSpec{
+				Exporter: &corev1alpha1.MetricsExporterSpec{
+					OTLP: &corev1alpha1.OTLPExporterSpec{
 						Endpoint: "http://metrics:4318",
 					},
 				},
@@ -310,7 +310,7 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("omits OTLP endpoint when no exporter is configured", func() {
-		tel := &v1alpha1.TelemetrySpec{Enabled: true}
+		tel := &corev1alpha1.TelemetrySpec{Enabled: true}
 		envVars := orchestratorTelemetryEnvVars(tel)
 		envs := envByNameFn(envVars)
 		Expect(envs["INFER_TELEMETRY_ENABLED"].Value).To(Equal("true"))
@@ -318,12 +318,12 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("wires telemetry env vars through buildOrchestratorEnvironmentVars", func() {
-		orch := &v1alpha1.Orchestrator{
+		orch := &corev1alpha1.Orchestrator{
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "default"},
-			Spec: v1alpha1.OrchestratorSpec{
+			Spec: corev1alpha1.OrchestratorSpec{
 				Image: "img",
-				Channels: v1alpha1.ChannelsSpec{
-					Telegram: v1alpha1.TelegramChannelSpec{
+				Channels: corev1alpha1.ChannelsSpec{
+					Telegram: corev1alpha1.TelegramChannelSpec{
 						Enabled: true,
 						TokenSecretRef: corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{Name: "telegram-bot-credentials"},
@@ -331,13 +331,13 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 						},
 					},
 				},
-				Gateway: v1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
-				Agent:   v1alpha1.OrchestratorAgentSpec{Model: "m"},
-				Telemetry: &v1alpha1.TelemetrySpec{
+				Gateway: corev1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
+				Agent:   corev1alpha1.OrchestratorAgentSpec{Model: "m"},
+				Telemetry: &corev1alpha1.TelemetrySpec{
 					Enabled: true,
-					Traces: &v1alpha1.TracesSpec{
-						Exporter: &v1alpha1.TracesExporterSpec{
-							OTLP: &v1alpha1.OTLPExporterSpec{
+					Traces: &corev1alpha1.TracesSpec{
+						Exporter: &corev1alpha1.TracesExporterSpec{
+							OTLP: &corev1alpha1.OTLPExporterSpec{
 								Endpoint: "http://otel:4318",
 							},
 						},
@@ -351,9 +351,9 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("emits INFER_TELEMETRY_RECEIVER_ADDRESS when receiver is enabled", func() {
-		tel := &v1alpha1.TelemetrySpec{
+		tel := &corev1alpha1.TelemetrySpec{
 			Enabled: true,
-			Receiver: &v1alpha1.ReceiverSpec{
+			Receiver: &corev1alpha1.ReceiverSpec{
 				Enabled: true,
 				Port:    4318,
 			},
@@ -364,9 +364,9 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("defaults receiver port to 4318 when port is zero", func() {
-		tel := &v1alpha1.TelemetrySpec{
+		tel := &corev1alpha1.TelemetrySpec{
 			Enabled: true,
-			Receiver: &v1alpha1.ReceiverSpec{
+			Receiver: &corev1alpha1.ReceiverSpec{
 				Enabled: true,
 				Port:    0,
 			},
@@ -377,9 +377,9 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("omits INFER_TELEMETRY_RECEIVER_ADDRESS when receiver is disabled", func() {
-		tel := &v1alpha1.TelemetrySpec{
+		tel := &corev1alpha1.TelemetrySpec{
 			Enabled: true,
-			Receiver: &v1alpha1.ReceiverSpec{
+			Receiver: &corev1alpha1.ReceiverSpec{
 				Enabled: false,
 				Port:    4318,
 			},
@@ -390,7 +390,7 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 	})
 
 	It("omits INFER_TELEMETRY_RECEIVER_ADDRESS when receiver is nil", func() {
-		tel := &v1alpha1.TelemetrySpec{Enabled: true}
+		tel := &corev1alpha1.TelemetrySpec{Enabled: true}
 		envVars := orchestratorTelemetryEnvVars(tel)
 		envs := envByNameFn(envVars)
 		Expect(envs).NotTo(HaveKey("INFER_TELEMETRY_RECEIVER_ADDRESS"))
@@ -414,10 +414,10 @@ var _ = Describe("buildAgentsYAML", func() {
 	})
 
 	It("emits discovered agents by CR name with derived cluster URL", func() {
-		agents := []v1alpha1.Agent{
+		agents := []corev1alpha1.Agent{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "my-agent", Namespace: "agents"},
-				Spec:       v1alpha1.AgentSpec{Port: 8080},
+				Spec:       corev1alpha1.AgentSpec{Port: 8080},
 			},
 		}
 		yaml := buildAgentsYAML(nil, agents)
@@ -426,10 +426,10 @@ var _ = Describe("buildAgentsYAML", func() {
 	})
 
 	It("uses default port 8080 when agent port is zero", func() {
-		agents := []v1alpha1.Agent{
+		agents := []corev1alpha1.Agent{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "zero-port", Namespace: "ns"},
-				Spec:       v1alpha1.AgentSpec{Port: 0},
+				Spec:       corev1alpha1.AgentSpec{Port: 0},
 			},
 		}
 		yaml := buildAgentsYAML(nil, agents)
@@ -437,9 +437,9 @@ var _ = Describe("buildAgentsYAML", func() {
 	})
 
 	It("sorts discovered agents by name for determinism", func() {
-		agents := []v1alpha1.Agent{
-			{ObjectMeta: metav1.ObjectMeta{Name: "zebra", Namespace: "ns"}, Spec: v1alpha1.AgentSpec{Port: 8080}},
-			{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "ns"}, Spec: v1alpha1.AgentSpec{Port: 8080}},
+		agents := []corev1alpha1.Agent{
+			{ObjectMeta: metav1.ObjectMeta{Name: "zebra", Namespace: "ns"}, Spec: corev1alpha1.AgentSpec{Port: 8080}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "ns"}, Spec: corev1alpha1.AgentSpec{Port: 8080}},
 		}
 		yaml := buildAgentsYAML(nil, agents)
 		alphaPos := strings.Index(yaml, "name: alpha")
@@ -448,8 +448,8 @@ var _ = Describe("buildAgentsYAML", func() {
 	})
 
 	It("combines static and discovered agents", func() {
-		agents := []v1alpha1.Agent{
-			{ObjectMeta: metav1.ObjectMeta{Name: "disc", Namespace: "ns"}, Spec: v1alpha1.AgentSpec{Port: 8080}},
+		agents := []corev1alpha1.Agent{
+			{ObjectMeta: metav1.ObjectMeta{Name: "disc", Namespace: "ns"}, Spec: corev1alpha1.AgentSpec{Port: 8080}},
 		}
 		yaml := buildAgentsYAML([]string{"http://static:8080"}, agents)
 		Expect(yaml).To(ContainSubstring("name: static-agent-0"))
@@ -458,13 +458,13 @@ var _ = Describe("buildAgentsYAML", func() {
 })
 
 var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
-	makeOrchestratorWithDiscovery := func(enabled bool) *v1alpha1.Orchestrator {
-		return &v1alpha1.Orchestrator{
+	makeOrchestratorWithDiscovery := func(enabled bool) *corev1alpha1.Orchestrator {
+		return &corev1alpha1.Orchestrator{
 			ObjectMeta: metav1.ObjectMeta{Name: "orch", Namespace: "default"},
-			Spec: v1alpha1.OrchestratorSpec{
+			Spec: corev1alpha1.OrchestratorSpec{
 				Image: "img",
-				Channels: v1alpha1.ChannelsSpec{
-					Telegram: v1alpha1.TelegramChannelSpec{
+				Channels: corev1alpha1.ChannelsSpec{
+					Telegram: corev1alpha1.TelegramChannelSpec{
 						Enabled: true,
 						TokenSecretRef: corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
@@ -472,11 +472,11 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 						},
 					},
 				},
-				Gateway: v1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
-				Agent:   v1alpha1.OrchestratorAgentSpec{Model: "m"},
-				A2A: v1alpha1.OrchestratorA2ASpec{
+				Gateway: corev1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
+				Agent:   corev1alpha1.OrchestratorAgentSpec{Model: "m"},
+				A2A: corev1alpha1.OrchestratorA2ASpec{
 					Enabled: true,
-					ServiceDiscovery: v1alpha1.OrchestratorServiceDiscoverySpec{
+					ServiceDiscovery: corev1alpha1.OrchestratorServiceDiscoverySpec{
 						Enabled:   enabled,
 						Namespace: "agents",
 					},
@@ -543,14 +543,14 @@ var _ = Describe("buildMCPsYAML", func() {
 	})
 
 	It("prefers status.URL when populated, falling back to the deterministic construction", func() {
-		mcps := []v1alpha1.MCP{
+		mcps := []corev1alpha1.MCP{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "with-status", Namespace: "mcp"},
-				Status:     v1alpha1.MCPStatus{URL: "https://override.example/mcp"},
+				Status:     corev1alpha1.MCPStatus{URL: "https://override.example/mcp"},
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "no-status", Namespace: "mcp"},
-				Spec:       v1alpha1.MCPSpec{Server: &v1alpha1.MCPServerSpec{Port: 3000}},
+				Spec:       corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{Port: 3000}},
 			},
 		}
 		yaml := buildMCPsYAML(nil, mcps)
@@ -564,13 +564,13 @@ var _ = Describe("buildMCPsYAML", func() {
 	})
 
 	It("uses https when TLS is enabled on the MCP server", func() {
-		mcps := []v1alpha1.MCP{
+		mcps := []corev1alpha1.MCP{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "tls-mcp", Namespace: "mcp"},
-				Spec: v1alpha1.MCPSpec{
-					Server: &v1alpha1.MCPServerSpec{
+				Spec: corev1alpha1.MCPSpec{
+					Server: &corev1alpha1.MCPServerSpec{
 						Port: 3000,
-						TLS:  &v1alpha1.MCPTLSConfig{Enabled: true, SecretName: "x"},
+						TLS:  &corev1alpha1.MCPTLSConfig{Enabled: true, SecretName: "x"},
 					},
 				},
 			},
@@ -583,9 +583,9 @@ var _ = Describe("buildMCPsYAML", func() {
 	})
 
 	It("sorts discovered MCPs by name for determinism", func() {
-		mcps := []v1alpha1.MCP{
-			{ObjectMeta: metav1.ObjectMeta{Name: "zebra", Namespace: "mcp"}, Status: v1alpha1.MCPStatus{URL: "http://z/mcp"}},
-			{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "mcp"}, Status: v1alpha1.MCPStatus{URL: "http://a/mcp"}},
+		mcps := []corev1alpha1.MCP{
+			{ObjectMeta: metav1.ObjectMeta{Name: "zebra", Namespace: "mcp"}, Status: corev1alpha1.MCPStatus{URL: "http://z/mcp"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "alpha", Namespace: "mcp"}, Status: corev1alpha1.MCPStatus{URL: "http://a/mcp"}},
 		}
 		yaml := buildMCPsYAML(nil, mcps)
 		alphaPos := strings.Index(yaml, "name: alpha")
@@ -595,13 +595,13 @@ var _ = Describe("buildMCPsYAML", func() {
 })
 
 var _ = Describe("buildOrchestratorDeployment with MCP service discovery", func() {
-	makeOrchestratorWithMCPDiscovery := func(enabled bool) *v1alpha1.Orchestrator {
-		return &v1alpha1.Orchestrator{
+	makeOrchestratorWithMCPDiscovery := func(enabled bool) *corev1alpha1.Orchestrator {
+		return &corev1alpha1.Orchestrator{
 			ObjectMeta: metav1.ObjectMeta{Name: "orch", Namespace: "default"},
-			Spec: v1alpha1.OrchestratorSpec{
+			Spec: corev1alpha1.OrchestratorSpec{
 				Image: "img",
-				Channels: v1alpha1.ChannelsSpec{
-					Telegram: v1alpha1.TelegramChannelSpec{
+				Channels: corev1alpha1.ChannelsSpec{
+					Telegram: corev1alpha1.TelegramChannelSpec{
 						Enabled: true,
 						TokenSecretRef: corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
@@ -609,11 +609,11 @@ var _ = Describe("buildOrchestratorDeployment with MCP service discovery", func(
 						},
 					},
 				},
-				Gateway: v1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
-				Agent:   v1alpha1.OrchestratorAgentSpec{Model: "m"},
-				MCP: v1alpha1.OrchestratorMCPSpec{
+				Gateway: corev1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
+				Agent:   corev1alpha1.OrchestratorAgentSpec{Model: "m"},
+				MCP: corev1alpha1.OrchestratorMCPSpec{
 					Enabled: true,
-					ServiceDiscovery: v1alpha1.OrchestratorServiceDiscoverySpec{
+					ServiceDiscovery: corev1alpha1.OrchestratorServiceDiscoverySpec{
 						Enabled:   enabled,
 						Namespace: "mcp",
 					},

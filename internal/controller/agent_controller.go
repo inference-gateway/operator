@@ -30,7 +30,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apiErrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -39,9 +39,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	log "sigs.k8s.io/controller-runtime/pkg/log"
 
-	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
 // AgentReconciler reconciles a Agent object
@@ -60,14 +60,14 @@ type AgentReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	if !r.shouldWatchNamespace(ctx, req.Namespace) {
 		logger.V(1).Info("Skipping Agent in namespace not matching watch criteria", "namespace", req.Namespace)
 		return ctrl.Result{}, nil
 	}
 
-	var agent v1alpha1.Agent
+	var agent corev1alpha1.Agent
 	if err := r.Get(ctx, req.NamespacedName, &agent); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -87,7 +87,7 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	_, err := r.reconcileDeployment(ctx, &agent)
 	if err != nil {
-		if apiErrors.IsConflict(err) {
+		if apierrors.IsConflict(err) {
 			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
 			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
 		}
@@ -131,7 +131,7 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 // would diff the in-memory base (zero-valued bools marshal as false) against the modified
 // object (same false), produce an empty diff for those fields, and leave them absent from
 // the stored status - meaning printer columns sourced from them render blank.
-func (r *AgentReconciler) patchStatusReady(ctx context.Context, agent *v1alpha1.Agent, card *v1alpha1.Card) error {
+func (r *AgentReconciler) patchStatusReady(ctx context.Context, agent *corev1alpha1.Agent, card *corev1alpha1.Card) error {
 	agent.Status.Card = *card
 	agent.Status.Ready = true
 	agent.Status.ObservedGeneration = agent.Generation
@@ -141,7 +141,7 @@ func (r *AgentReconciler) patchStatusReady(ctx context.Context, agent *v1alpha1.
 
 // patchStatusNotReady writes the Agent status with a Ready=False condition explaining
 // why the card could not be fetched. The previously cached card (if any) is preserved.
-func (r *AgentReconciler) patchStatusNotReady(ctx context.Context, agent *v1alpha1.Agent, fetchErr error) error {
+func (r *AgentReconciler) patchStatusNotReady(ctx context.Context, agent *corev1alpha1.Agent, fetchErr error) error {
 	agent.Status.Ready = false
 	agent.Status.ObservedGeneration = agent.Generation
 	setReadyCondition(&agent.Status.Conditions, metav1.ConditionFalse, "CardFetchFailed", fetchErr.Error())
@@ -152,7 +152,7 @@ func (r *AgentReconciler) patchStatusNotReady(ctx context.Context, agent *v1alph
 // when the spec cannot produce a valid workload (e.g. a missing container image).
 // It runs before any child resource is created, so a rejected Agent leaves no
 // partial Deployment/Service behind.
-func (r *AgentReconciler) patchStatusInvalidSpec(ctx context.Context, agent *v1alpha1.Agent, msg string) error {
+func (r *AgentReconciler) patchStatusInvalidSpec(ctx context.Context, agent *corev1alpha1.Agent, msg string) error {
 	agent.Status.Ready = false
 	agent.Status.ObservedGeneration = agent.Generation
 	setReadyCondition(&agent.Status.Conditions, metav1.ConditionFalse, "InvalidSpec", msg)
@@ -184,7 +184,7 @@ func setReadyCondition(conditions *[]metav1.Condition, status metav1.ConditionSt
 }
 
 // buildAgentService returns a Service for the given Agent resource.
-func buildAgentService(agent *v1alpha1.Agent) *corev1.Service {
+func buildAgentService(agent *corev1alpha1.Agent) *corev1.Service {
 	labels := map[string]string{
 		"app": agent.Name,
 	}
@@ -232,7 +232,7 @@ const (
 
 // agentAdvertisedURL returns the URL the agent should report in its agent-card.
 // spec.card.url wins when set, otherwise it's the in-cluster Service URL.
-func agentAdvertisedURL(agent *v1alpha1.Agent) string {
+func agentAdvertisedURL(agent *corev1alpha1.Agent) string {
 	if agent.Spec.Card.URL != "" {
 		return agent.Spec.Card.URL
 	}
@@ -245,7 +245,7 @@ func agentAdvertisedURL(agent *v1alpha1.Agent) string {
 
 // agentCardPort returns the port to query for the agent's well-known card, preferring
 // the agent spec but falling back to the service port, then the package default.
-func agentCardPort(agent *v1alpha1.Agent, svc *corev1.Service) int32 {
+func agentCardPort(agent *corev1alpha1.Agent, svc *corev1.Service) int32 {
 	if agent != nil && agent.Spec.Port > 0 {
 		return agent.Spec.Port
 	}
@@ -261,7 +261,7 @@ func agentCardPort(agent *v1alpha1.Agent, svc *corev1.Service) int32 {
 
 // agentCardURLs returns the ordered list of URLs to probe for the agent card.
 // Exposed as a separate function so unit tests can verify URL construction.
-func agentCardURLs(agent *v1alpha1.Agent, svc *corev1.Service) []string {
+func agentCardURLs(agent *corev1alpha1.Agent, svc *corev1.Service) []string {
 	if svc == nil {
 		return nil
 	}
@@ -277,7 +277,7 @@ func agentCardURLs(agent *v1alpha1.Agent, svc *corev1.Service) []string {
 // fetchAgentCard retrieves the agent card by probing the well-known paths on the
 // agent's service. It tries the current A2A path first and falls back to the
 // legacy path. A non-2xx response on a probe is treated as a miss for that path.
-func fetchAgentCard(agent *v1alpha1.Agent, svc *corev1.Service) (*v1alpha1.Card, error) {
+func fetchAgentCard(agent *corev1alpha1.Agent, svc *corev1.Service) (*corev1alpha1.Card, error) {
 	if svc == nil {
 		return nil, errors.New("service is nil")
 	}
@@ -295,7 +295,7 @@ func fetchAgentCard(agent *v1alpha1.Agent, svc *corev1.Service) (*v1alpha1.Card,
 }
 
 // getAgentCard performs a single HTTP GET and JSON-decodes the response into a Card.
-func getAgentCard(httpClient *http.Client, url string) (*v1alpha1.Card, error) {
+func getAgentCard(httpClient *http.Client, url string) (*corev1alpha1.Card, error) {
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, err
@@ -306,7 +306,7 @@ func getAgentCard(httpClient *http.Client, url string) (*v1alpha1.Card, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, errors.New("unexpected status: " + resp.Status)
 	}
-	var card v1alpha1.Card
+	var card corev1alpha1.Card
 	if err := json.NewDecoder(resp.Body).Decode(&card); err != nil {
 		return nil, err
 	}
@@ -314,7 +314,7 @@ func getAgentCard(httpClient *http.Client, url string) (*v1alpha1.Card, error) {
 }
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
-func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *v1alpha1.Agent) (*appsv1.Deployment, error) {
+func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *corev1alpha1.Agent) (*appsv1.Deployment, error) {
 	deployment := r.buildAgentDeployment(agent)
 
 	if err := controllerutil.SetControllerReference(agent, deployment, r.Scheme); err != nil {
@@ -325,7 +325,7 @@ func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *v1alph
 }
 
 // buildAgentDeployment returns a Deployment for the given Agent resource with comprehensive configuration.
-func (r *AgentReconciler) buildAgentDeployment(agent *v1alpha1.Agent) *appsv1.Deployment {
+func (r *AgentReconciler) buildAgentDeployment(agent *corev1alpha1.Agent) *appsv1.Deployment {
 	labels := map[string]string{
 		"app": agent.Name,
 	}
@@ -366,7 +366,7 @@ func (r *AgentReconciler) buildAgentDeployment(agent *v1alpha1.Agent) *appsv1.De
 
 // buildAgentEnvironmentVars creates environment variables from Agent spec.
 // LLM-related vars use the A2A_AGENT_CLIENT_* prefix that agent images actually read.
-func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []corev1.EnvVar {
+func (r *AgentReconciler) buildAgentEnvironmentVars(agent *corev1alpha1.Agent) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
 	// User-supplied env vars take the lowest precedence (prepended so operator vars win on conflict).
@@ -491,7 +491,7 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *v1alpha1.Agent) []cor
 // The Go ADK exposes a single shared OTLP endpoint pair (no per-signal OTLP
 // fields), so when both traces and metrics push over OTLP the traces endpoint
 // wins and the metrics endpoint can't be expressed - adl-cli does the same.
-func agentTelemetryEnvVars(tel v1alpha1.TelemetrySpec) []corev1.EnvVar {
+func agentTelemetryEnvVars(tel corev1alpha1.TelemetrySpec) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{
 		{Name: "A2A_TELEMETRY_ENABLED", Value: strconv.FormatBool(tel.Enabled)},
 	}
@@ -499,13 +499,13 @@ func agentTelemetryEnvVars(tel v1alpha1.TelemetrySpec) []corev1.EnvVar {
 		return envVars
 	}
 
-	var tracesOTLP *v1alpha1.OTLPExporterSpec
+	var tracesOTLP *corev1alpha1.OTLPExporterSpec
 	if tel.Traces != nil && tel.Traces.Exporter != nil {
 		tracesOTLP = tel.Traces.Exporter.OTLP
 	}
 
-	var metricsOTLP *v1alpha1.OTLPExporterSpec
-	var metricsProm *v1alpha1.PrometheusExporterSpec
+	var metricsOTLP *corev1alpha1.OTLPExporterSpec
+	var metricsProm *corev1alpha1.PrometheusExporterSpec
 	if tel.Metrics != nil && tel.Metrics.Exporter != nil {
 		metricsOTLP = tel.Metrics.Exporter.OTLP
 		metricsProm = tel.Metrics.Exporter.Prometheus
@@ -556,7 +556,7 @@ func agentTelemetryEnvVars(tel v1alpha1.TelemetrySpec) []corev1.EnvVar {
 // only when the client is enabled. A2A_MCP_SERVERS is emitted only when at least
 // one server URL is set, and the string knobs only when non-empty, so a
 // zero-valued field never clobbers the ADK's own default with an empty value.
-func agentMCPEnvVars(mcp v1alpha1.MCPClientSpec) []corev1.EnvVar {
+func agentMCPEnvVars(mcp corev1alpha1.MCPClientSpec) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{
 		{Name: "A2A_MCP_ENABLED", Value: strconv.FormatBool(mcp.Enabled)},
 	}
@@ -597,11 +597,11 @@ func telemetryExporterValue(configured bool, key string) string {
 
 // createOrUpdateDeployment handles deployment creation and updates
 func (r *AgentReconciler) createOrUpdateDeployment(ctx context.Context, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	found := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
-	if err != nil && apiErrors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		logger.Info("creating deployment", "Deployment.Name", deployment.Name)
 		if err = r.Create(ctx, deployment); err != nil {
 			return nil, err
@@ -616,7 +616,7 @@ func (r *AgentReconciler) createOrUpdateDeployment(ctx context.Context, deployme
 
 // updateDeploymentIfNeeded updates deployment if changes are detected
 func (r *AgentReconciler) updateDeploymentIfNeeded(ctx context.Context, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	for retries := 0; retries < 3; retries++ {
 		latestDeployment := &appsv1.Deployment{}
@@ -672,7 +672,7 @@ func (r *AgentReconciler) updateDeploymentIfNeeded(ctx context.Context, desired,
 
 		logger.Info("Updating Agent Deployment", "Deployment.Name", desired.Name, "changes", fmt.Sprintf("[%s]", fmt.Sprintf("%v", changes)))
 		if err := r.Update(ctx, latestDeployment); err != nil {
-			if apiErrors.IsConflict(err) && retries < 2 {
+			if apierrors.IsConflict(err) && retries < 2 {
 				logger.Info("Deployment update conflict, retrying", "retry", retries+1, "error", err)
 				time.Sleep(time.Millisecond * 100)
 				continue
@@ -718,7 +718,7 @@ func (r *AgentReconciler) shouldWatchNamespace(ctx context.Context, namespace st
 // SetupWithManager sets up the controller with the Manager.
 func (r *AgentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.Agent{}).
+		For(&corev1alpha1.Agent{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Named("agent").

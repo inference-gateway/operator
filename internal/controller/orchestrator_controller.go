@@ -30,19 +30,19 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apiErrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
+	intstr "k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	handler "sigs.k8s.io/controller-runtime/pkg/handler"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	log "sigs.k8s.io/controller-runtime/pkg/log"
 
-	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
 // OrchestratorReconciler reconciles an Orchestrator object.
@@ -68,9 +68,9 @@ type OrchestratorReconciler struct {
 // matching the configured selector and writes them into a ConfigMap mounted as
 // ~/.infer/agents.yaml inside the orchestrator pod for hot-reload without restarts.
 func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	var orch v1alpha1.Orchestrator
+	var orch corev1alpha1.Orchestrator
 	if err := r.Get(ctx, req.NamespacedName, &orch); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -82,7 +82,7 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Reconcile the agents ConfigMap (handles both static and discovered agents).
 	discoveredAgentURLs, agentsYAML, err := r.reconcileAgentsConfigMap(ctx, &orch)
 	if err != nil {
-		if apiErrors.IsConflict(err) {
+		if apierrors.IsConflict(err) {
 			logger.V(1).Info("agents configmap reconciliation conflict, requeueing", "error", err)
 			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
 		}
@@ -93,7 +93,7 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Reconcile the MCPs ConfigMap (handles both static and discovered MCP servers).
 	discoveredMCPURLs, mcpYAML, err := r.reconcileMCPsConfigMap(ctx, &orch)
 	if err != nil {
-		if apiErrors.IsConflict(err) {
+		if apierrors.IsConflict(err) {
 			logger.V(1).Info("mcps configmap reconciliation conflict, requeueing", "error", err)
 			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
 		}
@@ -103,7 +103,7 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	deployment, err := r.reconcileDeployment(ctx, &orch, agentsYAML, mcpYAML)
 	if err != nil {
-		if apiErrors.IsConflict(err) {
+		if apierrors.IsConflict(err) {
 			logger.V(1).Info("deployment reconciliation conflict, requeueing", "error", err)
 			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
 		}
@@ -135,8 +135,8 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 // service discovery is disabled. When service discovery is enabled the ConfigMap mount
 // is the source of truth for all agents (static + discovered), so INFER_A2A_AGENTS
 // becomes redundant; it will be removed in a future version.
-func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, orch *v1alpha1.Orchestrator) ([]string, string, error) {
-	logger := logf.FromContext(ctx)
+func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, orch *corev1alpha1.Orchestrator) ([]string, string, error) {
+	logger := log.FromContext(ctx)
 
 	if !orch.Spec.A2A.Enabled || !orch.Spec.A2A.ServiceDiscovery.Enabled {
 		return nil, "", nil
@@ -182,7 +182,7 @@ func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, o
 
 	found := &corev1.ConfigMap{}
 	err = r.Get(ctx, types.NamespacedName{Name: cmName, Namespace: orch.Namespace}, found)
-	if err != nil && apiErrors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		logger.Info("creating agents configmap", "ConfigMap.Name", cmName)
 		if err = r.Create(ctx, cm); err != nil {
 			return nil, "", err
@@ -205,7 +205,7 @@ func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, o
 }
 
 // discoverAgents lists Agent CRs in the configured namespace filtered by the label selector.
-func (r *OrchestratorReconciler) discoverAgents(ctx context.Context, orch *v1alpha1.Orchestrator) ([]v1alpha1.Agent, error) {
+func (r *OrchestratorReconciler) discoverAgents(ctx context.Context, orch *corev1alpha1.Orchestrator) ([]corev1alpha1.Agent, error) {
 	ns := orch.Spec.A2A.ServiceDiscovery.Namespace
 	if ns == "" {
 		ns = orch.Namespace
@@ -221,7 +221,7 @@ func (r *OrchestratorReconciler) discoverAgents(ctx context.Context, orch *v1alp
 		listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: selector})
 	}
 
-	var agentList v1alpha1.AgentList
+	var agentList corev1alpha1.AgentList
 	if err := r.List(ctx, &agentList, listOpts...); err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func (r *OrchestratorReconciler) discoverAgents(ctx context.Context, orch *v1alp
 // buildAgentsYAML constructs an agents.yaml document combining static (from spec.a2a.agents)
 // and discovered Agent CRs. Discovered entries take precedence on URL collision.
 // The format matches the CLI's AgentsConfig schema.
-func buildAgentsYAML(staticAgents []string, discoveredAgents []v1alpha1.Agent) string {
+func buildAgentsYAML(staticAgents []string, discoveredAgents []corev1alpha1.Agent) string {
 	var sb strings.Builder
 	sb.WriteString("agents:\n")
 
@@ -245,7 +245,7 @@ func buildAgentsYAML(staticAgents []string, discoveredAgents []v1alpha1.Agent) s
 	}
 
 	// Discovered agents, sorted by name for determinism.
-	sorted := make([]v1alpha1.Agent, len(discoveredAgents))
+	sorted := make([]corev1alpha1.Agent, len(discoveredAgents))
 	copy(sorted, discoveredAgents)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 
@@ -270,8 +270,8 @@ func buildAgentsYAML(staticAgents []string, discoveredAgents []v1alpha1.Agent) s
 // rendered mcp.yaml content (used to stamp a hash annotation on the Deployment so the
 // pod is rolled when the content changes - required because the ConfigMap is mounted with
 // subPath, which Kubernetes does not propagate live updates for).
-func (r *OrchestratorReconciler) reconcileMCPsConfigMap(ctx context.Context, orch *v1alpha1.Orchestrator) ([]string, string, error) {
-	logger := logf.FromContext(ctx)
+func (r *OrchestratorReconciler) reconcileMCPsConfigMap(ctx context.Context, orch *corev1alpha1.Orchestrator) ([]string, string, error) {
+	logger := log.FromContext(ctx)
 
 	if !orch.Spec.MCP.Enabled || !orch.Spec.MCP.ServiceDiscovery.Enabled {
 		return nil, "", nil
@@ -308,7 +308,7 @@ func (r *OrchestratorReconciler) reconcileMCPsConfigMap(ctx context.Context, orc
 
 	found := &corev1.ConfigMap{}
 	err = r.Get(ctx, types.NamespacedName{Name: cmName, Namespace: orch.Namespace}, found)
-	if err != nil && apiErrors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		logger.Info("creating mcps configmap", "ConfigMap.Name", cmName)
 		if err = r.Create(ctx, cm); err != nil {
 			return nil, "", err
@@ -330,7 +330,7 @@ func (r *OrchestratorReconciler) reconcileMCPsConfigMap(ctx context.Context, orc
 }
 
 // discoverMCPs lists MCP CRs in the configured namespace filtered by the label selector.
-func (r *OrchestratorReconciler) discoverMCPs(ctx context.Context, orch *v1alpha1.Orchestrator) ([]v1alpha1.MCP, error) {
+func (r *OrchestratorReconciler) discoverMCPs(ctx context.Context, orch *corev1alpha1.Orchestrator) ([]corev1alpha1.MCP, error) {
 	ns := orch.Spec.MCP.ServiceDiscovery.Namespace
 	if ns == "" {
 		ns = orch.Namespace
@@ -346,7 +346,7 @@ func (r *OrchestratorReconciler) discoverMCPs(ctx context.Context, orch *v1alpha
 		listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: selector})
 	}
 
-	var mcpList v1alpha1.MCPList
+	var mcpList corev1alpha1.MCPList
 	if err := r.List(ctx, &mcpList, listOpts...); err != nil {
 		return nil, err
 	}
@@ -358,7 +358,7 @@ func (r *OrchestratorReconciler) discoverMCPs(ctx context.Context, orch *v1alpha
 // Discovered entries are sorted by name for determinism. The schema matches the CLI's
 // MCPConfig (top-level `enabled` + `servers`, each entry split into scheme/host/port/path
 // rather than a single `url` field).
-func buildMCPsYAML(staticServers []string, discoveredMCPs []v1alpha1.MCP) string {
+func buildMCPsYAML(staticServers []string, discoveredMCPs []corev1alpha1.MCP) string {
 	var sb strings.Builder
 	sb.WriteString("enabled: true\n")
 	sb.WriteString("servers:\n")
@@ -367,7 +367,7 @@ func buildMCPsYAML(staticServers []string, discoveredMCPs []v1alpha1.MCP) string
 		writeMCPServerEntry(&sb, fmt.Sprintf("static-mcp-%d", i), raw)
 	}
 
-	sorted := make([]v1alpha1.MCP, len(discoveredMCPs))
+	sorted := make([]corev1alpha1.MCP, len(discoveredMCPs))
 	copy(sorted, discoveredMCPs)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 
@@ -423,7 +423,7 @@ func splitMCPURL(raw string) (scheme, host string, port int, path string) {
 // mcpURL returns the URL for an MCP CR. It prefers Status.URL (already TLS- and
 // path-aware, populated by the MCP controller) and falls back to a deterministic
 // construction when status has not been populated yet.
-func mcpURL(mcp *v1alpha1.MCP) string {
+func mcpURL(mcp *corev1alpha1.MCP) string {
 	if mcp.Status.URL != "" {
 		return mcp.Status.URL
 	}
@@ -448,7 +448,7 @@ func mcpURL(mcp *v1alpha1.MCP) string {
 // agentsYAML and mcpYAML are the rendered ConfigMap contents; their hashes are stamped as
 // pod template annotations so the Deployment rolls when the contents change (subPath mounts
 // do not propagate updates).
-func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *v1alpha1.Orchestrator, agentsYAML, mcpYAML string) (*appsv1.Deployment, error) {
+func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *corev1alpha1.Orchestrator, agentsYAML, mcpYAML string) (*appsv1.Deployment, error) {
 	deployment := r.buildOrchestratorDeployment(orch, agentsYAML, mcpYAML)
 
 	if err := controllerutil.SetControllerReference(orch, deployment, r.Scheme); err != nil {
@@ -464,7 +464,7 @@ func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *
 // discovered sets on each invocation. The hashes of the YAML contents are stamped as
 // pod template annotations so the Deployment rolls when either set changes -
 // Kubernetes does not propagate live updates to ConfigMap volumes that use subPath.
-func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orchestrator, agentsYAML, mcpYAML string) *appsv1.Deployment {
+func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *corev1alpha1.Orchestrator, agentsYAML, mcpYAML string) *appsv1.Deployment {
 	orchLabels := map[string]string{"app": orch.Name}
 
 	container := corev1.Container{
@@ -566,7 +566,7 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *v1alpha1.Orch
 // Note: INFER_A2A_AGENTS is retained for backward compatibility. When service discovery is
 // enabled, the agents ConfigMap mount (~/.infer/agents.yaml) is the source of truth for all
 // agents (static + discovered). INFER_A2A_AGENTS will be removed in a future release.
-func buildOrchestratorEnvironmentVars(orch *v1alpha1.Orchestrator) []corev1.EnvVar {
+func buildOrchestratorEnvironmentVars(orch *corev1alpha1.Orchestrator) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
 	if orch.Spec.Env != nil {
@@ -670,7 +670,7 @@ func buildOrchestratorEnvironmentVars(orch *v1alpha1.Orchestrator) []corev1.EnvV
 // endpoint for both traces and metrics (no per-signal OTLP fields),
 // so when both traces and metrics push over OTLP the traces endpoint
 // wins and the metrics endpoint can't be expressed independently.
-func orchestratorTelemetryEnvVars(tel *v1alpha1.TelemetrySpec) []corev1.EnvVar {
+func orchestratorTelemetryEnvVars(tel *corev1alpha1.TelemetrySpec) []corev1.EnvVar {
 	if tel == nil {
 		return []corev1.EnvVar{
 			{Name: "INFER_TELEMETRY_ENABLED", Value: "false"},
@@ -694,7 +694,7 @@ func orchestratorTelemetryEnvVars(tel *v1alpha1.TelemetrySpec) []corev1.EnvVar {
 		})
 	}
 
-	var otlp *v1alpha1.OTLPExporterSpec
+	var otlp *corev1alpha1.OTLPExporterSpec
 	if tel.Traces != nil && tel.Traces.Exporter != nil {
 		otlp = tel.Traces.Exporter.OTLP
 	}
@@ -714,8 +714,8 @@ func orchestratorTelemetryEnvVars(tel *v1alpha1.TelemetrySpec) []corev1.EnvVar {
 // reconcileReceiverService creates or removes the Service exposing the OTLP
 // receiver port based on spec.telemetry.receiver.enabled. The Service uses the
 // same labels as the Deployment so the selector stays in sync with the controller.
-func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, orch *v1alpha1.Orchestrator) error {
-	logger := logf.FromContext(ctx)
+func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, orch *corev1alpha1.Orchestrator) error {
+	logger := log.FromContext(ctx)
 
 	enabled := orch.Spec.Telemetry != nil && orch.Spec.Telemetry.Receiver != nil && orch.Spec.Telemetry.Receiver.Enabled
 
@@ -752,7 +752,7 @@ func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, o
 
 	found := &corev1.Service{}
 	err := r.Get(ctx, types.NamespacedName{Name: svcName, Namespace: orch.Namespace}, found)
-	if err != nil && apiErrors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		if !enabled {
 			return nil
 		}
@@ -778,11 +778,11 @@ func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, o
 
 // createOrUpdateOrchestratorDeployment creates the Deployment if missing, otherwise reconciles drift.
 func (r *OrchestratorReconciler) createOrUpdateOrchestratorDeployment(ctx context.Context, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	found := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
-	if err != nil && apiErrors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		logger.Info("creating orchestrator deployment", "Deployment.Name", deployment.Name)
 		if err = r.Create(ctx, deployment); err != nil {
 			return nil, err
@@ -797,7 +797,7 @@ func (r *OrchestratorReconciler) createOrUpdateOrchestratorDeployment(ctx contex
 
 // updateOrchestratorDeploymentIfNeeded reconciles drift on replicas, strategy, selector, and pod template.
 func (r *OrchestratorReconciler) updateOrchestratorDeploymentIfNeeded(ctx context.Context, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	for retries := 0; retries < 3; retries++ {
 		latest := &appsv1.Deployment{}
@@ -849,7 +849,7 @@ func (r *OrchestratorReconciler) updateOrchestratorDeploymentIfNeeded(ctx contex
 
 		logger.Info("updating orchestrator deployment", "Deployment.Name", desired.Name, "changes", changes)
 		if err := r.Update(ctx, latest); err != nil {
-			if apiErrors.IsConflict(err) && retries < 2 {
+			if apierrors.IsConflict(err) && retries < 2 {
 				logger.Info("deployment update conflict, retrying", "retry", retries+1)
 				time.Sleep(time.Millisecond * 100)
 				continue
@@ -863,7 +863,7 @@ func (r *OrchestratorReconciler) updateOrchestratorDeploymentIfNeeded(ctx contex
 }
 
 // updateStatus reflects Deployment availability and discovered agents/MCPs into Orchestrator status.
-func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *v1alpha1.Orchestrator, deployment *appsv1.Deployment, discoveredAgentURLs, discoveredMCPURLs []string) error {
+func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *corev1alpha1.Orchestrator, deployment *appsv1.Deployment, discoveredAgentURLs, discoveredMCPURLs []string) error {
 	patch := client.MergeFrom(orch.DeepCopy())
 
 	ready := deployment.Status.AvailableReplicas >= 1
@@ -961,12 +961,12 @@ func setCondition(conditions *[]metav1.Condition, newCond metav1.Condition) {
 //
 //nolint:dupl // structurally parallel to mcpToOrchestratorRequests; merging via generics would
 func (r *OrchestratorReconciler) agentToOrchestratorRequests(ctx context.Context, obj client.Object) []ctrl.Request {
-	agent, ok := obj.(*v1alpha1.Agent)
+	agent, ok := obj.(*corev1alpha1.Agent)
 	if !ok {
 		return nil
 	}
 
-	var orchList v1alpha1.OrchestratorList
+	var orchList corev1alpha1.OrchestratorList
 	if err := r.List(ctx, &orchList); err != nil {
 		return nil
 	}
@@ -1014,12 +1014,12 @@ func (r *OrchestratorReconciler) agentToOrchestratorRequests(ctx context.Context
 //
 //nolint:dupl // structurally parallel to agentToOrchestratorRequests; merging via generics would
 func (r *OrchestratorReconciler) mcpToOrchestratorRequests(ctx context.Context, obj client.Object) []ctrl.Request {
-	mcp, ok := obj.(*v1alpha1.MCP)
+	mcp, ok := obj.(*corev1alpha1.MCP)
 	if !ok {
 		return nil
 	}
 
-	var orchList v1alpha1.OrchestratorList
+	var orchList corev1alpha1.OrchestratorList
 	if err := r.List(ctx, &orchList); err != nil {
 		return nil
 	}
@@ -1064,16 +1064,16 @@ func (r *OrchestratorReconciler) mcpToOrchestratorRequests(ctx context.Context, 
 // reconciliations when one matching an Orchestrator's service discovery selector changes.
 func (r *OrchestratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.Orchestrator{}).
+		For(&corev1alpha1.Orchestrator{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
 		Watches(
-			&v1alpha1.Agent{},
+			&corev1alpha1.Agent{},
 			handler.EnqueueRequestsFromMapFunc(r.agentToOrchestratorRequests),
 		).
 		Watches(
-			&v1alpha1.MCP{},
+			&corev1alpha1.MCP{},
 			handler.EnqueueRequestsFromMapFunc(r.mcpToOrchestratorRequests),
 		).
 		Named("orchestrator").

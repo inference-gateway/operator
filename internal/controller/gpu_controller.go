@@ -29,16 +29,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	labels "k8s.io/apimachinery/pkg/labels"
+	runtime "k8s.io/apimachinery/pkg/runtime"
+	types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
+	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	log "sigs.k8s.io/controller-runtime/pkg/log"
 
-	v1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
-	"github.com/inference-gateway/operator/internal/gpu"
+	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	gpu "github.com/inference-gateway/operator/internal/gpu"
 )
 
 const (
@@ -82,14 +82,14 @@ type GPUReconciler struct {
 // Reconcile drives the GPU allocation lifecycle.
 func (r *GPUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.applyDefaults()
-	logger := logf.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	if !r.shouldWatchNamespace(ctx, req.Namespace) {
 		logger.V(1).Info("skipping gpu in namespace not matching watch criteria", "namespace", req.Namespace)
 		return ctrl.Result{}, nil
 	}
 
-	var g v1alpha1.GPU
+	var g corev1alpha1.GPU
 	if err := r.Get(ctx, req.NamespacedName, &g); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -108,7 +108,7 @@ func (r *GPUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	// Expired resources are terminal until the spec changes (guards against
 	// silently re-leasing an expensive GPU on its own).
-	if g.Status.Phase == v1alpha1.GPUPhaseExpired && g.Status.ObservedGeneration == g.Generation {
+	if g.Status.Phase == corev1alpha1.GPUPhaseExpired && g.Status.ObservedGeneration == g.Generation {
 		return ctrl.Result{}, nil
 	}
 
@@ -130,7 +130,7 @@ func (r *GPUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 // providerFor reads the management credential from the referenced Secret and
 // builds the configured provider driver.
-func (r *GPUReconciler) providerFor(ctx context.Context, g *v1alpha1.GPU) (gpu.Provider, error) {
+func (r *GPUReconciler) providerFor(ctx context.Context, g *corev1alpha1.GPU) (gpu.Provider, error) {
 	ref := g.Spec.CredentialsRef
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, types.NamespacedName{Name: ref.Name, Namespace: g.Namespace}, secret); err != nil {
@@ -146,8 +146,8 @@ func (r *GPUReconciler) providerFor(ctx context.Context, g *v1alpha1.GPU) (gpu.P
 // provision requests a new allocation. The per-allocation token and connection
 // Secret are persisted BEFORE provisioning so the token handed to the runtime
 // survives a crash, and the InstanceID recovers the same external allocation.
-func (r *GPUReconciler) provision(ctx context.Context, g *v1alpha1.GPU, provider gpu.Provider) (ctrl.Result, error) {
-	logger := logf.FromContext(ctx)
+func (r *GPUReconciler) provision(ctx context.Context, g *corev1alpha1.GPU, provider gpu.Provider) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
 
 	token, err := r.ensureConnectionSecret(ctx, g, "")
 	if err != nil {
@@ -174,7 +174,7 @@ func (r *GPUReconciler) provision(ctx context.Context, g *v1alpha1.GPU, provider
 	g.Status.StartedAt = &now
 	expires := metav1.NewTime(now.Add(g.Spec.MaxRuntime.Duration))
 	g.Status.ExpiresAt = &expires
-	g.Status.Phase = v1alpha1.GPUPhaseProvisioning
+	g.Status.Phase = corev1alpha1.GPUPhaseProvisioning
 	setCondition(&g.Status.Conditions, r.condition(g, metav1.ConditionFalse, "Provisioning",
 		"allocation requested, waiting for infrastructure"))
 
@@ -187,7 +187,7 @@ func (r *GPUReconciler) provision(ctx context.Context, g *v1alpha1.GPU, provider
 
 // observe fetches the current allocation state and advances the phase, checking
 // the actual HTTP inference endpoint before reporting Ready.
-func (r *GPUReconciler) observe(ctx context.Context, g *v1alpha1.GPU, provider gpu.Provider) (ctrl.Result, error) {
+func (r *GPUReconciler) observe(ctx context.Context, g *corev1alpha1.GPU, provider gpu.Provider) (ctrl.Result, error) {
 	alloc, err := provider.Get(ctx, g.Status.InstanceID)
 	if errors.Is(err, gpu.ErrNotFound) {
 		return r.fail(ctx, g, "AllocationLost", fmt.Errorf("provider no longer has allocation %s", g.Status.InstanceID))
@@ -207,7 +207,7 @@ func (r *GPUReconciler) observe(ctx context.Context, g *v1alpha1.GPU, provider g
 	case gpu.StateRunning:
 		return r.observeRunning(ctx, g)
 	default:
-		g.Status.Phase = v1alpha1.GPUPhaseStarting
+		g.Status.Phase = corev1alpha1.GPUPhaseStarting
 		setCondition(&g.Status.Conditions, r.condition(g, metav1.ConditionFalse, "InfrastructureStarting",
 			"waiting for provider infrastructure to start"))
 		if err := r.persistStatus(ctx, g); err != nil {
@@ -219,11 +219,11 @@ func (r *GPUReconciler) observe(ctx context.Context, g *v1alpha1.GPU, provider g
 
 // observeRunning is the running-infrastructure branch: it gates Ready on the HTTP
 // readiness endpoint actually responding, per the spec's readinessPath.
-func (r *GPUReconciler) observeRunning(ctx context.Context, g *v1alpha1.GPU) (ctrl.Result, error) {
-	logger := logf.FromContext(ctx)
+func (r *GPUReconciler) observeRunning(ctx context.Context, g *corev1alpha1.GPU) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
 
 	if g.Status.URL == "" {
-		g.Status.Phase = v1alpha1.GPUPhaseStarting
+		g.Status.Phase = corev1alpha1.GPUPhaseStarting
 		setCondition(&g.Status.Conditions, r.condition(g, metav1.ConditionFalse, "EndpointPending",
 			"infrastructure running, endpoint not yet resolved"))
 		if err := r.persistStatus(ctx, g); err != nil {
@@ -240,7 +240,7 @@ func (r *GPUReconciler) observeRunning(ctx context.Context, g *v1alpha1.GPU) (ct
 	probeURL := g.Status.URL + g.Spec.Endpoint.ReadinessPath
 	if probeErr := r.CheckReady(ctx, probeURL, token); probeErr != nil {
 		logger.V(1).Info("gpu endpoint not ready", "gpu", g.Name, "url", probeURL, "err", probeErr)
-		g.Status.Phase = v1alpha1.GPUPhaseStarting
+		g.Status.Phase = corev1alpha1.GPUPhaseStarting
 		setCondition(&g.Status.Conditions, r.condition(g, metav1.ConditionFalse, "EndpointNotReady",
 			fmt.Sprintf("readiness probe failed: %v", probeErr)))
 		if err := r.persistStatus(ctx, g); err != nil {
@@ -252,7 +252,7 @@ func (r *GPUReconciler) observeRunning(ctx context.Context, g *v1alpha1.GPU) (ct
 	if _, err := r.ensureConnectionSecret(ctx, g, g.Status.URL); err != nil {
 		return r.fail(ctx, g, "ConnectionSecretError", err)
 	}
-	g.Status.Phase = v1alpha1.GPUPhaseReady
+	g.Status.Phase = corev1alpha1.GPUPhaseReady
 	setCondition(&g.Status.Conditions, r.condition(g, metav1.ConditionTrue, "EndpointReady",
 		"inference endpoint responded to the readiness probe"))
 	if err := r.persistStatus(ctx, g); err != nil {
@@ -263,13 +263,13 @@ func (r *GPUReconciler) observeRunning(ctx context.Context, g *v1alpha1.GPU) (ct
 
 // expire releases the allocation after MaxRuntime and parks the resource in the
 // Expired phase. It does not delete the resource or auto-reprovision.
-func (r *GPUReconciler) expire(ctx context.Context, g *v1alpha1.GPU, provider gpu.Provider) (ctrl.Result, error) {
-	logger := logf.FromContext(ctx)
+func (r *GPUReconciler) expire(ctx context.Context, g *corev1alpha1.GPU, provider gpu.Provider) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
 	logger.Info("gpu allocation reached MaxRuntime, releasing", "gpu", g.Name, "instanceID", g.Status.InstanceID)
 
 	if g.Status.InstanceID != "" {
 		if err := provider.Destroy(ctx, g.Status.InstanceID); err != nil {
-			g.Status.Phase = v1alpha1.GPUPhaseTerminating
+			g.Status.Phase = corev1alpha1.GPUPhaseTerminating
 			setCondition(&g.Status.Conditions, r.condition(g, metav1.ConditionFalse, "TerminationFailed",
 				fmt.Sprintf("failed to release allocation: %v", err)))
 			_ = r.persistStatus(ctx, g)
@@ -279,7 +279,7 @@ func (r *GPUReconciler) expire(ctx context.Context, g *v1alpha1.GPU, provider gp
 
 	g.Status.InstanceID = ""
 	g.Status.URL = ""
-	g.Status.Phase = v1alpha1.GPUPhaseExpired
+	g.Status.Phase = corev1alpha1.GPUPhaseExpired
 	setCondition(&g.Status.Conditions, r.condition(g, metav1.ConditionFalse, "Expired",
 		"allocation released after reaching MaxRuntime"))
 	if err := r.persistStatus(ctx, g); err != nil {
@@ -291,8 +291,8 @@ func (r *GPUReconciler) expire(ctx context.Context, g *v1alpha1.GPU, provider gp
 // finalize releases the external allocation before allowing deletion to proceed.
 // Cleanup is best-effort but blocking: if the allocation cannot be released the
 // finalizer is kept and a condition explains the stall (orphan-cost protection).
-func (r *GPUReconciler) finalize(ctx context.Context, g *v1alpha1.GPU) (ctrl.Result, error) {
-	logger := logf.FromContext(ctx)
+func (r *GPUReconciler) finalize(ctx context.Context, g *corev1alpha1.GPU) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
 
 	if !controllerutil.ContainsFinalizer(g, gpuFinalizer) {
 		return ctrl.Result{}, nil
@@ -326,9 +326,9 @@ func (r *GPUReconciler) finalize(ctx context.Context, g *v1alpha1.GPU) (ctrl.Res
 
 // fail records a failure phase and requeues on a slow cadence. It returns a nil
 // error (with RequeueAfter) so controller-runtime does not hot-loop on backoff.
-func (r *GPUReconciler) fail(ctx context.Context, g *v1alpha1.GPU, reason string, cause error) (ctrl.Result, error) {
-	logf.FromContext(ctx).Error(cause, "gpu reconcile failed", "gpu", g.Name, "reason", reason)
-	g.Status.Phase = v1alpha1.GPUPhaseFailed
+func (r *GPUReconciler) fail(ctx context.Context, g *corev1alpha1.GPU, reason string, cause error) (ctrl.Result, error) {
+	log.FromContext(ctx).Error(cause, "gpu reconcile failed", "gpu", g.Name, "reason", reason)
+	g.Status.Phase = corev1alpha1.GPUPhaseFailed
 	setCondition(&g.Status.Conditions, r.condition(g, metav1.ConditionFalse, reason, cause.Error()))
 	if err := r.persistStatus(ctx, g); err != nil {
 		return ctrl.Result{}, err
@@ -340,7 +340,7 @@ func (r *GPUReconciler) fail(ctx context.Context, g *v1alpha1.GPU, reason string
 // returning its stable endpoint token. The token is generated once and reused so
 // it stays consistent with what the runtime was started with. The provider API
 // key is never written here.
-func (r *GPUReconciler) ensureConnectionSecret(ctx context.Context, g *v1alpha1.GPU, url string) (string, error) {
+func (r *GPUReconciler) ensureConnectionSecret(ctx context.Context, g *corev1alpha1.GPU, url string) (string, error) {
 	name := g.Name + connectionSecretSuffix
 	secret := &corev1.Secret{}
 	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: g.Namespace}, secret)
@@ -383,7 +383,7 @@ func (r *GPUReconciler) ensureConnectionSecret(ctx context.Context, g *v1alpha1.
 	return token, nil
 }
 
-func (r *GPUReconciler) tokenFromConnectionSecret(ctx context.Context, g *v1alpha1.GPU) (string, error) {
+func (r *GPUReconciler) tokenFromConnectionSecret(ctx context.Context, g *corev1alpha1.GPU) (string, error) {
 	secret := &corev1.Secret{}
 	name := g.Name + connectionSecretSuffix
 	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: g.Namespace}, secret); err != nil {
@@ -392,14 +392,14 @@ func (r *GPUReconciler) tokenFromConnectionSecret(ctx context.Context, g *v1alph
 	return string(secret.Data["apiKey"]), nil
 }
 
-func (r *GPUReconciler) setConnectionSecretRef(g *v1alpha1.GPU, name string) {
+func (r *GPUReconciler) setConnectionSecretRef(g *corev1alpha1.GPU, name string) {
 	if g.Status.ConnectionSecretRef == nil || g.Status.ConnectionSecretRef.Name != name {
 		g.Status.ConnectionSecretRef = &corev1.LocalObjectReference{Name: name}
 	}
 }
 
 // persistStatus stamps ObservedGeneration and writes the status subresource.
-func (r *GPUReconciler) persistStatus(ctx context.Context, g *v1alpha1.GPU) error {
+func (r *GPUReconciler) persistStatus(ctx context.Context, g *corev1alpha1.GPU) error {
 	g.Status.ObservedGeneration = g.Generation
 	if err := r.Status().Update(ctx, g); err != nil {
 		return fmt.Errorf("failed to update gpu status: %w", err)
@@ -407,7 +407,7 @@ func (r *GPUReconciler) persistStatus(ctx context.Context, g *v1alpha1.GPU) erro
 	return nil
 }
 
-func (r *GPUReconciler) condition(g *v1alpha1.GPU, status metav1.ConditionStatus, reason, msg string) metav1.Condition {
+func (r *GPUReconciler) condition(g *corev1alpha1.GPU, status metav1.ConditionStatus, reason, msg string) metav1.Condition {
 	return metav1.Condition{
 		Type:               readyConditionType,
 		Status:             status,
@@ -420,7 +420,7 @@ func (r *GPUReconciler) condition(g *v1alpha1.GPU, status metav1.ConditionStatus
 
 // readyRequeue wakes the reconciler again to re-probe readiness and, at the
 // latest, to enforce MaxRuntime.
-func (r *GPUReconciler) readyRequeue(g *v1alpha1.GPU) time.Duration {
+func (r *GPUReconciler) readyRequeue(g *corev1alpha1.GPU) time.Duration {
 	d := gpuReadyMaxRequeue
 	if g.Status.ExpiresAt != nil {
 		if untilExpiry := g.Status.ExpiresAt.Sub(r.Now()); untilExpiry < d {
@@ -466,13 +466,13 @@ func (r *GPUReconciler) shouldWatchNamespace(ctx context.Context, namespace stri
 func (r *GPUReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.applyDefaults()
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.GPU{}).
+		For(&corev1alpha1.GPU{}).
 		Owns(&corev1.Secret{}).
 		Named("gpu").
 		Complete(r)
 }
 
-func endpointPort(g *v1alpha1.GPU) int32 {
+func endpointPort(g *corev1alpha1.GPU) int32 {
 	if g.Spec.Endpoint.Port != 0 {
 		return g.Spec.Endpoint.Port
 	}

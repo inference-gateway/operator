@@ -154,7 +154,7 @@ When creating a new issue, please include:
 - **Go Code**:
   - Follow standard Go coding conventions as outlined in [Effective Go](https://golang.org/doc/effective_go)
   - Use [gofmt](https://golang.org/cmd/gofmt/) to format your code
-  - Imports are grouped by `gci` (standard library, `github.com/onsi`, third-party, `github.com/inference-gateway/*`, this module); run `golangci-lint fmt` to fix the order
+  - Imports are grouped by `gci` (standard library, `github.com/onsi`, third-party, `github.com/inference-gateway/*`, this module) and every non-standard-library import is named (`importas`: `corev1`, `metav1`, `ctrl`, otherwise the last path element); run `golangci-lint fmt` and `golangci-lint run --fix` to fix both
   - Follow the [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments) guidelines
 - **General Guidelines**:
   - Use meaningful variable and function names

@@ -29,7 +29,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	errors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -82,7 +82,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	gateway := &corev1alpha1.Gateway{}
 	err := r.Get(ctx, req.NamespacedName, gateway)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
 
@@ -97,7 +97,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	deployment, err := r.reconcileDeployment(ctx, gateway)
 	if err != nil {
-		if errors.IsConflict(err) {
+		if apierrors.IsConflict(err) {
 			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
 			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
 		}
@@ -216,7 +216,7 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 		}
 
 		if err := r.Status().Update(ctx, latest); err != nil {
-			if errors.IsConflict(err) {
+			if apierrors.IsConflict(err) {
 				lastErr = err
 				continue
 			}
@@ -269,7 +269,7 @@ func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway 
 
 		err := r.Get(ctx, secretNamespacedName, secret)
 		if err != nil {
-			if errors.IsNotFound(err) {
+			if apierrors.IsNotFound(err) {
 				logger.V(1).Info("Skipping provider with missing secret", "provider", p, "secret", secretNamespacedName)
 			} else {
 				logger.Error(err, "Failed to get secret for provider", "provider", p, "secret", secretNamespacedName)
@@ -703,7 +703,7 @@ func (r *GatewayReconciler) createOrUpdateDeployment(ctx context.Context, gatewa
 
 	found := &appsv1.Deployment{}
 	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		logger.Info("creating deployment", "Deployment.Name", deployment.Name)
 		if err = r.Create(ctx, deployment); err != nil {
 			return nil, err
@@ -785,7 +785,7 @@ func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gatewa
 
 		logger.Info("Updating Deployment", "Deployment.Name", desired.Name, "changes", strings.Join(changes, ", "))
 		if err := r.Update(ctx, latestDeployment); err != nil {
-			if errors.IsConflict(err) && retries < 2 {
+			if apierrors.IsConflict(err) && retries < 2 {
 				logger.Info("Deployment update conflict, retrying", "retry", retries+1, "error", err)
 				time.Sleep(time.Millisecond * 100)
 				continue
@@ -866,7 +866,7 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 
 	found := &corev1.Service{}
 	err := r.Get(ctx, types.NamespacedName{Name: service.Name, Namespace: service.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		logger.Info("Creating Service", "Service.Name", service.Name)
 		if err = r.Create(ctx, service); err != nil {
 			return err
@@ -920,10 +920,10 @@ func (r *GatewayReconciler) deleteOwnedRouting(ctx context.Context, gateway *cor
 	switch {
 	case err == nil:
 		logger.Info("Deleting HTTPRoute (routing disabled)", "HTTPRoute.Name", httpRoute.Name)
-		if delErr := r.Delete(ctx, httpRoute); delErr != nil && !errors.IsNotFound(delErr) {
+		if delErr := r.Delete(ctx, httpRoute); delErr != nil && !apierrors.IsNotFound(delErr) {
 			return delErr
 		}
-	case !errors.IsNotFound(err):
+	case !apierrors.IsNotFound(err):
 		return err
 	}
 
@@ -932,10 +932,10 @@ func (r *GatewayReconciler) deleteOwnedRouting(ctx context.Context, gateway *cor
 	switch {
 	case err == nil:
 		logger.Info("Deleting Gateway (routing disabled)", "Gateway.Name", gw.Name)
-		if delErr := r.Delete(ctx, gw); delErr != nil && !errors.IsNotFound(delErr) {
+		if delErr := r.Delete(ctx, gw); delErr != nil && !apierrors.IsNotFound(delErr) {
 			return delErr
 		}
-	case !errors.IsNotFound(err):
+	case !apierrors.IsNotFound(err):
 		return err
 	}
 
@@ -986,13 +986,13 @@ func (r *GatewayReconciler) reconcileModelRoutingConfig(ctx context.Context, gat
 		existing := &corev1.ConfigMap{}
 		err := r.Get(ctx, key, existing)
 		switch {
-		case errors.IsNotFound(err):
+		case apierrors.IsNotFound(err):
 			return nil
 		case err != nil:
 			return err
 		}
 		logger.Info("Deleting model-routing ConfigMap (inline routing config not set)", "ConfigMap.Name", name)
-		if err := r.Delete(ctx, existing); err != nil && !errors.IsNotFound(err) {
+		if err := r.Delete(ctx, existing); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 		return nil
@@ -1013,7 +1013,7 @@ func (r *GatewayReconciler) reconcileModelRoutingConfig(ctx context.Context, gat
 	found := &corev1.ConfigMap{}
 	err := r.Get(ctx, key, found)
 	switch {
-	case errors.IsNotFound(err):
+	case apierrors.IsNotFound(err):
 		logger.Info("Creating model-routing ConfigMap", "ConfigMap.Name", name)
 		return r.Create(ctx, desired)
 	case err != nil:
@@ -1039,10 +1039,10 @@ func (r *GatewayReconciler) reconcileUpstreamGateway(ctx context.Context, gatewa
 		switch {
 		case err == nil:
 			logger.Info("Deleting operator-owned Gateway (advanced mode uses parentRefs)", "Gateway.Name", gw.Name)
-			if delErr := r.Delete(ctx, gw); delErr != nil && !errors.IsNotFound(delErr) {
+			if delErr := r.Delete(ctx, gw); delErr != nil && !apierrors.IsNotFound(delErr) {
 				return delErr
 			}
-		case !errors.IsNotFound(err):
+		case !apierrors.IsNotFound(err):
 			return err
 		}
 		return nil
@@ -1056,7 +1056,7 @@ func (r *GatewayReconciler) reconcileUpstreamGateway(ctx context.Context, gatewa
 	found := &gwapiv1.Gateway{}
 	err := r.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, found)
 	switch {
-	case errors.IsNotFound(err):
+	case apierrors.IsNotFound(err):
 		logger.Info("Creating Gateway", "Gateway.Name", desired.Name)
 		return r.Create(ctx, desired)
 	case err != nil:
@@ -1085,7 +1085,7 @@ func (r *GatewayReconciler) reconcileHTTPRoute(ctx context.Context, gateway *cor
 	found := &gwapiv1.HTTPRoute{}
 	err := r.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, found)
 	switch {
-	case errors.IsNotFound(err):
+	case apierrors.IsNotFound(err):
 		logger.Info("Creating HTTPRoute", "HTTPRoute.Name", desired.Name)
 		return r.Create(ctx, desired)
 	case err != nil:
@@ -1531,7 +1531,7 @@ func (r *GatewayReconciler) reconcileServiceAccount(ctx context.Context, gateway
 	existing := &corev1.ServiceAccount{}
 	err = r.Get(ctx, types.NamespacedName{Name: serviceAccountName, Namespace: gateway.Namespace}, existing)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// Create new ServiceAccount
 			err = r.Create(ctx, serviceAccount)
 			if err != nil {
@@ -1573,7 +1573,7 @@ func (r *GatewayReconciler) updateServiceAccountStatus(ctx context.Context, gate
 
 		latest.Status.ServiceAccountName = serviceAccountName
 		if err := r.Status().Update(ctx, latest); err != nil {
-			if errors.IsConflict(err) {
+			if apierrors.IsConflict(err) {
 				lastErr = err
 				continue
 			}
