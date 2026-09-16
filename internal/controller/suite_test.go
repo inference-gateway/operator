@@ -36,7 +36,6 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
-	// +kubebuilder:scaffold:imports
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to

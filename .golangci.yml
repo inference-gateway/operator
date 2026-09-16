@@ -12,6 +12,18 @@ formatters:
   enable:
     - gofmt
     - goimports
+    - gci
+  settings:
+    gci:
+      custom-order: true
+      sections:
+        - standard
+        - prefix(github.com/onsi)
+        - default
+        - prefix(github.com/inference-gateway/)
+        - prefix(github.com/inference-gateway/operator)
+  exclusions:
+    generated: lax
 
 linters:
   default: none

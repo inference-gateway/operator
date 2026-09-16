@@ -27,6 +27,7 @@ All workflows run through [Task](https://taskfile.dev) (`task --list` for the fu
 ## Conventions
 
 - Go: tabs, `gofmt`/`goimports`. YAML/Markdown: two-space indent, LF, trailing newline (`.editorconfig`).
+- Import order is enforced by the `gci` formatter (see `.golangci.yml`): standard library, `github.com/onsi` (ginkgo/gomega), third-party, `github.com/inference-gateway/*`, then this module. Fix locally with `golangci-lint fmt`.
 - Keep API types in `api/v1alpha1/*_types.go`, reconcilers in `internal/controller/*_controller.go`, tests alongside.
 - Run `task fmt`, `task vet`, and `task lint` before submitting.
 - Add/update tests when changing reconciliation behavior, CRD schemas, defaults, or validation.
