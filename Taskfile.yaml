@@ -169,7 +169,12 @@ tasks:
   gateway-api:install:
     desc: Install Kubernetes Gateway API standard CRDs (Gateway, HTTPRoute, etc.)
     cmds:
-      - kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
+      - |
+        if kubectl get crd gateways.gateway.networking.k8s.io >/dev/null 2>&1; then
+          echo "Gateway API CRDs already present, skipping {{.GATEWAY_API_VERSION}} install"
+          exit 0
+        fi
+        kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
 
   envoy-gateway:install:
     desc: Install Envoy Gateway and a default `envoy` GatewayClass
