@@ -29,6 +29,7 @@ var SupportedProviders = []string{
 	"cloudflare",
 	"cohere",
 	"deepseek",
+	"elevenlabs",
 	"google",
 	"groq",
 	"llamacpp",
