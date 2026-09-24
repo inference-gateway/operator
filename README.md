@@ -593,9 +593,15 @@ spec:
 `Orchestrator` via the same label-selector pattern used for A2A agents. Opt-in
 on the MCP side is via plain `metadata.labels` - no extra field on `MCPSpec`.
 
-**Gateway-side discovery** - discovered MCP URLs are unioned with the static
-`spec.mcp.servers[]` list, deduped, sorted, and exposed via the gateway pod's
-`MCP_SERVERS` env var:
+**Gateway-side discovery** - discovered MCPs are unioned with the static
+`spec.mcp.servers[]` list, deduped on URL, sorted, and exposed via the gateway
+pod's `MCP_SERVERS` env var as `name=url` entries. The name (`spec.mcp.servers[].name`
+for static servers, `metadata.name` for discovered `MCP` CRs) becomes the tool
+namespace, so tools reach the model as `mcp_<name>_<tool>` - for example
+`mcp_time_get_current_time` rather than a long host-derived alias. To be used as an
+alias a name must match `^[a-z0-9_-]+$`, be unique across static and discovered
+servers, and must not be the reserved alias `tools`; a name that fails these rules is
+rendered as a bare URL and the gateway falls back to deriving the alias from the host.
 
 ```yaml
 apiVersion: core.inference-gateway.com/v1alpha1
