@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.1](https://github.com/inference-gateway/operator/compare/v0.25.0...v0.25.1) (2026-09-24)
+
+### ♻️ Improvements
+
+* **gateway:** render MCP_SERVERS as name=url aliases ([#236](https://github.com/inference-gateway/operator/issues/236)) ([3bfb7ac](https://github.com/inference-gateway/operator/commit/3bfb7ac39d53837370ef3e66a778d393af78e621))
+
+### 👷 CI
+
+* **claude:** centralize claude.yml via reusable workflow ([#232](https://github.com/inference-gateway/operator/issues/232)) ([4d2a583](https://github.com/inference-gateway/operator/commit/4d2a583f9252c72b9ee02d8f57de821cc5a2092c))
+* **deps:** bump github.com/onsi/ginkgo/v2 in the gomod group ([#218](https://github.com/inference-gateway/operator/issues/218)) ([5eb52ff](https://github.com/inference-gateway/operator/commit/5eb52ff4b30ca6c1b3f89cea179852c25851eee8))
+* **deps:** bump go.opentelemetry.io/otel/exporters/otlp/otlptrace ([#225](https://github.com/inference-gateway/operator/issues/225)) ([e681bae](https://github.com/inference-gateway/operator/commit/e681bae946a409f712d3fd55123b29ebad0ea21a))
+* **deps:** bump go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc ([#227](https://github.com/inference-gateway/operator/issues/227)) ([5674492](https://github.com/inference-gateway/operator/commit/56744927f08e3325cd02fdba7e88a3417b14d3c3))
+* **deps:** bump rancher/k3s from v1.36.4-k3s1 to v1.37.0-k3s1 in the docker group ([#228](https://github.com/inference-gateway/operator/issues/228)) ([343e738](https://github.com/inference-gateway/operator/commit/343e7381ebb690d0c10bb3b6d8df53aca72cf4c5))
+* **deps:** bump rancher/k3s in the docker group ([#219](https://github.com/inference-gateway/operator/issues/219)) ([50089f7](https://github.com/inference-gateway/operator/commit/50089f74198742d6b01054386fd915271da81386))
+* **deps:** bump the gomod group with 3 updates ([#229](https://github.com/inference-gateway/operator/issues/229)) ([e016a01](https://github.com/inference-gateway/operator/commit/e016a011458e07fbe92bf22a8701a1a739f0831d))
+
+### 📚 Documentation
+
+* Document pre-commit hook and coverage command in AGENTS.md ([#224](https://github.com/inference-gateway/operator/issues/224)) ([aebbec0](https://github.com/inference-gateway/operator/commit/aebbec05a4081cd7da01757c1bd555b235dd4eb8))
+
+### 🔧 Miscellaneous
+
+* **deps:** bump claude-code 2.1.245 -> 2.1.266 ([#220](https://github.com/inference-gateway/operator/issues/220)) ([09b15b8](https://github.com/inference-gateway/operator/commit/09b15b87b882d43980dd39310eee5bb95d58e6d3))
+* **deps:** bump claude-code 2.1.266 -> 2.1.278 ([#230](https://github.com/inference-gateway/operator/issues/230)) ([114a61e](https://github.com/inference-gateway/operator/commit/114a61e7ce1216fb18f83cd891b13ca6bb6096c5))
+* **deps:** bump infer CLI v0.183.0 -> v0.192.0 ([#221](https://github.com/inference-gateway/operator/issues/221)) ([5186c52](https://github.com/inference-gateway/operator/commit/5186c528405905b302bfd8f0c9e3abee66df85e7))
+* **deps:** bump infer CLI v0.192.0 -> v0.205.3 ([#231](https://github.com/inference-gateway/operator/issues/231)) ([099c939](https://github.com/inference-gateway/operator/commit/099c939f1069c8b7acf7a1c3a1ec69baac310914))
+* **lint:** enforce Go import grouping and named imports ([#223](https://github.com/inference-gateway/operator/issues/223)) ([7ae0d6d](https://github.com/inference-gateway/operator/commit/7ae0d6d4268c886f8ef367944ba02012138bc5f9))
+
 ## [0.25.0](https://github.com/inference-gateway/operator/compare/v0.24.3...v0.25.0) (2026-09-11)
 
 ### ✨ Features
