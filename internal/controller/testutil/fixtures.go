@@ -46,12 +46,14 @@ func Scheme() *runtime.Scheme {
 }
 
 // NewFakeClient builds a controller-runtime fake client seeded with objs and
-// backed by Scheme(). Suited to unit-testing reconciler helpers in isolation,
-// without standing up envtest.
+// backed by Scheme(). The seeded objects get a status subresource so reconcilers
+// can patch status the way they do against a real API server. Suited to
+// unit-testing reconciler helpers in isolation, without standing up envtest.
 func NewFakeClient(objs ...client.Object) client.Client {
 	return fake.NewClientBuilder().
 		WithScheme(Scheme()).
 		WithObjects(objs...).
+		WithStatusSubresource(objs...).
 		Build()
 }
 
