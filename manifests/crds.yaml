@@ -1927,7 +1927,8 @@ spec:
                   servers:
                     description: |-
                       MCP servers configuration. Static entries are unioned with any servers
-                      discovered via ServiceDiscovery when both are configured.
+                      discovered via ServiceDiscovery when both are configured, and rendered into
+                      MCP_SERVERS as "<name>=<url>".
                     items:
                       description: MCPServer contains MCP server configuration
                       properties:
@@ -1948,7 +1949,12 @@ spec:
                               type: string
                           type: object
                         name:
-                          description: Server name
+                          description: |-
+                            Server name. Rendered as the server's alias in MCP_SERVERS ("<name>=<url>"), so
+                            it becomes the tool namespace: tools are exposed to the model as mcp_<name>_<tool>.
+                            To be used as an alias the name must match ^[a-z0-9_-]+$, be unique across static
+                            and discovered servers, and must not be the reserved alias "tools"; otherwise the
+                            entry is rendered as a bare URL and the gateway derives an alias from the host.
                           type: string
                         url:
                           description: Server URL
@@ -1961,8 +1967,10 @@ spec:
                   serviceDiscovery:
                     description: |-
                       ServiceDiscovery configures automatic discovery of MCP CRs by label selector.
-                      Discovered MCP URLs are appended to the static Servers list, deduped on URL,
-                      sorted for determinism, and exposed to the gateway pod via the MCP_SERVERS env var.
+                      Discovered MCPs are appended to the static Servers list as "<metadata.name>=<url>",
+                      deduped on URL, sorted for determinism, and exposed to the gateway pod via the
+                      MCP_SERVERS env var. The MCP's metadata.name becomes the tool namespace, so its
+                      tools are exposed to the model as mcp_<metadata.name>_<tool>.
                     properties:
                       enabled:
                         description: Enabled toggles automatic discovery of MCP CRs.
@@ -2611,9 +2619,9 @@ spec:
                 type: integer
               mcpServers:
                 description: |-
-                  MCPServers is the sorted list of MCP server URLs (static + discovered)
-                  that the gateway pod is configured with. Mirrors the value of MCP_SERVERS
-                  passed to the container.
+                  MCPServers is the sorted list of MCP server entries (static + discovered) that
+                  the gateway pod is configured with, each rendered as "<name>=<url>". Mirrors the
+                  value of MCP_SERVERS passed to the container.
                 items:
                   type: string
                 type: array

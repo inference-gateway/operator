@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -195,14 +196,14 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 		host, scheme := getHostAndScheme(latest)
 		newURL := fmt.Sprintf("%s://%s", scheme, host)
 
-		var mcpURLs []string
+		var mcpEntries []string
 		if latest.Spec.MCP != nil && latest.Spec.MCP.Enabled {
-			mcpURLs = r.assembleMCPServerURLs(ctx, latest)
+			mcpEntries = r.assembleMCPServerEntries(ctx, latest)
 		}
 
 		urlChanged := newURL != "" && latest.Status.URL != newURL
-		mcpChanged := !stringSlicesEqual(latest.Status.MCPServers, mcpURLs) ||
-			latest.Status.MCPServerCount != int32(len(mcpURLs))
+		mcpChanged := !stringSlicesEqual(latest.Status.MCPServers, mcpEntries) ||
+			latest.Status.MCPServerCount != int32(len(mcpEntries))
 		if !urlChanged && !mcpChanged {
 			return nil
 		}
@@ -211,8 +212,8 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 			latest.Status.URL = newURL
 		}
 		if mcpChanged {
-			latest.Status.MCPServers = mcpURLs
-			latest.Status.MCPServerCount = int32(len(mcpURLs))
+			latest.Status.MCPServers = mcpEntries
+			latest.Status.MCPServerCount = int32(len(mcpEntries))
 		}
 
 		if err := r.Status().Update(ctx, latest); err != nil {
@@ -223,7 +224,7 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 			logger.Error(err, "failed to update gateway status")
 			return err
 		}
-		logger.V(1).Info("updated gateway status", "gateway", latest.Name, "url", newURL, "mcpServerCount", len(mcpURLs))
+		logger.V(1).Info("updated gateway status", "gateway", latest.Name, "url", newURL, "mcpServerCount", len(mcpEntries))
 		return nil
 	}
 	return lastErr
@@ -579,7 +580,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			},
 			corev1.EnvVar{
 				Name:  "MCP_SERVERS",
-				Value: strings.Join(r.assembleMCPServerURLs(ctx, gateway), ","),
+				Value: strings.Join(r.assembleMCPServerEntries(ctx, gateway), ","),
 			},
 			corev1.EnvVar{
 				Name: "MCP_CLIENT_TIMEOUT",
@@ -1618,24 +1619,59 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// assembleMCPServerURLs returns the union of static spec.mcp.servers[].url entries
-// and URLs of MCP CRs discovered via spec.mcp.serviceDiscovery, deduped on URL and
-// sorted for determinism. Discovery errors are logged and ignored so a transient
-// API failure does not blank out the static list.
-func (r *GatewayReconciler) assembleMCPServerURLs(ctx context.Context, gateway *corev1alpha1.Gateway) []string {
+// mcpAliasPattern is the alias syntax the gateway accepts in MCP_SERVERS entries.
+var mcpAliasPattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
+
+// mcpAliasReserved is the alias the gateway reserves for its own meta-tools.
+const mcpAliasReserved = "tools"
+
+// assembleMCPServerEntries returns the union of static spec.mcp.servers[] entries and
+// MCP CRs discovered via spec.mcp.serviceDiscovery, rendered as "name=url" so the
+// gateway namespaces tools as mcp_<name>_<tool> instead of deriving an alias from the
+// host. Entries are deduped on URL and sorted for determinism. A name that is not a
+// valid alias (does not match ^[a-z0-9_-]+$, is the reserved "tools", or collides with
+// an alias already used) is dropped, leaving a bare URL so the server still reaches the
+// gateway with a host-derived alias. Discovery errors are logged and ignored so a
+// transient API failure does not blank out the static list.
+func (r *GatewayReconciler) assembleMCPServerEntries(ctx context.Context, gateway *corev1alpha1.Gateway) []string {
 	logger := log.FromContext(ctx)
-	seen := map[string]struct{}{}
-	urls := make([]string, 0, len(gateway.Spec.MCP.Servers))
+	seenURL := map[string]struct{}{}
+	seenAlias := map[string]struct{}{}
+	entries := make([]string, 0, len(gateway.Spec.MCP.Servers))
+
+	add := func(name, url string) {
+		if url == "" {
+			return
+		}
+		if _, ok := seenURL[url]; ok {
+			return
+		}
+		seenURL[url] = struct{}{}
+
+		reason := ""
+		switch {
+		case !mcpAliasPattern.MatchString(name):
+			reason = "name is not a valid alias (must match ^[a-z0-9_-]+$)"
+		case name == mcpAliasReserved:
+			reason = "name is the reserved alias " + mcpAliasReserved
+		default:
+			if _, ok := seenAlias[name]; ok {
+				reason = "name is already used by another MCP server"
+			}
+		}
+		if reason != "" {
+			logger.Info("rendering MCP server without an alias; the gateway will derive one from the URL",
+				"gateway", gateway.Name, "name", name, "url", url, "reason", reason)
+			entries = append(entries, url)
+			return
+		}
+
+		seenAlias[name] = struct{}{}
+		entries = append(entries, name+"="+url)
+	}
 
 	for _, s := range gateway.Spec.MCP.Servers {
-		if s.URL == "" {
-			continue
-		}
-		if _, ok := seen[s.URL]; ok {
-			continue
-		}
-		seen[s.URL] = struct{}{}
-		urls = append(urls, s.URL)
+		add(s.Name, s.URL)
 	}
 
 	if gateway.Spec.MCP.ServiceDiscovery != nil && gateway.Spec.MCP.ServiceDiscovery.Enabled {
@@ -1644,20 +1680,12 @@ func (r *GatewayReconciler) assembleMCPServerURLs(ctx context.Context, gateway *
 			logger.Error(err, "failed to discover MCPs; using static MCP_SERVERS only")
 		}
 		for _, mcp := range discovered {
-			url := gatewayMCPURL(&mcp)
-			if url == "" {
-				continue
-			}
-			if _, ok := seen[url]; ok {
-				continue
-			}
-			seen[url] = struct{}{}
-			urls = append(urls, url)
+			add(mcp.Name, gatewayMCPURL(&mcp))
 		}
 	}
 
-	sort.Strings(urls)
-	return urls
+	sort.Strings(entries)
+	return entries
 }
 
 // discoverMCPs lists MCP CRs in the configured namespace filtered by the label selector.
