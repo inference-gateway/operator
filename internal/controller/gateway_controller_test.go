@@ -816,7 +816,7 @@ var _ = Describe("Gateway MCP service discovery", func() {
 		return &GatewayReconciler{Client: c, Scheme: gatewayTestScheme}
 	}
 
-	It("returns only static URLs when service discovery is disabled", func() {
+	It("renders only static servers as name=url when service discovery is disabled", func() {
 		r := withFakeClient()
 		gw := makeGateway(
 			[]corev1alpha1.MCPServer{
@@ -825,11 +825,31 @@ var _ = Describe("Gateway MCP service discovery", func() {
 			},
 			nil,
 		)
-		urls := r.assembleMCPServerURLs(ctx, gw)
-		Expect(urls).To(Equal([]string{"http://static-a:8080", "http://static-b:8080"}))
+		entries := r.assembleMCPServerEntries(ctx, gw)
+		Expect(entries).To(Equal([]string{"static-a=http://static-a:8080", "static-b=http://static-b:8080"}))
 	})
 
-	It("returns the union of static and discovered URLs sorted, deduped on URL", func() {
+	It("drops the alias for invalid, reserved and duplicate names", func() {
+		r := withFakeClient()
+		gw := makeGateway(
+			[]corev1alpha1.MCPServer{
+				{Name: "Static.A", URL: "http://invalid-alias:8080"},
+				{Name: "tools", URL: "http://reserved:8080"},
+				{Name: "dup", URL: "http://dup-first:8080"},
+				{Name: "dup", URL: "http://dup-second:8080"},
+			},
+			nil,
+		)
+		entries := r.assembleMCPServerEntries(ctx, gw)
+		Expect(entries).To(ConsistOf(
+			"http://invalid-alias:8080",
+			"http://reserved:8080",
+			"dup=http://dup-first:8080",
+			"http://dup-second:8080",
+		))
+	})
+
+	It("returns the union of static and discovered entries sorted, deduped on URL", func() {
 		r := withFakeClient(
 			&corev1alpha1.MCP{
 				ObjectMeta: metav1.ObjectMeta{
@@ -857,10 +877,10 @@ var _ = Describe("Gateway MCP service discovery", func() {
 				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"discoverable": "true"}},
 			},
 		)
-		urls := r.assembleMCPServerURLs(ctx, gw)
-		Expect(urls).To(Equal([]string{
-			"http://mcp-z-service.default.svc.cluster.local:3000",
-			"http://static-a:8080",
+		entries := r.assembleMCPServerEntries(ctx, gw)
+		Expect(entries).To(Equal([]string{
+			"mcp-z=http://mcp-z-service.default.svc.cluster.local:3000",
+			"static-a=http://static-a:8080",
 		}))
 	})
 
@@ -879,10 +899,10 @@ var _ = Describe("Gateway MCP service discovery", func() {
 			Enabled:   true,
 			Namespace: "mcp",
 		})
-		urls := r.assembleMCPServerURLs(ctx, gw)
-		Expect(urls).To(ConsistOf(
-			"http://m1-service.mcp.svc.cluster.local:3000/mcp",
-			"http://m2-service.mcp.svc.cluster.local:3000/mcp",
+		entries := r.assembleMCPServerEntries(ctx, gw)
+		Expect(entries).To(ConsistOf(
+			"m1=http://m1-service.mcp.svc.cluster.local:3000/mcp",
+			"m2=http://m2-service.mcp.svc.cluster.local:3000/mcp",
 		))
 	})
 
@@ -897,8 +917,8 @@ var _ = Describe("Gateway MCP service discovery", func() {
 			},
 		)
 		gw := makeGateway(nil, &corev1alpha1.MCPServiceDiscoverySpec{Enabled: true, Namespace: "mcp"})
-		urls := r.assembleMCPServerURLs(ctx, gw)
-		Expect(urls).To(Equal([]string{"http://sse-srv-service.mcp.svc.cluster.local:3001/sse"}))
+		entries := r.assembleMCPServerEntries(ctx, gw)
+		Expect(entries).To(Equal([]string{"sse-srv=http://sse-srv-service.mcp.svc.cluster.local:3001/sse"}))
 	})
 
 	It("uses https when the MCP TLS is enabled and a custom port", func() {
@@ -912,8 +932,8 @@ var _ = Describe("Gateway MCP service discovery", func() {
 			},
 		)
 		gw := makeGateway(nil, &corev1alpha1.MCPServiceDiscoverySpec{Enabled: true, Namespace: "mcp"})
-		urls := r.assembleMCPServerURLs(ctx, gw)
-		Expect(urls).To(Equal([]string{"https://secure-service.mcp.svc.cluster.local:9443/mcp"}))
+		entries := r.assembleMCPServerEntries(ctx, gw)
+		Expect(entries).To(Equal([]string{"secure=https://secure-service.mcp.svc.cluster.local:9443/mcp"}))
 	})
 })
 

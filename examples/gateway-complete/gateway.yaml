@@ -166,8 +166,8 @@ spec:
           path: "/health"
           interval: "30s"
     # serviceDiscovery picks up MCP CRs labeled `mcp-group: group1` in the `mcp`
-    # namespace. Their URLs are appended to MCP_SERVERS on the gateway pod,
-    # deduped on URL and sorted for determinism.
+    # namespace. They are appended to MCP_SERVERS on the gateway pod as
+    # `<metadata.name>=<url>`, deduped on URL and sorted for determinism.
     serviceDiscovery:
       enabled: false
       namespace: mcp
