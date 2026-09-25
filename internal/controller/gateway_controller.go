@@ -919,8 +919,6 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 			serviceSpec.ClusterIP = foundSpec.ClusterIP
 		}
 
-		// Keep the node ports the API server assigned; they are only valid
-		// while the type still exposes them.
 		if serviceSpec.Type == foundSpec.Type {
 			for i := range serviceSpec.Ports {
 				for _, foundPort := range foundSpec.Ports {
