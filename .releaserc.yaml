@@ -49,7 +49,7 @@ plugins:
       changelogTitle: "# Changelog\n\nAll notable changes to this project will be documented in this file."
       verifyConditions: true
 
-  - "./hack/release/pin-operator-image.cjs"
+  - "./.github/semantic-release/pin-operator-image.cjs"
 
   - - "@semantic-release/github"
     - assets:

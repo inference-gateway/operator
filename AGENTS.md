@@ -43,7 +43,7 @@ When offline, the drift test skips locally but hard-fails in CI. Hand-edit the f
 
 semantic-release + conventional commits. Subjects like `feat(gateway): Add route weighting`, `fix(agent): Resolve status update error`, `docs: Update install example`. For API changes, commit regenerated output from `task generate` and `task manifests`.
 
-The committed `manifests/install.yaml` keeps `image: ...operator:latest`; the local semantic-release plugin `hack/release/pin-operator-image.cjs` rewrites it to the released version in the uploaded asset only (self-check: `node hack/release/pin-operator-image.cjs`).
+The committed `manifests/install.yaml` keeps `image: ...operator:latest`; the local semantic-release plugin `.github/semantic-release/pin-operator-image.cjs` rewrites it to the released version in the uploaded asset only (self-check: `node .github/semantic-release/pin-operator-image.cjs`). The pinned semantic-release dependencies live next to it in `.github/semantic-release/package.json`; the release workflow installs them with `npm install --prefix .github/semantic-release`.
 
 ## Security
 
