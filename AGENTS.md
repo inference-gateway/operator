@@ -43,6 +43,8 @@ When offline, the drift test skips locally but hard-fails in CI. Hand-edit the f
 
 semantic-release + conventional commits. Subjects like `feat(gateway): Add route weighting`, `fix(agent): Resolve status update error`, `docs: Update install example`. For API changes, commit regenerated output from `task generate` and `task manifests`.
 
+The committed `manifests/install.yaml` keeps `image: ...operator:latest`; the local semantic-release plugin `hack/release/pin-operator-image.cjs` rewrites it to the released version in the uploaded asset only (self-check: `node hack/release/pin-operator-image.cjs`).
+
 ## Security
 
 Never commit secrets in samples or manifests — use Kubernetes Secrets. Keep local cluster config out of the repo. Verify generated CRDs/install manifests before release-facing changes.
