@@ -47,8 +47,9 @@ spec:
       idle: "300s"
     tls:
       enabled: false
-      # When enabled, the operator automatically mounts the Ingress TLS secret into
-      # the backend pod for end-to-end TLS. Override with certificateRef/keyRef.
+      # When enabled, the operator mounts the Secret `inference-gateway-tls` at
+      # /app/tls in the backend pod and exposes port 8443 for end-to-end TLS.
+      # Override the certificate with certificateRef/keyRef.
   auth:
     enabled: false
     provider: oidc
@@ -184,14 +185,21 @@ spec:
     limits:
       cpu: "1000m"
       memory: "512Mi"
-  ingress:
+  # North-south traffic via the Kubernetes Gateway API. The operator creates a
+  # gateway.networking.k8s.io/v1 Gateway plus an HTTPRoute pointing at the
+  # gateway Service. (`spec.ingress` no longer exists - the operator creates no
+  # Ingress.)
+  gatewayAPI:
     enabled: true
-    host: "api.inference-gateway.local"
-    annotations:
-      cert-manager.io/cluster-issuer: "selfsigned-cluster-issuer"
-    tls:
-      enabled: true
-      secretName: inference-gateway-tls
+    gateway:
+      gatewayClassName: envoy
+      tls:
+        enabled: true
+        issuer: "selfsigned-cluster-issuer"
+        secretName: inference-gateway-tls
+    httpRoute:
+      hostnames:
+        - "api.inference-gateway.local"
 ---
 apiVersion: v1
 kind: Secret

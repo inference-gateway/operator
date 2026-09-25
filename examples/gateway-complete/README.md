@@ -7,7 +7,7 @@ A full-featured Inference Gateway deployment showcasing all available options:
 - **OIDC authentication** (disabled by default, toggle with `auth.enabled: true`)
 - **Multiple AI providers** - OpenAI, Anthropic, Groq, Cohere, Cloudflare, DeepSeek, Ollama, Google, and a custom endpoint
 - **MCP servers** (disabled by default, toggle with `mcp.enabled: true`)
-- **Ingress** with TLS via cert-manager
+- **Kubernetes Gateway API** (`spec.gatewayAPI`) - an operator-managed `Gateway` and `HTTPRoute` with TLS via cert-manager
 
 Use this as a reference when you need to understand what each field does, or as a starting template to trim down to your specific needs.
 
@@ -17,7 +17,7 @@ Use this as a reference when you need to understand what each field does, or as 
   ```bash
   task cluster:create && task install && task deploy
   ```
-  > `task cluster:create` provisions a k3d cluster with **cert-manager** and **nginx-ingress** pre-installed.
+  > `task cluster:create` provisions a k3d cluster with **cert-manager** (plus a `selfsigned-cluster-issuer` ClusterIssuer), the **Kubernetes Gateway API CRDs** and **Envoy Gateway** (which provides the `envoy` GatewayClass) pre-installed. No Ingress controller is installed - the operator creates no `Ingress`.
 - API keys for whichever providers you want to enable
 
 ## Run
@@ -52,19 +52,25 @@ Use this as a reference when you need to understand what each field does, or as 
 6. Watch all resources come up:
 
    ```bash
-   kubectl get gateway,hpa,ingress,certificate -n inference-gateway -w
+   kubectl get gateway.core.inference-gateway.com,hpa,certificate -n inference-gateway -w
+   kubectl get gateway.gateway.networking.k8s.io,httproute -n inference-gateway
    ```
 
-7. Add a local DNS entry for the ingress hostname:
+   > `gateway` is ambiguous here: both this operator's CRD and the Kubernetes Gateway API register that resource name, so qualify it with the API group.
+
+7. Add a local DNS entry for the `httpRoute` hostname:
 
    ```bash
    echo "127.0.0.1 api.inference-gateway.local" | sudo tee -a /etc/hosts
    ```
 
-8. Send a test request:
+8. Port-forward Envoy and send a test request:
 
    ```bash
-   curl -k https://api.inference-gateway.local/v1/chat/completions \
+   # Envoy Gateway names the data-plane Service envoy-<namespace>-<gateway-name>
+   kubectl -n envoy-gateway-system port-forward svc/envoy-inference-gateway-inference-gateway 8443:443 &
+
+   curl -k https://api.inference-gateway.local:8443/v1/chat/completions \
      -H "Content-Type: application/json" \
      -d '{
        "model": "groq/llama-3.3-70b-versatile",

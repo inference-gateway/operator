@@ -56,7 +56,7 @@ The operator follows cloud-native best practices and provides a unified control 
 
 **🤖 Supported AI Providers:**
 
-- OpenAI • Anthropic • Google • Ollama • Groq • Cohere • Cloudflare • DeepSeek
+- Anthropic • Cloudflare • Cohere • DeepSeek • ElevenLabs • Google • Groq • llama.cpp • MiniMax • Mistral • Moonshot • NVIDIA • Ollama • Ollama Cloud • OpenAI • Z.ai • plus any OpenAI-compatible endpoint via `custom`
 
 **☸️ Kubernetes Native:**
 
@@ -122,17 +122,37 @@ Powered by **OpenTelemetry** for industry-standard observability:
 
 ### AI Providers
 
-Support for multiple AI/ML providers with flexible configuration:
+Support for multiple AI/ML providers with flexible configuration. The list is
+generated from the canonical [`inference-gateway/schemas`](https://github.com/inference-gateway/schemas)
+OpenAPI enum into [`internal/providers/zz_generated_providers.go`](internal/providers/zz_generated_providers.go),
+so it never drifts from the gateway:
 
-- **OpenAI**: Integration with OpenAI API
-- **Anthropic**: Claude API integration
-- **Google**: Google AI / Gemini API integration
-- **Ollama**: Local model serving
-- **Groq**: Fast inference with open models
-- **Cohere**: Command and embedding models
-- **Cloudflare**: Cloudflare Workers AI models
-- **DeepSeek**: Cost-effective reasoning models
-- **Custom Providers**: Extensible provider configuration
+| `providers[].name` | Provider |
+| ------------------ | -------- |
+| `anthropic` | Claude API |
+| `cloudflare` | Cloudflare Workers AI |
+| `cohere` | Command and embedding models |
+| `deepseek` | Cost-effective reasoning models |
+| `elevenlabs` | Speech and audio models |
+| `google` | Google AI / Gemini |
+| `groq` | Fast inference with open models |
+| `llamacpp` | llama.cpp server |
+| `minimax` | MiniMax models |
+| `mistral` | Mistral AI |
+| `moonshot` | Moonshot AI (Kimi) |
+| `nvidia` | NVIDIA NIM |
+| `ollama` | Local model serving |
+| `ollama_cloud` | Ollama Cloud |
+| `openai` | OpenAI API |
+| `zai` | Z.ai |
+
+In addition, `custom` points the gateway at any OpenAI-compatible endpoint via
+the `CUSTOM_API_URL` and `CUSTOM_API_KEY` environment variables.
+
+`providers[].name` has no CRD enum: it is validated at runtime and matched
+**case-insensitively**, so `OpenAI`, `openai` and `OPENAI` are equivalent. A
+name outside the list above is skipped - it is left out of
+`status.providerSummary`.
 
 ### Extensions
 
@@ -526,7 +546,7 @@ spec:
       cpu: "2000m"
       memory: "2Gi"
 
-  routing:
+  gatewayAPI:
     enabled: true
     gateway:
       gatewayClassName: envoy
@@ -952,13 +972,21 @@ curl http://gateway-service:9464/metrics
 **Distributed Tracing:**
 
 ```yaml
-# Configure OTLP trace export
+# Configure OTLP trace export - OTLP is the only supported exporter
 telemetry:
-  tracing:
-    enabled: true
-    endpoint: "http://jaeger-collector:14268/api/traces"
-    # Or use OTLP gRPC: "http://otel-collector:4317"
+  enabled: true
+  traces:
+    exporter:
+      otlp:
+        endpoint: "http://otel-collector:4318"
+        protocol: "http/protobuf" # or "grpc" (e.g. http://otel-collector:4317)
 ```
+
+`TELEMETRY_TRACING_ENABLED` and `TELEMETRY_TRACING_OTLP_ENDPOINT` are only set
+on the gateway container when `telemetry.enabled` is `true` **and**
+`telemetry.traces.exporter.otlp` is present. Non-OTLP collector endpoints (for
+example Jaeger's `:14268/api/traces`) are not supported - point the exporter at
+an OTLP receiver instead.
 
 **Supported Backends:**
 
