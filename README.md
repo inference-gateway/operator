@@ -713,7 +713,7 @@ spec:
 Visibility:
 
 ```bash
-kubectl get gateway       # MCPS column shows the discovered count
+kubectl get gateway       # MCPS column shows static + discovered MCP servers
 kubectl get orchestrator  # MCPS column shows the discovered count
 ```
 
@@ -761,19 +761,26 @@ kubectl get gateways -A
 # Get detailed gateway status
 kubectl describe gateway my-first-gateway
 
-# Check generated resources
-kubectl get deployments,services,configmaps -l app.kubernetes.io/managed-by=inference-gateway-operator
+# Check generated resources (everything the operator creates for a Gateway is
+# labeled app=<gateway-name>)
+kubectl get deployments,services,configmaps -l app=my-first-gateway
 
 # View Gateway logs
-kubectl logs -l app.kubernetes.io/name=my-first-gateway -f
+kubectl logs -l app=my-first-gateway -f
 ```
 
-Status includes:
+`status` reports:
 
-- Ready and available replica counts
-- Deployment conditions and health
-- Current phase (Pending, Running, Failed, Unknown)
-- Detailed error messages
+- `url`: the address the gateway is reachable at (HTTPRoute hostname when Gateway
+  API routing is enabled, otherwise the in-cluster service FQDN)
+- `providerSummary`: comma-separated list of configured providers
+- `serviceAccountName`: the ServiceAccount the gateway pods run as
+- `mcpServers`: sorted `<name>=<url>` entries the pod is configured with
+- `mcpServerCount`: number of static plus discovered MCP servers
+
+For replica counts and rollout health, check the Deployment directly
+(`kubectl get deployment my-first-gateway`) - the Gateway status does not
+mirror them.
 
 ## ❓ Frequently Asked Questions
 
@@ -939,8 +946,10 @@ The Inference Gateway provides enterprise-grade observability through OpenTeleme
 **Metrics Collection:**
 
 ```bash
-# Access Prometheus metrics
-curl http://gateway-service:9464/metrics
+# Access Prometheus metrics. The metrics port is exposed on the Service named
+# after the Gateway, and only when both telemetry.enabled and
+# telemetry.metrics.enabled are true.
+curl http://my-gateway:9464/metrics
 
 # Key metrics include:
 # - llm_requests_total: Request counts by provider/model
@@ -978,8 +987,8 @@ kubectl get deployment my-gateway
 # Check service endpoints
 kubectl get service my-gateway
 
-# View configuration
-kubectl get configmap my-gateway-config -o yaml
+# View the inline model-routing config (only created when spec.routing.config is set)
+kubectl get configmap my-gateway-routing -o yaml
 ```
 
 ### 🔧 Troubleshooting
