@@ -330,6 +330,19 @@ const (
 	guardrailsPolicyDir = "/etc/inference-gateway/guardrails"
 )
 
+// guardrailsFailModeEnv maps the CRD failMode values onto the values the
+// gateway understands: it only fails closed when GUARDRAILS_FAIL_MODE=closed.
+func guardrailsFailModeEnv(failMode string) string {
+	switch failMode {
+	case "deny":
+		return "closed"
+	case "allow":
+		return "open"
+	default:
+		return failMode
+	}
+}
+
 // reconcileDeployment ensures the Deployment exists with the correct configuration
 func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway) (*appsv1.Deployment, error) {
 	deployment := r.buildDeployment(ctx, gateway)
@@ -635,8 +648,8 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			corev1.EnvVar{Name: "GUARDRAILS_ENABLED", Value: "true"},
 			corev1.EnvVar{Name: "GUARDRAILS_POLICY_DIR", Value: guardrailsPolicyDir},
 		)
-		if gr.FailMode != "" {
-			envVars = append(envVars, corev1.EnvVar{Name: "GUARDRAILS_FAIL_MODE", Value: gr.FailMode})
+		if mode := guardrailsFailModeEnv(gr.FailMode); mode != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "GUARDRAILS_FAIL_MODE", Value: mode})
 		}
 		if gr.ExternalURL != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "GUARDRAILS_EXTERNAL_URL", Value: gr.ExternalURL})

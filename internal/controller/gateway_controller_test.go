@@ -1040,8 +1040,8 @@ var _ = Describe("Gateway model routing", func() {
 var _ = Describe("Gateway guardrails", func() {
 	ctx := context.Background()
 
-	newReconciler := func(objs ...client.Object) *GatewayReconciler {
-		return &GatewayReconciler{Client: testutil.NewFakeClient(objs...), Scheme: gatewayTestScheme}
+	newReconciler := func() *GatewayReconciler {
+		return &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
 	}
 
 	makeGateway := func(gr *corev1alpha1.GuardrailsSpec) *corev1alpha1.Gateway {
@@ -1095,6 +1095,23 @@ var _ = Describe("Gateway guardrails", func() {
 		Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(ContainElement(
 			corev1.VolumeMount{Name: "guardrails-policies", MountPath: "/etc/inference-gateway/guardrails", ReadOnly: true},
 		))
+	})
+
+	DescribeTable("maps failMode onto the gateway's fail mode values",
+		func(failMode, expected string) {
+			r := newReconciler()
+			dep := r.buildDeployment(ctx, makeGateway(&corev1alpha1.GuardrailsSpec{Enabled: true, FailMode: failMode}))
+			env := dep.Spec.Template.Spec.Containers[0].Env
+			Expect(env).To(ContainElement(corev1.EnvVar{Name: "GUARDRAILS_FAIL_MODE", Value: expected}))
+		},
+		Entry("deny fails closed", "deny", "closed"),
+		Entry("allow fails open", "allow", "open"),
+	)
+
+	It("omits GUARDRAILS_FAIL_MODE when failMode is unset", func() {
+		r := newReconciler()
+		dep := r.buildDeployment(ctx, makeGateway(&corev1alpha1.GuardrailsSpec{Enabled: true}))
+		Expect(hasEnv(dep.Spec.Template.Spec.Containers[0].Env, "GUARDRAILS_FAIL_MODE")).To(BeFalse())
 	})
 })
 
