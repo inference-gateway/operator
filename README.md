@@ -181,8 +181,8 @@ This command will:
 For production environments, pin to a specific version:
 
 ```bash
-# Install version v0.12.4 (replace with desired version)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.4/install.yaml
+# Install version v0.26.0 (replace with desired version)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
 ```
 
 ### Method 3: GitOps/ArgoCD-Friendly Installation
@@ -200,7 +200,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.12.4
+    targetRevision: v0.26.0
     path: manifests
   destination:
     server: https://kubernetes.default.svc
@@ -214,6 +214,11 @@ spec:
 ```
 
 At a release tag, `manifests/install.yaml` references that release's operator image, so pinning `targetRevision` pins the operator version as well. On `main` the manifest tracks the most recent release.
+
+> **Use v0.26.0 or later.** Tags before v0.26.0 ship `manifests/install.yaml` with
+> `ghcr.io/inference-gateway/operator:latest`, so pinning `targetRevision` to one of them pins the
+> CRDs but still deploys the current operator image. That image starts the Orchestrator and GPU
+> controllers, whose CRDs those older manifests do not contain, and the manager exits on startup.
 
 ### Method 4: Separate CRD Installation (Advanced)
 
@@ -256,8 +261,25 @@ kubectl apply -f manifests/my-custom-namespace/install.yaml
 
 #### Option C: GitOps with custom namespace
 
+`manifests/install.yaml` hardcodes `namespace: inference-gateway-system` on every namespaced object
+(operator Deployment, ServiceAccount, leader-election Role and RoleBinding, metrics Service) and in
+the `operator-manager-rolebinding` ClusterRoleBinding subjects. A kustomize patch that only renames
+the `Namespace` object therefore leaves the operator in the original namespace. Generate the
+manifests instead and point ArgoCD at your own repository:
+
+```bash
+git clone https://github.com/inference-gateway/operator.git
+cd operator
+git checkout v0.26.0
+
+# Rewrites the namespace across the whole manifest
+task manifests-for-namespace NAMESPACE=my-custom-namespace
+
+# Commit manifests/my-custom-namespace/ to your GitOps repository
+```
+
 ```yaml
-# ArgoCD Application with custom namespace
+# ArgoCD Application pointing at your generated manifests
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -266,20 +288,15 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.12.4
-    path: manifests
-    kustomize:
-      patches:
-        - target:
-            kind: Namespace
-          patch: |
-            - op: replace
-              path: /metadata/name
-              value: my-custom-namespace
+    repoURL: https://github.com/my-org/my-gitops-repo
+    targetRevision: main
+    path: manifests/my-custom-namespace
   destination:
     server: https://kubernetes.default.svc
     namespace: my-custom-namespace
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
 ```
 
 ### Method 6: Development Installation
@@ -294,9 +311,14 @@ cd operator
 # Install CRDs
 task install
 
-# Build and deploy operator (requires Go 1.26.7+)
+# Build and deploy operator
 task deploy IMG=ghcr.io/inference-gateway/operator:latest
 ```
+
+`task deploy` builds the image with Docker, imports it into the local k3d cluster named `dev`
+(`k3d image import <IMG> -c dev`) and applies `config/environments/dev`. It needs Go 1.26.7+,
+Docker, and the k3d `dev` cluster created by `task cluster:create` - it does not work against an
+arbitrary `~/.kube/config` context.
 
 ## ✅ Verification
 
@@ -427,11 +449,13 @@ To upgrade the operator to a newer version:
 # Upgrade to latest version
 kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 
-# Or upgrade to specific version
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.4/install.yaml
+# Or upgrade to specific version (v0.26.0 or later)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
 ```
 
-The operator supports rolling upgrades and will not affect running Gateway instances.
+The operator Deployment uses the `Recreate` strategy, so an upgrade terminates the running operator
+pod before starting the new one. Existing Gateway, Agent, MCP, Orchestrator and GPU workloads keep
+serving during that gap; only reconciliation pauses until the new pod is ready.
 
 ## 🗑️ Uninstallation
 
@@ -867,11 +891,12 @@ Simply reapply the installation with a newer version:
 # Upgrade to latest
 kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 
-# Or upgrade to specific version
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.12.4/install.yaml
+# Or upgrade to specific version (v0.26.0 or later)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
 ```
 
-The operator supports rolling upgrades without affecting running Gateway instances.
+The operator Deployment uses the `Recreate` strategy, so the old operator pod is terminated before
+the new one starts. Running Gateway instances are unaffected; reconciliation pauses briefly.
 
 ### What happens to my Gateways if I delete the operator?
 
