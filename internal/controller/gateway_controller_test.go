@@ -560,6 +560,8 @@ var _ = Describe("Gateway controller", func() {
 				Expect(createdRoute.Spec.Rules).To(HaveLen(1))
 				Expect(createdRoute.Spec.Rules[0].BackendRefs).To(HaveLen(1))
 				Expect(createdRoute.Spec.Rules[0].BackendRefs[0].Name).To(Equal(gwapiv1.ObjectName(gwName)))
+				Expect(*createdRoute.Spec.Rules[0].Matches[0].Path.Type).To(Equal(gwapiv1.PathMatchPathPrefix))
+				Expect(*createdRoute.Spec.Rules[0].Matches[0].Path.Value).To(Equal("/"))
 
 				Expect(k8sClient.Delete(ctx, gateway)).Should(Succeed())
 			},
@@ -1139,5 +1141,58 @@ var _ = Describe("Gateway MCP tool mode", func() {
 
 	It("omits MCP_TOOL_MODE when MCP is disabled", func() {
 		Expect(findEnvVar(buildEnv(nil), "MCP_TOOL_MODE")).To(BeNil())
+	})
+})
+
+var _ = Describe("Gateway MCP resource URL", func() {
+	ctx := context.Background()
+
+	buildEnv := func(mcp *corev1alpha1.MCPServersSpec, routing *corev1alpha1.RoutingSpec) []corev1.EnvVar {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		gw := &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       corev1alpha1.GatewaySpec{MCP: mcp, GatewayAPI: routing},
+		}
+		return r.buildDeployment(ctx, gw).Spec.Template.Spec.Containers[0].Env
+	}
+
+	routingWith := func(tls bool, hostnames ...gwapiv1.Hostname) *corev1alpha1.RoutingSpec {
+		return &corev1alpha1.RoutingSpec{
+			Enabled:   true,
+			Gateway:   &corev1alpha1.RoutingGatewaySpec{TLS: &corev1alpha1.RoutingTLSSpec{Enabled: tls}},
+			HTTPRoute: &corev1alpha1.RoutingHTTPRouteSpec{Hostnames: hostnames},
+		}
+	}
+
+	It("emits the explicitly configured resourceUrl", func() {
+		env := buildEnv(&corev1alpha1.MCPServersSpec{
+			Enabled:     true,
+			Expose:      true,
+			ResourceURL: "https://api.example.com/mcp",
+		}, routingWith(false, "internal.example.com"))
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "MCP_RESOURCE_URL", Value: "https://api.example.com/mcp"}))
+	})
+
+	It("defaults to the first HTTPRoute hostname plus /mcp", func() {
+		env := buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true}, routingWith(true, "api.example.com", "other.example.com"))
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "MCP_RESOURCE_URL", Value: "https://api.example.com/mcp"}))
+	})
+
+	It("uses http when routing TLS is disabled", func() {
+		env := buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true}, routingWith(false, "api.example.com"))
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "MCP_RESOURCE_URL", Value: "http://api.example.com/mcp"}))
+	})
+
+	It("omits MCP_RESOURCE_URL for a wildcard hostname", func() {
+		env := buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true}, routingWith(true, "*.example.com"))
+		Expect(findEnvVar(env, "MCP_RESOURCE_URL")).To(BeNil())
+	})
+
+	It("omits MCP_RESOURCE_URL when routing is disabled and nothing is set", func() {
+		Expect(findEnvVar(buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true}, nil), "MCP_RESOURCE_URL")).To(BeNil())
+	})
+
+	It("omits MCP_RESOURCE_URL when MCP is disabled", func() {
+		Expect(findEnvVar(buildEnv(nil, routingWith(true, "api.example.com")), "MCP_RESOURCE_URL")).To(BeNil())
 	})
 })

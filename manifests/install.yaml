@@ -1940,6 +1940,15 @@ spec:
                       and HTTPRoutes in front of the gateway must forward MCP-Protocol-Version,
                       Mcp-Method and Mcp-Name unchanged or the endpoint fails with 400/-32020.
                     type: boolean
+                  resourceUrl:
+                    description: |-
+                      ResourceURL pins the canonical public /mcp URL the gateway advertises as
+                      the RFC 9728 `resource` (served at GET /.well-known/oauth-protected-resource/mcp)
+                      and in the resource_metadata of the 401 challenge. Emitted as MCP_RESOURCE_URL.
+                      Defaults to "<scheme>://<first GatewayAPI HTTPRoute hostname>/mcp" when routing
+                      is enabled; set it explicitly when the ingress rewrites scheme or Host, otherwise
+                      the gateway derives the URL from the inbound request and advertises the wrong one.
+                    type: string
                   servers:
                     description: |-
                       MCP servers configuration. Static entries are unioned with any servers

@@ -589,6 +589,49 @@ spec:
   # Agent configuration
 ```
 
+#### MCP OAuth Protected Resource Metadata (RFC 9728)
+
+When `spec.mcp.expose` is on, the gateway serves OAuth 2.0 Protected Resource
+Metadata at `GET /.well-known/oauth-protected-resource/mcp`, so an MCP client
+with no token discovers the IdP from the `401` on `/mcp` (required by MCP
+`2026-07-28`). The operator-managed `HTTPRoute` matches the `/` path prefix, so
+that document is routed to the gateway Service wherever `/mcp` is - no extra
+route needed.
+
+`spec.mcp.resourceUrl` pins the canonical public `/mcp` URL the gateway puts in
+the document's `resource` and in the challenge's `resource_metadata`. It is
+emitted as `MCP_RESOURCE_URL`:
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: gateway-with-mcp-auth
+  namespace: inference-gateway
+spec:
+  mcp:
+    enabled: true
+    expose: true
+    resourceUrl: "https://api.example.com/mcp"
+  gatewayAPI:
+    enabled: true
+    gateway:
+      tls:
+        enabled: true
+    httpRoute:
+      hostnames:
+        - api.example.com
+```
+
+When `resourceUrl` is omitted the operator defaults it to
+`<scheme>://<first httpRoute hostname>/mcp` (`https` when
+`gatewayAPI.gateway.tls.enabled`), so the example above works without the
+explicit value. Nothing is emitted when routing is disabled or the hostname is
+a wildcard, and the gateway then derives the URL from the inbound request
+scheme (honouring `X-Forwarded-Proto`) and `Host` - set `resourceUrl`
+explicitly whenever the ingress rewrites either, or clients are handed a URL
+they cannot reach.
+
 #### MCP Service Discovery Configuration
 
 `MCP` Custom Resources can be discovered automatically by both `Gateway` and

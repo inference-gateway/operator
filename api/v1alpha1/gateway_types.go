@@ -418,6 +418,15 @@ type MCPServersSpec struct {
 	// +kubebuilder:default=false
 	Expose bool `json:"expose,omitempty"`
 
+	// ResourceURL pins the canonical public /mcp URL the gateway advertises as
+	// the RFC 9728 `resource` (served at GET /.well-known/oauth-protected-resource/mcp)
+	// and in the resource_metadata of the 401 challenge. Emitted as MCP_RESOURCE_URL.
+	// Defaults to "<scheme>://<first GatewayAPI HTTPRoute hostname>/mcp" when routing
+	// is enabled; set it explicitly when the ingress rewrites scheme or Host, otherwise
+	// the gateway derives the URL from the inbound request and advertises the wrong one.
+	// +optional
+	ResourceURL string `json:"resourceUrl,omitempty"`
+
 	// ToolMode controls how MCP tools are exposed to the model. "selector" injects
 	// two meta-tools (mcp_tools_get / mcp_tools_execute) and resolves discovery and
 	// dispatch gateway-side; "direct" injects every tool schema on every request.
