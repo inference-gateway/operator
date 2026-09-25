@@ -29,12 +29,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	handler "sigs.k8s.io/controller-runtime/pkg/handler"
 	log "sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
@@ -78,14 +78,17 @@ type GPUReconciler struct {
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gpus/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gpus/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 
 // Reconcile drives the GPU allocation lifecycle.
 func (r *GPUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.applyDefaults()
 	logger := log.FromContext(ctx)
 
-	if !r.shouldWatchNamespace(ctx, req.Namespace) {
-		logger.V(1).Info("skipping gpu in namespace not matching watch criteria", "namespace", req.Namespace)
+	if !namespaceWatched(ctx, r.Client, req.Namespace) {
+		logger.Info("skipping gpu, namespace does not match WATCH_NAMESPACE_SELECTOR",
+			"gpu", req.NamespacedName, "namespace", req.Namespace,
+			"selector", os.Getenv("WATCH_NAMESPACE_SELECTOR"))
 		return ctrl.Result{}, nil
 	}
 
@@ -445,29 +448,17 @@ func (r *GPUReconciler) applyDefaults() {
 	}
 }
 
-// shouldWatchNamespace mirrors the other reconcilers' WATCH_NAMESPACE_SELECTOR gate.
-func (r *GPUReconciler) shouldWatchNamespace(ctx context.Context, namespace string) bool {
-	watchNamespaceSelector := os.Getenv("WATCH_NAMESPACE_SELECTOR")
-	if watchNamespaceSelector == "" {
-		return true
-	}
-	labelSelector, err := labels.Parse(watchNamespaceSelector)
-	if err != nil {
-		return true
-	}
-	ns := &corev1.Namespace{}
-	if err := r.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
-		return false
-	}
-	return labelSelector.Matches(labels.Set(ns.Labels))
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *GPUReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.applyDefaults()
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.GPU{}).
 		Owns(&corev1.Secret{}).
+		Watches(
+			&corev1.Namespace{},
+			handler.EnqueueRequestsFromMapFunc(namespaceMapper(r.Client, func() client.ObjectList { return &corev1alpha1.GPUList{} })),
+			namespaceBecameWatched,
+		).
 		Named("gpu").
 		Complete(r)
 }

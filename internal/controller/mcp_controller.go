@@ -27,12 +27,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	handler "sigs.k8s.io/controller-runtime/pkg/handler"
 	log "sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
@@ -91,17 +91,21 @@ type MCPReconciler struct {
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *MCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.Info("reconciling mcp", "mcp", req.NamespacedName)
 
-	if !r.shouldWatchNamespace(ctx, req.Namespace) {
-		logger.V(1).Info("skipping mcp in namespace not matching watch criteria", "namespace", req.Namespace)
+	if !namespaceWatched(ctx, r.Client, req.Namespace) {
+		logger.Info("skipping mcp, namespace does not match WATCH_NAMESPACE_SELECTOR",
+			"mcp", req.NamespacedName, "namespace", req.Namespace,
+			"selector", os.Getenv("WATCH_NAMESPACE_SELECTOR"))
 		return ctrl.Result{}, nil
 	}
+
+	logger.Info("reconciling mcp", "mcp", req.NamespacedName)
 
 	var mcp corev1alpha1.MCP
 	if err := r.Get(ctx, req.NamespacedName, &mcp); err != nil {
@@ -570,28 +574,6 @@ func (r *MCPReconciler) isDeploymentReady(deployment *appsv1.Deployment) bool {
 		deployment.Status.Replicas == *deployment.Spec.Replicas
 }
 
-// shouldWatchNamespace checks if the operator should watch resources in the given namespace
-// based on WATCH_NAMESPACE_SELECTOR environment variable
-func (r *MCPReconciler) shouldWatchNamespace(ctx context.Context, namespace string) bool {
-	watchNamespaceSelector := os.Getenv("WATCH_NAMESPACE_SELECTOR")
-
-	if watchNamespaceSelector == "" {
-		return true
-	}
-
-	labelSelector, err := labels.Parse(watchNamespaceSelector)
-	if err != nil {
-		return true
-	}
-
-	ns := &corev1.Namespace{}
-	if err := r.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
-		return false
-	}
-
-	return labelSelector.Matches(labels.Set(ns.Labels))
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *MCPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -599,6 +581,11 @@ func (r *MCPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
+		Watches(
+			&corev1.Namespace{},
+			handler.EnqueueRequestsFromMapFunc(namespaceMapper(r.Client, func() client.ObjectList { return &corev1alpha1.MCPList{} })),
+			namespaceBecameWatched,
+		).
 		Named("mcp").
 		Complete(r)
 }

@@ -32,13 +32,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	types "k8s.io/apimachinery/pkg/types"
 	intstr "k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	handler "sigs.k8s.io/controller-runtime/pkg/handler"
 	log "sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
@@ -62,8 +62,10 @@ type AgentReconciler struct {
 func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	if !r.shouldWatchNamespace(ctx, req.Namespace) {
-		logger.V(1).Info("Skipping Agent in namespace not matching watch criteria", "namespace", req.Namespace)
+	if !namespaceWatched(ctx, r.Client, req.Namespace) {
+		logger.Info("skipping agent, namespace does not match WATCH_NAMESPACE_SELECTOR",
+			"agent", req.NamespacedName, "namespace", req.Namespace,
+			"selector", os.Getenv("WATCH_NAMESPACE_SELECTOR"))
 		return ctrl.Result{}, nil
 	}
 
@@ -693,34 +695,17 @@ func intstrFromInt(i int) intstr.IntOrString {
 	return intstr.IntOrString{Type: intstr.Int, IntVal: int32(i)}
 }
 
-// shouldWatchNamespace checks if the operator should watch resources in the given namespace
-// based on WATCH_NAMESPACE_SELECTOR environment variable
-func (r *AgentReconciler) shouldWatchNamespace(ctx context.Context, namespace string) bool {
-	watchNamespaceSelector := os.Getenv("WATCH_NAMESPACE_SELECTOR")
-
-	if watchNamespaceSelector == "" {
-		return true
-	}
-
-	labelSelector, err := labels.Parse(watchNamespaceSelector)
-	if err != nil {
-		return true
-	}
-
-	ns := &corev1.Namespace{}
-	if err := r.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
-		return false
-	}
-
-	return labelSelector.Matches(labels.Set(ns.Labels))
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *AgentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.Agent{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
+		Watches(
+			&corev1.Namespace{},
+			handler.EnqueueRequestsFromMapFunc(namespaceMapper(r.Client, func() client.ObjectList { return &corev1alpha1.AgentList{} })),
+			namespaceBecameWatched,
+		).
 		Named("agent").
 		Complete(r)
 }

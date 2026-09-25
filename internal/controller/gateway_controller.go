@@ -75,8 +75,10 @@ type GatewayReconciler struct {
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	if !r.shouldWatchNamespace(ctx, req.Namespace) {
-		logger.V(1).Info("Skipping Gateway in namespace not matching watch criteria", "namespace", req.Namespace)
+	if !namespaceWatched(ctx, r.Client, req.Namespace) {
+		logger.Info("skipping gateway, namespace does not match WATCH_NAMESPACE_SELECTOR",
+			"gateway", req.NamespacedName, "namespace", req.Namespace,
+			"selector", os.Getenv("WATCH_NAMESPACE_SELECTOR"))
 		return ctrl.Result{}, nil
 	}
 
@@ -1285,28 +1287,6 @@ func isAdvancedRoutingMode(gateway *corev1alpha1.Gateway) bool {
 		len(gateway.Spec.GatewayAPI.Gateway.ParentRefs) > 0
 }
 
-// shouldWatchNamespace checks if the operator should watch resources in the given namespace
-// based on WATCH_NAMESPACE_SELECTOR environment variable
-func (r *GatewayReconciler) shouldWatchNamespace(ctx context.Context, namespace string) bool {
-	watchNamespaceSelector := os.Getenv("WATCH_NAMESPACE_SELECTOR")
-
-	if watchNamespaceSelector == "" {
-		return true
-	}
-
-	labelSelector, err := labels.Parse(watchNamespaceSelector)
-	if err != nil {
-		return true
-	}
-
-	ns := &corev1.Namespace{}
-	if err := r.Get(ctx, types.NamespacedName{Name: namespace}, ns); err != nil {
-		return false
-	}
-
-	return labelSelector.Matches(labels.Set(ns.Labels))
-}
-
 // reconcileHPA handles HPA creation, update, or deletion based on Gateway spec
 func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) error {
 	logger := log.FromContext(ctx)
@@ -1615,6 +1595,11 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1alpha1.MCP{},
 			handler.EnqueueRequestsFromMapFunc(r.mcpToGatewayRequests),
+		).
+		Watches(
+			&corev1.Namespace{},
+			handler.EnqueueRequestsFromMapFunc(namespaceMapper(r.Client, func() client.ObjectList { return &corev1alpha1.GatewayList{} })),
+			namespaceBecameWatched,
 		).
 		Complete(r)
 }
