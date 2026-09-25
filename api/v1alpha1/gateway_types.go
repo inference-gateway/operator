@@ -407,7 +407,13 @@ type MCPServersSpec struct {
 	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
 
-	// Expose MCP endpoints externally
+	// Expose MCP endpoints externally. Emitted as MCP_EXPOSE, which gates both
+	// GET /v1/mcp/tools and the JSON-RPC 2.0 POST /mcp endpoint (MCP 2026-07-28
+	// only, stateless). /mcp is root-level, not under /v1: it answers POST only
+	// (405 otherwise, so never point a probe at it), rejects requests carrying
+	// an Origin header with 403, and needs no session affinity. Proxies, Ingress
+	// and HTTPRoutes in front of the gateway must forward MCP-Protocol-Version,
+	// Mcp-Method and Mcp-Name unchanged or the endpoint fails with 400/-32020.
 	// +optional
 	// +kubebuilder:default=false
 	Expose bool `json:"expose,omitempty"`
