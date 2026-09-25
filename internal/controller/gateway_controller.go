@@ -866,12 +866,23 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 		})
 	}
 
+	serviceType := corev1.ServiceTypeClusterIP
+	var serviceAnnotations map[string]string
+	if gateway.Spec.Service != nil {
+		if gateway.Spec.Service.Type != "" {
+			serviceType = corev1.ServiceType(gateway.Spec.Service.Type)
+		}
+		serviceAnnotations = gateway.Spec.Service.Annotations
+	}
+
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gateway.Name,
-			Namespace: gateway.Namespace,
+			Name:        gateway.Name,
+			Namespace:   gateway.Namespace,
+			Annotations: serviceAnnotations,
 		},
 		Spec: corev1.ServiceSpec{
+			Type: serviceType,
 			Selector: map[string]string{
 				"app": gateway.Name,
 			},
@@ -895,10 +906,30 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 	} else {
 		foundSpec := found.Spec
 		serviceSpec := service.Spec
-		serviceSpec.ClusterIP = foundSpec.ClusterIP
+		if serviceSpec.Type != corev1.ServiceTypeExternalName {
+			serviceSpec.ClusterIP = foundSpec.ClusterIP
+		}
 
-		if !reflect.DeepEqual(foundSpec.Ports, serviceSpec.Ports) || !reflect.DeepEqual(foundSpec.Selector, serviceSpec.Selector) {
+		// Keep the node ports the API server assigned; they are only valid
+		// while the type still exposes them.
+		if serviceSpec.Type == foundSpec.Type {
+			for i := range serviceSpec.Ports {
+				for _, foundPort := range foundSpec.Ports {
+					if foundPort.Name == serviceSpec.Ports[i].Name {
+						serviceSpec.Ports[i].NodePort = foundPort.NodePort
+					}
+				}
+			}
+		}
+
+		specChanged := !reflect.DeepEqual(foundSpec.Ports, serviceSpec.Ports) ||
+			!reflect.DeepEqual(foundSpec.Selector, serviceSpec.Selector) ||
+			foundSpec.Type != serviceSpec.Type
+		annotationsChanged := !reflect.DeepEqual(found.Annotations, service.Annotations)
+
+		if specChanged || annotationsChanged {
 			found.Spec = serviceSpec
+			found.Annotations = service.Annotations
 			logger.Info("Updating Service", "Service.Name", service.Name)
 			if err = r.Update(ctx, found); err != nil {
 				return err
