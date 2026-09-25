@@ -67,6 +67,7 @@ The operator follows cloud-native best practices and provides a unified control 
 - [🚀 Quick Start](#-quick-start)
 - [📦 Installation](#-installation)
 - [✅ Verification](#-verification)
+- [🏷️ Namespace Scoping](#️-namespace-scoping)
 - [🚀 Deploy Your First Gateway](#-deploy-your-first-gateway)
 - [🤖 Deploy an Orchestrator](#-deploy-an-orchestrator)
 - [🔄 Upgrade](#-upgrade)
@@ -176,6 +177,13 @@ name outside the list above is skipped - it is left out of
 
 - `kubectl` version v1.35.4+ with access to a Kubernetes cluster
 - Kubernetes cluster v1.35.4+ (supports both arm64 and amd64 architectures)
+- **Kubernetes Gateway API standard-channel CRDs** - required even if you never use Gateway API routing. The operator watches `gateway.networking.k8s.io/v1` `Gateway` and `HTTPRoute`, so without these CRDs the manager fails its cache sync and exits (`CrashLoopBackOff`):
+
+  ```bash
+  kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/standard-install.yaml
+  ```
+
+  `install.yaml` does not bundle them. v1.5.1 is the version this repo tests against (`GATEWAY_API_VERSION` in `Taskfile.yaml`); newer standard-channel releases work too.
 
 ## 📦 Installation
 
@@ -352,25 +360,53 @@ kubectl get pods -n inference-gateway-system
 kubectl get crd | grep inference-gateway
 
 # View operator logs
-kubectl logs -n inference-gateway-system deployment/operator-controller-manager -f
+kubectl logs -n inference-gateway-system deployment/operator-inference-gateway -f
 ```
 
 Expected output:
 
 ```bash
 # Pods should show Running status
-NAME                                         READY   STATUS    RESTARTS   AGE
-operator-controller-manager-74c9c5f5b-x4d2k   2/2     Running   0          2m
+NAME                                          READY   STATUS    RESTARTS   AGE
+operator-inference-gateway-74c9c5f5b-x4d2k    1/1     Running   0          2m
 
 # CRDs should be listed
-gateways.core.inference-gateway.com   2025-06-21T17:30:00Z
+agents.core.inference-gateway.com          2025-06-21T17:30:00Z
+gateways.core.inference-gateway.com        2025-06-21T17:30:00Z
+gpus.core.inference-gateway.com            2025-06-21T17:30:00Z
+mcps.core.inference-gateway.com            2025-06-21T17:30:00Z
+orchestrators.core.inference-gateway.com   2025-06-21T17:30:00Z
 ```
+
+## 🏷️ Namespace Scoping
+
+The shipped operator Deployment sets `WATCH_NAMESPACE_SELECTOR=inference-gateway.com/managed=true`, so **`Gateway`, `Agent`, `MCP` and `GPU` resources are only reconciled in namespaces carrying that label**. In an unlabeled namespace the operator just logs `skipping gateway, namespace does not match WATCH_NAMESPACE_SELECTOR` and creates nothing.
+
+Label every namespace you deploy resources into:
+
+```bash
+kubectl label namespace <namespace> inference-gateway.com/managed=true
+```
+
+The manifests under `examples/` already create their namespaces with this label. `Orchestrator` resources are not namespace-filtered.
+
+To change the scope, edit `WATCH_NAMESPACE_SELECTOR` on the operator Deployment - any valid label selector works, and an empty value (or removing the variable) makes the operator watch **all** namespaces:
+
+```bash
+# Watch all namespaces
+kubectl set env -n inference-gateway-system deployment/operator-inference-gateway WATCH_NAMESPACE_SELECTOR=
+```
+
+All `Gateway`, `Agent`, `MCP` and `GPU` examples below assume their namespace is labeled accordingly.
 
 ## 🚀 Deploy Your First Gateway
 
 Create a simple gateway to test the installation:
 
 ```bash
+# Label the target namespace so the operator reconciles it
+kubectl label namespace default inference-gateway.com/managed=true
+
 # Create a minimal gateway
 cat <<EOF | kubectl apply -f -
 apiVersion: core.inference-gateway.com/v1alpha1
@@ -499,6 +535,8 @@ The operator supports multi-architecture deployments:
 Container images are automatically selected based on your cluster's node architecture.
 
 ### ⚙️ Example Configurations
+
+> Every `Gateway`, `Agent`, `MCP` and `GPU` example below only reconciles if its namespace is labeled `inference-gateway.com/managed=true` - see [Namespace Scoping](#️-namespace-scoping).
 
 #### Minimal Gateway
 
@@ -1048,10 +1086,12 @@ kubectl get configmap my-gateway-routing -o yaml
 
 Common issues and solutions:
 
-1. **Gateway not starting**: Check image pull policy and secrets
-2. **Authentication failures**: Verify OIDC configuration and secrets
-3. **Provider connection issues**: Check network policies and secret references
-4. **Resource constraints**: Review resource requests/limits
+1. **Nothing happens after applying a Gateway/Agent/MCP/GPU**: the namespace is missing the `inference-gateway.com/managed=true` label - see [Namespace Scoping](#️-namespace-scoping)
+2. **Operator pod in CrashLoopBackOff**: the Kubernetes Gateway API standard CRDs are missing - see [Prerequisites](#prerequisites)
+3. **Gateway not starting**: Check image pull policy and secrets
+4. **Authentication failures**: Verify OIDC configuration and secrets
+5. **Provider connection issues**: Check network policies and secret references
+6. **Resource constraints**: Review resource requests/limits
 
 ### Upgrade Process
 
