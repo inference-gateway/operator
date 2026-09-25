@@ -634,6 +634,9 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 				}(),
 			},
 		)
+		if url := mcpResourceURL(gateway); url != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "MCP_RESOURCE_URL", Value: url})
+		}
 	}
 
 	if mr := gateway.Spec.Routing; mr != nil && mr.Enabled {
@@ -1256,6 +1259,32 @@ func defaultHTTPRouteRules(gateway *corev1alpha1.Gateway) []gwapiv1.HTTPRouteRul
 			},
 		},
 	}
+}
+
+// mcpResourceURL returns the canonical public /mcp URL advertised as the RFC 9728
+// `resource`. An explicit spec.mcp.resourceUrl wins; otherwise it is derived from
+// the first HTTPRoute hostname when routing is enabled. Empty means "let the
+// gateway derive it from the request".
+func mcpResourceURL(gateway *corev1alpha1.Gateway) string {
+	if url := gateway.Spec.MCP.ResourceURL; url != "" {
+		return url
+	}
+
+	routing := gateway.Spec.GatewayAPI
+	if routing == nil || !routing.Enabled || routing.HTTPRoute == nil || len(routing.HTTPRoute.Hostnames) == 0 {
+		return ""
+	}
+
+	host := string(routing.HTTPRoute.Hostnames[0])
+	if strings.HasPrefix(host, "*") {
+		return ""
+	}
+
+	scheme := "http"
+	if tlsEnabled(gateway) {
+		scheme = "https"
+	}
+	return fmt.Sprintf("%s://%s/mcp", scheme, host)
 }
 
 // gatewayServicePort returns the port the upstream HTTPRoute backend
