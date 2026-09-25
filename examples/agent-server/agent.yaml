@@ -15,10 +15,13 @@ spec:
   image: ghcr.io/inference-gateway/google-calendar-agent:latest
   agent:
     llm:
-      baseURL: "http://inference-gateway.inference-gateway.svc.cluster.local:8080/v1"
+      # Service of the Gateway CR from ../gateway-minimal/ (named simple-gateway).
+      baseURL: "http://simple-gateway.inference-gateway.svc.cluster.local:8080/v1"
       model: "openai/gpt-4o"
+      # Emitted as A2A_AGENT_CLIENT_API_KEY. The Secret must live in this
+      # Agent's namespace (agents) - secret refs are not cross-namespace.
       apiKeySecretRef:
-        name: inference-gateway-providers-secret
+        name: agent-llm-secret
         key: OPENAI_API_KEY
   telemetry:
     enabled: true
@@ -36,3 +39,12 @@ spec:
       value: "true"
     - name: A2A_AGENT_URL
       value: "http://google-calendar-agent.agents.svc.cluster.local:8080"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agent-llm-secret
+  namespace: agents
+type: Opaque
+stringData:
+  OPENAI_API_KEY: ""

@@ -14,18 +14,21 @@ The agent exposes an A2A-compatible HTTP endpoint and can be registered with an 
   ```bash
   kubectl apply -f ../gateway-minimal/
   ```
+  > That example creates a `Gateway` named `simple-gateway` in the `inference-gateway` namespace, so its Service is `simple-gateway.inference-gateway.svc.cluster.local`. `agent.yaml` ships with `llm.baseURL` pointing there - adjust it if your gateway has a different name or namespace.
 
 ## Run
 
 1. *(Optional)* To use a real Google account instead of mock mode, set `GOOGLE_CALENDAR_MOCK_MODE: "false"` in `agent.yaml` and supply Google OAuth credentials via a Kubernetes Secret. Refer to the [google-calendar-agent documentation](https://github.com/inference-gateway/google-calendar-agent) for the required environment variables.
 
-2. Update the `apiKey.secretRef` in `agent.yaml` to point to a Secret that contains the API key for the LLM provider the agent should use:
+2. Supply the API key the agent uses for its own LLM calls. `agent.yaml` reads it from `spec.agent.llm.apiKeySecretRef` (Secret `agent-llm-secret`, key `OPENAI_API_KEY`), which the operator emits as `A2A_AGENT_CLIENT_API_KEY`. Either fill in the stub Secret shipped in `agent.yaml`, or create it yourself:
 
    ```bash
-   kubectl create secret generic your-api-key \
-     --from-literal=api-key=<YOUR_API_KEY> \
+   kubectl create secret generic agent-llm-secret \
+     --from-literal=OPENAI_API_KEY=<YOUR_API_KEY> \
      -n agents
    ```
+
+   > The Secret must be in the `agents` namespace - the Agent's secret reference is namespace-local. `spec.agent.apiKey` is deprecated and ignored by the controller; only `spec.agent.llm.apiKeySecretRef` is read.
 
 3. Apply the manifest:
 

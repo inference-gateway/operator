@@ -22,7 +22,7 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: OPENAI_API_KEY
-  routing:
+  gatewayAPI:
     enabled: true
     gateway:
       gatewayClassName: envoy

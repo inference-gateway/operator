@@ -25,7 +25,7 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: OPENAI_API_KEY
-  routing:
+  gatewayAPI:
     enabled: true
     gateway:
       gatewayClassName: envoy
@@ -64,7 +64,7 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: OPENAI_API_KEY
-  routing:
+  gatewayAPI:
     enabled: true
     gateway:
       # ParentRefs being set switches the operator into advanced mode:
