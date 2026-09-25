@@ -32,6 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	handler "sigs.k8s.io/controller-runtime/pkg/handler"
 	log "sigs.k8s.io/controller-runtime/pkg/log"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
@@ -96,7 +97,6 @@ type MCPReconciler struct {
 // move the current state of the cluster closer to the desired state.
 func (r *MCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.Info("reconciling mcp", "mcp", req.NamespacedName)
 
 	if !namespaceWatched(ctx, r.Client, req.Namespace) {
 		logger.Info("skipping mcp, namespace does not match WATCH_NAMESPACE_SELECTOR",
@@ -104,6 +104,8 @@ func (r *MCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			"selector", os.Getenv("WATCH_NAMESPACE_SELECTOR"))
 		return ctrl.Result{}, nil
 	}
+
+	logger.Info("reconciling mcp", "mcp", req.NamespacedName)
 
 	var mcp corev1alpha1.MCP
 	if err := r.Get(ctx, req.NamespacedName, &mcp); err != nil {
@@ -581,7 +583,8 @@ func (r *MCPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
 		Watches(
 			&corev1.Namespace{},
-			namespaceHandler(r.Client, func() client.ObjectList { return &corev1alpha1.MCPList{} }),
+			handler.EnqueueRequestsFromMapFunc(namespaceMapper(r.Client, func() client.ObjectList { return &corev1alpha1.MCPList{} })),
+			namespaceBecameWatched,
 		).
 		Named("mcp").
 		Complete(r)

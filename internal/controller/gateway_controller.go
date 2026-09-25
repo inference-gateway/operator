@@ -1598,7 +1598,8 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		Watches(
 			&corev1.Namespace{},
-			namespaceHandler(r.Client, func() client.ObjectList { return &corev1alpha1.GatewayList{} }),
+			handler.EnqueueRequestsFromMapFunc(namespaceMapper(r.Client, func() client.ObjectList { return &corev1alpha1.GatewayList{} })),
+			namespaceBecameWatched,
 		).
 		Complete(r)
 }

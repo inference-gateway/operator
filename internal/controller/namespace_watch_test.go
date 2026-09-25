@@ -30,6 +30,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
+	event "sigs.k8s.io/controller-runtime/pkg/event"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
@@ -72,7 +73,7 @@ var _ = Describe("Namespace watch", func() {
 		Expect(c.Get(ctx, key, deployment)).To(Succeed())
 	})
 
-	It("ignores namespaces of a different list type", func() {
+	It("only enqueues objects living in the labelled namespace", func() {
 		Expect(os.Setenv("WATCH_NAMESPACE_SELECTOR", "inference-gateway.com/managed=true")).To(Succeed())
 		DeferCleanup(func() { _ = os.Unsetenv("WATCH_NAMESPACE_SELECTOR") })
 
@@ -84,6 +85,29 @@ var _ = Describe("Namespace watch", func() {
 		}
 		c := testutil.NewFakeClient(ns, testutil.NewMCP("example", "elsewhere"))
 		Expect(namespaceRequests(ctx, c, ns)).To(BeEmpty())
+	})
+
+	It("watches only the update that starts matching the selector", func() {
+		unlabelled := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns"}}
+		labelled := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "ns",
+				Labels: map[string]string{"inference-gateway.com/managed": "true"},
+			},
+		}
+
+		By("staying quiet while no selector is set, since nothing is ever skipped")
+		Expect(namespaceStartedMatching(event.UpdateEvent{ObjectOld: unlabelled, ObjectNew: labelled})).To(BeFalse())
+
+		Expect(os.Setenv("WATCH_NAMESPACE_SELECTOR", "inference-gateway.com/managed=true")).To(Succeed())
+		DeferCleanup(func() { _ = os.Unsetenv("WATCH_NAMESPACE_SELECTOR") })
+
+		By("firing when the namespace starts matching")
+		Expect(namespaceStartedMatching(event.UpdateEvent{ObjectOld: unlabelled, ObjectNew: labelled})).To(BeTrue())
+
+		By("ignoring churn on an already matching namespace and labels being removed")
+		Expect(namespaceStartedMatching(event.UpdateEvent{ObjectOld: labelled, ObjectNew: labelled})).To(BeFalse())
+		Expect(namespaceStartedMatching(event.UpdateEvent{ObjectOld: labelled, ObjectNew: unlabelled})).To(BeFalse())
 	})
 })
 
