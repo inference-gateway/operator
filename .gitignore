@@ -31,3 +31,7 @@ test/crds/gateway-api/
 *.swo
 *~
 .infer/
+
+# semantic-release deps installed by the release workflow
+.github/semantic-release/node_modules/
+.github/semantic-release/package-lock.json
