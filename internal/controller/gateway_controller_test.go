@@ -1196,3 +1196,68 @@ var _ = Describe("Gateway MCP resource URL", func() {
 		Expect(findEnvVar(buildEnv(nil, routingWith(true, "api.example.com")), "MCP_RESOURCE_URL")).To(BeNil())
 	})
 })
+
+var _ = Describe("Gateway service configuration", func() {
+	ctx := context.Background()
+
+	gatewayWith := func(svc *corev1alpha1.ServiceSpec) *corev1alpha1.Gateway {
+		return &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       corev1alpha1.GatewaySpec{Service: svc},
+		}
+	}
+
+	reconcileInto := func(r *GatewayReconciler, gw *corev1alpha1.Gateway) *corev1.Service {
+		Expect(r.reconcileService(ctx, gw)).To(Succeed())
+		svc := &corev1.Service{}
+		Expect(r.Get(ctx, types.NamespacedName{Name: gw.Name, Namespace: gw.Namespace}, svc)).To(Succeed())
+		return svc
+	}
+
+	It("applies the configured type and annotations on create", func() {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		svc := reconcileInto(r, gatewayWith(&corev1alpha1.ServiceSpec{
+			Type:        "LoadBalancer",
+			Port:        8080,
+			Annotations: map[string]string{"service.beta.kubernetes.io/aws-load-balancer-type": "nlb"},
+		}))
+
+		Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeLoadBalancer))
+		Expect(svc.Annotations).To(HaveKeyWithValue("service.beta.kubernetes.io/aws-load-balancer-type", "nlb"))
+	})
+
+	It("defaults to ClusterIP when no service spec is given", func() {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		Expect(reconcileInto(r, gatewayWith(nil)).Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
+	})
+
+	It("updates type and annotations when the spec changes", func() {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		reconcileInto(r, gatewayWith(&corev1alpha1.ServiceSpec{
+			Type:        "LoadBalancer",
+			Port:        8080,
+			Annotations: map[string]string{"example.com/test": "true"},
+		}))
+
+		svc := reconcileInto(r, gatewayWith(&corev1alpha1.ServiceSpec{
+			Type:        "NodePort",
+			Port:        8080,
+			Annotations: map[string]string{"example.com/other": "1"},
+		}))
+
+		Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeNodePort))
+		Expect(svc.Annotations).To(HaveKeyWithValue("example.com/other", "1"))
+		Expect(svc.Annotations).NotTo(HaveKey("example.com/test"))
+	})
+
+	It("keeps node ports assigned by the API server", func() {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		gw := gatewayWith(&corev1alpha1.ServiceSpec{Type: "NodePort", Port: 8080})
+
+		svc := reconcileInto(r, gw)
+		svc.Spec.Ports[0].NodePort = 31234
+		Expect(r.Update(ctx, svc)).To(Succeed())
+
+		Expect(reconcileInto(r, gw).Spec.Ports[0].NodePort).To(Equal(int32(31234)))
+	})
+})

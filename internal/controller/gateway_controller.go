@@ -818,8 +818,10 @@ func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gatewa
 	return nil, fmt.Errorf("failed to update deployment after 3 retries due to conflicts")
 }
 
-// reconcileService ensures the Service exists with the correct configuration
-func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+// desiredService builds the Service the operator wants for this Gateway:
+// ports derived from server/TLS/telemetry settings plus the type and
+// annotations from spec.service.
+func desiredService(ctx context.Context, gateway *corev1alpha1.Gateway) *corev1.Service {
 	logger := log.FromContext(ctx)
 
 	var mainPort int32
@@ -866,18 +868,36 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 		})
 	}
 
-	service := &corev1.Service{
+	serviceType := corev1.ServiceTypeClusterIP
+	var serviceAnnotations map[string]string
+	if gateway.Spec.Service != nil {
+		if gateway.Spec.Service.Type != "" {
+			serviceType = corev1.ServiceType(gateway.Spec.Service.Type)
+		}
+		serviceAnnotations = gateway.Spec.Service.Annotations
+	}
+
+	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gateway.Name,
-			Namespace: gateway.Namespace,
+			Name:        gateway.Name,
+			Namespace:   gateway.Namespace,
+			Annotations: serviceAnnotations,
 		},
 		Spec: corev1.ServiceSpec{
+			Type: serviceType,
 			Selector: map[string]string{
 				"app": gateway.Name,
 			},
 			Ports: servicePorts,
 		},
 	}
+}
+
+// reconcileService ensures the Service exists with the correct configuration
+func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev1alpha1.Gateway) error {
+	logger := log.FromContext(ctx)
+
+	service := desiredService(ctx, gateway)
 
 	if err := controllerutil.SetControllerReference(gateway, service, r.Scheme); err != nil {
 		return err
@@ -895,10 +915,28 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 	} else {
 		foundSpec := found.Spec
 		serviceSpec := service.Spec
-		serviceSpec.ClusterIP = foundSpec.ClusterIP
+		if serviceSpec.Type != corev1.ServiceTypeExternalName {
+			serviceSpec.ClusterIP = foundSpec.ClusterIP
+		}
 
-		if !reflect.DeepEqual(foundSpec.Ports, serviceSpec.Ports) || !reflect.DeepEqual(foundSpec.Selector, serviceSpec.Selector) {
+		if serviceSpec.Type == foundSpec.Type {
+			for i := range serviceSpec.Ports {
+				for _, foundPort := range foundSpec.Ports {
+					if foundPort.Name == serviceSpec.Ports[i].Name {
+						serviceSpec.Ports[i].NodePort = foundPort.NodePort
+					}
+				}
+			}
+		}
+
+		specChanged := !reflect.DeepEqual(foundSpec.Ports, serviceSpec.Ports) ||
+			!reflect.DeepEqual(foundSpec.Selector, serviceSpec.Selector) ||
+			foundSpec.Type != serviceSpec.Type
+		annotationsChanged := !reflect.DeepEqual(found.Annotations, service.Annotations)
+
+		if specChanged || annotationsChanged {
 			found.Spec = serviceSpec
+			found.Annotations = service.Annotations
 			logger.Info("Updating Service", "Service.Name", service.Name)
 			if err = r.Update(ctx, found); err != nil {
 				return err
