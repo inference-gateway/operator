@@ -161,7 +161,12 @@ kubectl apply -f https://github.com/inference-gateway/operator/releases/download
 ### Common Issues
 
 1. **CRD Installation Failures**: Ensure you have cluster-admin permissions
-2. **Operator Pod CrashLoopBackOff**: Check if CRDs are properly installed
+2. **Operator Pod CrashLoopBackOff**: Check that both the operator CRDs and the Kubernetes Gateway API standard-channel CRDs (`gateways.gateway.networking.k8s.io`, `httproutes.gateway.networking.k8s.io`) are installed - the operator watches Gateway API types and exits on cache-sync failure when they are absent:
+
+   ```bash
+   kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/standard-install.yaml
+   ```
+
 3. **Manager Exits On Startup**: Every CRD in `crds.yaml` must be present - the operator starts the
    Agent, Gateway, GPU, MCP and Orchestrator controllers and exits if any of their caches cannot
    sync
