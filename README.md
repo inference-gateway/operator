@@ -213,6 +213,8 @@ spec:
       - CreateNamespace=true
 ```
 
+At a release tag, `manifests/install.yaml` references that release's operator image, so pinning `targetRevision` pins the operator version as well. On `main` the manifest tracks the most recent release.
+
 ### Method 4: Separate CRD Installation (Advanced)
 
 For scenarios where you need separate control over the CRD lifecycle (for example, upgrading CRDs independently of the operator):

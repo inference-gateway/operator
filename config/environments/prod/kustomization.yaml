@@ -8,3 +8,7 @@ resources:
   - ../../rbac
   - ../../operator
   - ../../metrics
+
+images:
+  - name: ghcr.io/inference-gateway/operator
+    newTag: latest

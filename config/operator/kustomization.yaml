@@ -3,8 +3,3 @@ namespace: inference-gateway-system
 
 resources:
   - operator.yaml
-
-images:
-  - name: ghcr.io/inference-gateway/operator
-    newName: ghcr.io/inference-gateway/operator
-    newTag: latest
