@@ -9,9 +9,6 @@ resources:
   - ../../operator
   - ../../metrics
 
-# newTag is rewritten to the released version at release time by
-# .github/semantic-release/pin-operator-image.cjs, so manifests/install.yaml
-# is version-pinned in the release tag as well as in the release asset.
 images:
   - name: ghcr.io/inference-gateway/operator
     newTag: latest
