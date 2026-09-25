@@ -38,9 +38,11 @@ kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/d
 
 **Includes:**
 
-- Gateway CRD definition
+- The five CRD definitions: `agents`, `gateways`, `gpus`, `mcps` and `orchestrators`
+  (all in the `core.inference-gateway.com` group)
 - Validation schemas
-- Conversion webhooks (if any)
+
+No conversion or admission webhooks are shipped - the operator registers none.
 
 **Use when:**
 
@@ -63,7 +65,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.12.4 # Pin to specific version - also pins the operator image
+    targetRevision: v0.26.0 # Pin to specific version - also pins the operator image
     path: manifests # Use this directory
   destination:
     server: https://kubernetes.default.svc
@@ -75,6 +77,12 @@ spec:
     syncOptions:
       - CreateNamespace=true
 ```
+
+> **Pin to v0.26.0 or later.** Only tags from v0.26.0 on have the operator image pinned in
+> `manifests/install.yaml`; earlier tags reference `ghcr.io/inference-gateway/operator:latest`, so
+> pinning `targetRevision` to one of them pins the CRDs but still deploys the current operator
+> image. That image starts the Orchestrator and GPU controllers, whose CRDs those older manifests
+> do not contain, and the manager exits on startup.
 
 ### Flux Kustomization
 
@@ -137,13 +145,15 @@ kubectl apply -f install.yaml
 ## Upgrade Considerations
 
 1. **CRDs**: Always upgrade CRDs before upgrading the operator
-2. **Backward Compatibility**: The operator supports rolling upgrades
+2. **Pod Replacement**: The operator Deployment uses the `Recreate` strategy, so the old operator
+   pod is terminated before the new one starts. Managed workloads keep serving; only reconciliation
+   pauses until the new pod is ready.
 3. **Resource Validation**: New CRD versions may have additional validation rules
 
 ```bash
-# Safe upgrade process
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.3.0/crds.yaml
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.3.0/install.yaml
+# Safe upgrade process (use v0.26.0 or later, see the pinning note above)
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/crds.yaml
+kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
 ```
 
 ## Troubleshooting
@@ -152,7 +162,9 @@ kubectl apply -f https://github.com/inference-gateway/operator/releases/download
 
 1. **CRD Installation Failures**: Ensure you have cluster-admin permissions
 2. **Operator Pod CrashLoopBackOff**: Check if CRDs are properly installed
-3. **Webhook Failures**: Verify network policies allow webhook communication
+3. **Manager Exits On Startup**: Every CRD in `crds.yaml` must be present - the operator starts the
+   Agent, Gateway, GPU, MCP and Orchestrator controllers and exits if any of their caches cannot
+   sync
 
 ### Verification Commands
 
@@ -174,13 +186,13 @@ kubectl get gateways --all-namespaces
 │   install.yaml  │    │      crds.yaml     │
 │                 │    │                    │
 │ ┌─────────────┐ │    │  ┌──────────────┐  │
-│ │ Namespace   │ │    │  │ Gateway CRD  │  │
-│ │ CRDs        │ │◄───┤  │              │  │
-│ │ Deployment  │ │    │  │              │  │
-│ │ RBAC        │ │    │  └──────────────┘  │
-│ │ Monitoring  │ │    └────────────────────┘
-│ └─────────────┘ │
-└─────────────────┘
+│ │ Namespace   │ │    │  │ Agent CRD    │  │
+│ │ CRDs        │ │◄───┤  │ Gateway CRD  │  │
+│ │ Deployment  │ │    │  │ GPU CRD      │  │
+│ │ RBAC        │ │    │  │ MCP CRD      │  │
+│ │ Monitoring  │ │    │  │ Orchestrator │  │
+│ └─────────────┘ │    │  └──────────────┘  │
+└─────────────────┘    └────────────────────┘
 
     Complete               CRDs Only
    Installation
