@@ -138,6 +138,9 @@ spec:
               key: CUSTOM_API_KEY
   mcp:
     enabled: false
+    # expose serves GET /v1/mcp/tools and the JSON-RPC POST /mcp endpoint
+    # (root-level, POST only, no Origin, no sticky sessions). Anything proxying
+    # it must pass MCP-Protocol-Version, Mcp-Method and Mcp-Name through.
     expose: false
     # selector (default) exposes two meta-tools and resolves discovery/dispatch in
     # the gateway; direct injects every tool schema on every request (pre-0.x
