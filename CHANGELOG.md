@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.0](https://github.com/inference-gateway/operator/compare/v0.25.1...v0.26.0) (2026-09-25)
+
+### ✨ Features
+
+* **gateway:** route RFC 9728 metadata and expose MCP_RESOURCE_URL ([#247](https://github.com/inference-gateway/operator/issues/247)) ([b439391](https://github.com/inference-gateway/operator/commit/b4393919f9cb41183dca4c2c7a55ff49b8ace984))
+* **release:** pin operator image in tagged manifests ([#248](https://github.com/inference-gateway/operator/issues/248)) ([5d15513](https://github.com/inference-gateway/operator/commit/5d15513b80546b756a212f8a3de8fd84a98e8e38))
+
+### ♻️ Improvements
+
+* **ci:** migrate to goreleaser dockers_v2 ([#243](https://github.com/inference-gateway/operator/issues/243)) ([7c8ff61](https://github.com/inference-gateway/operator/commit/7c8ff61950b07ddd3350c873243410d76c2f9db9))
+
+### 🐛 Bug Fixes
+
+* **controller:** reconcile resources when namespace starts matching ([#237](https://github.com/inference-gateway/operator/issues/237)) ([93292f9](https://github.com/inference-gateway/operator/commit/93292f9b7e79c69dd95749087355c382210fd5bf))
+* **gateway:** map guardrails failMode to closed/open ([#244](https://github.com/inference-gateway/operator/issues/244)) ([e71728e](https://github.com/inference-gateway/operator/commit/e71728e1409db45ddff7dd6351417c92147775ea))
+* **release:** pin operator image in install.yaml asset ([#242](https://github.com/inference-gateway/operator/issues/242)) ([432c9bd](https://github.com/inference-gateway/operator/commit/432c9bd6b6b6e5cf7c34713852da0c3ec6c02659))
+
+### 📚 Documentation
+
+* **gateway:** document POST /mcp gating under MCP_EXPOSE ([#246](https://github.com/inference-gateway/operator/issues/246)) ([270874a](https://github.com/inference-gateway/operator/commit/270874a1449829d84bc3ef17ef71f1db09e1c76e))
+
 ## [0.25.1](https://github.com/inference-gateway/operator/compare/v0.25.0...v0.25.1) (2026-09-24)
 
 ### ♻️ Improvements

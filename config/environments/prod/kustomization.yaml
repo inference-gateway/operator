@@ -11,4 +11,4 @@ resources:
 
 images:
   - name: ghcr.io/inference-gateway/operator
-    newTag: latest
+    newTag: 0.26.0
