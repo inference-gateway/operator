@@ -560,8 +560,6 @@ var _ = Describe("Gateway controller", func() {
 				Expect(createdRoute.Spec.Rules).To(HaveLen(1))
 				Expect(createdRoute.Spec.Rules[0].BackendRefs).To(HaveLen(1))
 				Expect(createdRoute.Spec.Rules[0].BackendRefs[0].Name).To(Equal(gwapiv1.ObjectName(gwName)))
-				// The "/" prefix match is what routes /.well-known/oauth-protected-resource/mcp
-				// (RFC 9728) alongside /mcp and /v1/...
 				Expect(*createdRoute.Spec.Rules[0].Matches[0].Path.Type).To(Equal(gwapiv1.PathMatchPathPrefix))
 				Expect(*createdRoute.Spec.Rules[0].Matches[0].Path.Value).To(Equal("/"))
 
