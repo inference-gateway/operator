@@ -29,6 +29,12 @@ All workflows run through [Task](https://taskfile.dev) (`task --list` for the fu
 
 - Go: tabs, `gofmt`/`goimports`. YAML/Markdown: two-space indent, LF, trailing newline (`.editorconfig`).
 - Import order (`gci`) and named imports (`importas`) are enforced (`.golangci.yml`): standard library, `github.com/onsi` (ginkgo/gomega), third-party, `github.com/inference-gateway/*`, then this module; every non-stdlib import must be named — `k8s.io/api/<group>/<version>` and `apimachinery/pkg/apis/<group>/<version>` derive `<group><version>` (`corev1`, `metav1`), everything else its last path element; kubebuilder aliases `ctrl`, `apierrors`, `utilruntime`, `clientgoscheme`, `gwapiv1`, `corev1alpha1` are pinned. Fix with `golangci-lint fmt` and `golangci-lint run --fix`.
+- Write self-explanatory code: clear names and small, single-purpose functions carry the intent.
+  If a block needs a comment to be understood, extract it into a well-named function or variable.
+- No inline comments inside function bodies.
+- Doc comments on functions, types, and modules are at most 5 lines: what it does and why, not how.
+- Tool directives are not comments and stay where the tool needs them (lint suppressions, build
+  tags, compiler pragmas, code generation markers).
 - Keep API types in `api/v1alpha1/*_types.go`, reconcilers in `internal/controller/*_controller.go`, tests alongside.
 - Run `task fmt`, `task vet`, and `task lint` before submitting. The opt-in pre-commit hook (`task precommit:activate`) also regenerates manifests/deepcopy and runs `task test`, and fails if regeneration leaves unstaged changes — commit generated output together with the API change.
 - Add/update tests when changing reconciliation behavior, CRD schemas, defaults, or validation.
