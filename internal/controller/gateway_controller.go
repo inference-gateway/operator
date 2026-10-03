@@ -52,6 +52,7 @@ import (
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gateways/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=mcps,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core.inference-gateway.com,resources=agents,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -203,10 +204,17 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 			mcpEntries = r.assembleMCPServerEntries(ctx, latest)
 		}
 
+		var a2aEntries []string
+		if latest.Spec.A2A != nil && latest.Spec.A2A.Enabled {
+			a2aEntries = r.assembleA2AAgentEntries(ctx, latest)
+		}
+
 		urlChanged := newURL != "" && latest.Status.URL != newURL
 		mcpChanged := !stringSlicesEqual(latest.Status.MCPServers, mcpEntries) ||
 			latest.Status.MCPServerCount != int32(len(mcpEntries))
-		if !urlChanged && !mcpChanged {
+		a2aChanged := !stringSlicesEqual(latest.Status.A2AAgents, a2aEntries) ||
+			latest.Status.A2AAgentCount != int32(len(a2aEntries))
+		if !urlChanged && !mcpChanged && !a2aChanged {
 			return nil
 		}
 
@@ -217,6 +225,10 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 			latest.Status.MCPServers = mcpEntries
 			latest.Status.MCPServerCount = int32(len(mcpEntries))
 		}
+		if a2aChanged {
+			latest.Status.A2AAgents = a2aEntries
+			latest.Status.A2AAgentCount = int32(len(a2aEntries))
+		}
 
 		if err := r.Status().Update(ctx, latest); err != nil {
 			if apierrors.IsConflict(err) {
@@ -226,7 +238,8 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 			logger.Error(err, "failed to update gateway status")
 			return err
 		}
-		logger.V(1).Info("updated gateway status", "gateway", latest.Name, "url", newURL, "mcpServerCount", len(mcpEntries))
+		logger.V(1).Info("updated gateway status", "gateway", latest.Name, "url", newURL,
+			"mcpServerCount", len(mcpEntries), "a2aAgentCount", len(a2aEntries))
 		return nil
 	}
 	return lastErr
@@ -636,6 +649,33 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		)
 		if url := mcpResourceURL(gateway); url != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "MCP_RESOURCE_URL", Value: url})
+		}
+	}
+
+	if gateway.Spec.A2A != nil && gateway.Spec.A2A.Enabled {
+		envVars = append(envVars,
+			corev1.EnvVar{
+				Name:  "A2A_ENABLED",
+				Value: "true",
+			},
+			corev1.EnvVar{
+				Name:  "A2A_AGENTS",
+				Value: strings.Join(r.assembleA2AAgentEntries(ctx, gateway), ","),
+			},
+		)
+		if url := a2aResourceURL(gateway); url != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "A2A_RESOURCE_URL", Value: url})
+		}
+		if t := gateway.Spec.A2A.Timeouts; t != nil {
+			if t.Client != "" {
+				envVars = append(envVars, corev1.EnvVar{Name: "A2A_CLIENT_TIMEOUT", Value: t.Client})
+			}
+			if t.StreamIdle != "" {
+				envVars = append(envVars, corev1.EnvVar{Name: "A2A_STREAM_IDLE_TIMEOUT", Value: t.StreamIdle})
+			}
+		}
+		if i := gateway.Spec.A2A.CardRefreshInterval; i != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "A2A_CARD_REFRESH_INTERVAL", Value: i})
 		}
 	}
 
@@ -1307,7 +1347,22 @@ func mcpResourceURL(gateway *corev1alpha1.Gateway) string {
 	if url := gateway.Spec.MCP.ResourceURL; url != "" {
 		return url
 	}
+	return routedResourceURL(gateway, "/mcp")
+}
 
+// a2aResourceURL returns the canonical public /a2a URL the gateway publishes on its
+// agent card and as the RFC 9728 `resource`. An explicit spec.a2a.resourceUrl wins;
+// otherwise it is derived from the first HTTPRoute hostname when routing is enabled.
+func a2aResourceURL(gateway *corev1alpha1.Gateway) string {
+	if url := gateway.Spec.A2A.ResourceURL; url != "" {
+		return url
+	}
+	return routedResourceURL(gateway, "/a2a")
+}
+
+// routedResourceURL builds "<scheme>://<first HTTPRoute hostname><path>" from the
+// Gateway API routing config. Empty means "let the gateway derive it from the request".
+func routedResourceURL(gateway *corev1alpha1.Gateway, path string) string {
 	routing := gateway.Spec.GatewayAPI
 	if routing == nil || !routing.Enabled || routing.HTTPRoute == nil || len(routing.HTTPRoute.Hostnames) == 0 {
 		return ""
@@ -1322,7 +1377,7 @@ func mcpResourceURL(gateway *corev1alpha1.Gateway) string {
 	if tlsEnabled(gateway) {
 		scheme = "https"
 	}
-	return fmt.Sprintf("%s://%s/mcp", scheme, host)
+	return scheme + "://" + host + path
 }
 
 // gatewayServicePort returns the port the upstream HTTPRoute backend
@@ -1677,6 +1732,10 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.mcpToGatewayRequests),
 		).
 		Watches(
+			&corev1alpha1.Agent{},
+			handler.EnqueueRequestsFromMapFunc(r.agentToGatewayRequests),
+		).
+		Watches(
 			&corev1.Namespace{},
 			handler.EnqueueRequestsFromMapFunc(namespaceMapper(r.Client, func() client.ObjectList { return &corev1alpha1.GatewayList{} })),
 			namespaceBecameWatched,
@@ -1684,11 +1743,73 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// mcpAliasPattern is the alias syntax the gateway accepts in MCP_SERVERS entries.
-var mcpAliasPattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
+// endpointAliasPattern is the alias syntax the gateway accepts in MCP_SERVERS and
+// A2A_AGENTS entries, which share one grammar.
+var endpointAliasPattern = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 // mcpAliasReserved is the alias the gateway reserves for its own meta-tools.
 const mcpAliasReserved = "tools"
+
+// aliasedEndpoints accumulates "<alias>=<url>" entries in the grammar MCP_SERVERS and
+// A2A_AGENTS share: deduped on URL, sorted, and with any alias the gateway would reject
+// dropped so the entry degrades to a bare URL instead of being lost.
+type aliasedEndpoints struct {
+	kind      string
+	reserved  string
+	gateway   string
+	seenURL   map[string]struct{}
+	seenAlias map[string]struct{}
+	entries   []string
+}
+
+func newAliasedEndpoints(kind, reserved, gateway string, capacity int) *aliasedEndpoints {
+	return &aliasedEndpoints{
+		kind:      kind,
+		reserved:  reserved,
+		gateway:   gateway,
+		seenURL:   map[string]struct{}{},
+		seenAlias: map[string]struct{}{},
+		entries:   make([]string, 0, capacity),
+	}
+}
+
+func (a *aliasedEndpoints) rejectAlias(name string) string {
+	switch {
+	case !endpointAliasPattern.MatchString(name):
+		return "name is not a valid alias (must match ^[a-z0-9_-]+$)"
+	case a.reserved != "" && name == a.reserved:
+		return "name is the reserved alias " + a.reserved
+	}
+	if _, ok := a.seenAlias[name]; ok {
+		return "name is already used by another " + a.kind
+	}
+	return ""
+}
+
+func (a *aliasedEndpoints) add(ctx context.Context, name, url string) {
+	if url == "" {
+		return
+	}
+	if _, ok := a.seenURL[url]; ok {
+		return
+	}
+	a.seenURL[url] = struct{}{}
+
+	if reason := a.rejectAlias(name); reason != "" {
+		log.FromContext(ctx).Info("rendering "+a.kind+" without an alias; the gateway will derive one from the URL",
+			"gateway", a.gateway, "name", name, "url", url, "reason", reason)
+		a.entries = append(a.entries, url)
+		return
+	}
+
+	a.seenAlias[name] = struct{}{}
+	a.entries = append(a.entries, name+"="+url)
+}
+
+func (a *aliasedEndpoints) sorted() []string {
+	sort.Strings(a.entries)
+	return a.entries
+}
 
 // assembleMCPServerEntries returns the union of static spec.mcp.servers[] entries and
 // MCP CRs discovered via spec.mcp.serviceDiscovery, rendered as "name=url" so the
@@ -1699,58 +1820,93 @@ const mcpAliasReserved = "tools"
 // gateway with a host-derived alias. Discovery errors are logged and ignored so a
 // transient API failure does not blank out the static list.
 func (r *GatewayReconciler) assembleMCPServerEntries(ctx context.Context, gateway *corev1alpha1.Gateway) []string {
-	logger := log.FromContext(ctx)
-	seenURL := map[string]struct{}{}
-	seenAlias := map[string]struct{}{}
-	entries := make([]string, 0, len(gateway.Spec.MCP.Servers))
-
-	add := func(name, url string) {
-		if url == "" {
-			return
-		}
-		if _, ok := seenURL[url]; ok {
-			return
-		}
-		seenURL[url] = struct{}{}
-
-		reason := ""
-		switch {
-		case !mcpAliasPattern.MatchString(name):
-			reason = "name is not a valid alias (must match ^[a-z0-9_-]+$)"
-		case name == mcpAliasReserved:
-			reason = "name is the reserved alias " + mcpAliasReserved
-		default:
-			if _, ok := seenAlias[name]; ok {
-				reason = "name is already used by another MCP server"
-			}
-		}
-		if reason != "" {
-			logger.Info("rendering MCP server without an alias; the gateway will derive one from the URL",
-				"gateway", gateway.Name, "name", name, "url", url, "reason", reason)
-			entries = append(entries, url)
-			return
-		}
-
-		seenAlias[name] = struct{}{}
-		entries = append(entries, name+"="+url)
-	}
+	servers := newAliasedEndpoints("MCP server", mcpAliasReserved, gateway.Name, len(gateway.Spec.MCP.Servers))
 
 	for _, s := range gateway.Spec.MCP.Servers {
-		add(s.Name, s.URL)
+		servers.add(ctx, s.Name, s.URL)
 	}
 
 	if gateway.Spec.MCP.ServiceDiscovery != nil && gateway.Spec.MCP.ServiceDiscovery.Enabled {
 		discovered, err := r.discoverMCPs(ctx, gateway)
 		if err != nil {
-			logger.Error(err, "failed to discover MCPs; using static MCP_SERVERS only")
+			log.FromContext(ctx).Error(err, "failed to discover MCPs; using static MCP_SERVERS only")
 		}
 		for _, mcp := range discovered {
-			add(mcp.Name, gatewayMCPURL(&mcp))
+			servers.add(ctx, mcp.Name, gatewayMCPURL(&mcp))
 		}
 	}
 
-	sort.Strings(entries)
-	return entries
+	return servers.sorted()
+}
+
+// assembleA2AAgentEntries returns the union of static spec.a2a.agents[] entries and
+// Agent CRs discovered via spec.a2a.serviceDiscovery, rendered as "name=url" so the
+// gateway prefixes each agent's skill ids and task ids with that alias. Entries are
+// deduped on URL and sorted for determinism. Discovery errors are logged and ignored
+// so a transient API failure does not blank out the static list.
+func (r *GatewayReconciler) assembleA2AAgentEntries(ctx context.Context, gateway *corev1alpha1.Gateway) []string {
+	agents := newAliasedEndpoints("A2A agent", "", gateway.Name, len(gateway.Spec.A2A.Agents))
+
+	for _, a := range gateway.Spec.A2A.Agents {
+		agents.add(ctx, a.Name, a.URL)
+	}
+
+	if gateway.Spec.A2A.ServiceDiscovery != nil && gateway.Spec.A2A.ServiceDiscovery.Enabled {
+		discovered, err := r.discoverAgents(ctx, gateway)
+		if err != nil {
+			log.FromContext(ctx).Error(err, "failed to discover Agents; using static A2A_AGENTS only")
+		}
+		for _, agent := range discovered {
+			agents.add(ctx, agent.Name, gatewayAgentURL(&agent))
+		}
+	}
+
+	return agents.sorted()
+}
+
+// discoverAgents lists Agent CRs in the configured namespace filtered by the label selector.
+func (r *GatewayReconciler) discoverAgents(ctx context.Context, gateway *corev1alpha1.Gateway) ([]corev1alpha1.Agent, error) {
+	sd := gateway.Spec.A2A.ServiceDiscovery
+	ns := sd.Namespace
+	if ns == "" {
+		ns = gateway.Namespace
+	}
+
+	listOpts := []client.ListOption{client.InNamespace(ns)}
+
+	if sd.Selector != nil {
+		selector, err := metav1.LabelSelectorAsSelector(sd.Selector)
+		if err != nil {
+			return nil, fmt.Errorf("invalid label selector: %w", err)
+		}
+		listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: selector})
+	}
+
+	var agentList corev1alpha1.AgentList
+	if err := r.List(ctx, &agentList, listOpts...); err != nil {
+		return nil, err
+	}
+
+	return agentList.Items, nil
+}
+
+// gatewayAgentURL returns the URL for an Agent CR. It prefers the card URL the Agent
+// controller reports and falls back to the in-cluster Service URL when status has not
+// been populated yet.
+func gatewayAgentURL(agent *corev1alpha1.Agent) string {
+	if agent.Status.Card.URL != "" {
+		return agent.Status.Card.URL
+	}
+	return agentAdvertisedURL(agent)
+}
+
+// agentToGatewayRequests maps an Agent event to the set of Gateway reconcile requests
+// whose A2A service discovery configuration selects that Agent.
+func (r *GatewayReconciler) agentToGatewayRequests(ctx context.Context, obj client.Object) []ctrl.Request {
+	if _, ok := obj.(*corev1alpha1.Agent); !ok {
+		return nil
+	}
+	return r.gatewaysSelecting(ctx, obj, a2aDiscovery)
 }
 
 // discoverMCPs lists MCP CRs in the configured namespace filtered by the label selector.
@@ -1803,14 +1959,44 @@ func gatewayMCPURL(mcp *corev1alpha1.MCP) string {
 	return fmt.Sprintf("%s://%s-service.%s.svc.cluster.local:%d%s", scheme, mcp.Name, mcp.Namespace, port, path)
 }
 
-// mcpToGatewayRequests maps an MCP event to the set of Gateway reconcile requests
-// whose MCP service discovery configuration selects that MCP.
-func (r *GatewayReconciler) mcpToGatewayRequests(ctx context.Context, obj client.Object) []ctrl.Request {
-	mcp, ok := obj.(*corev1alpha1.MCP)
-	if !ok {
+// serviceDiscovery is the namespace-and-selector view both spec.mcp.serviceDiscovery
+// and spec.a2a.serviceDiscovery reduce to once they are known to be enabled.
+type serviceDiscovery struct {
+	namespace string
+	selector  *metav1.LabelSelector
+}
+
+// mcpDiscovery returns the active MCP service discovery of a Gateway, nil when off.
+func mcpDiscovery(gateway *corev1alpha1.Gateway) *serviceDiscovery {
+	if gateway.Spec.MCP == nil || !gateway.Spec.MCP.Enabled {
 		return nil
 	}
+	sd := gateway.Spec.MCP.ServiceDiscovery
+	if sd == nil || !sd.Enabled {
+		return nil
+	}
+	return &serviceDiscovery{namespace: sd.Namespace, selector: sd.Selector}
+}
 
+// a2aDiscovery returns the active A2A service discovery of a Gateway, nil when off.
+func a2aDiscovery(gateway *corev1alpha1.Gateway) *serviceDiscovery {
+	if gateway.Spec.A2A == nil || !gateway.Spec.A2A.Enabled {
+		return nil
+	}
+	sd := gateway.Spec.A2A.ServiceDiscovery
+	if sd == nil || !sd.Enabled {
+		return nil
+	}
+	return &serviceDiscovery{namespace: sd.Namespace, selector: sd.Selector}
+}
+
+// gatewaysSelecting maps a watched object to the Gateways whose service discovery,
+// read through the given accessor, matches that object's namespace and labels.
+func (r *GatewayReconciler) gatewaysSelecting(
+	ctx context.Context,
+	obj client.Object,
+	discovery func(*corev1alpha1.Gateway) *serviceDiscovery,
+) []ctrl.Request {
 	var gwList corev1alpha1.GatewayList
 	if err := r.List(ctx, &gwList); err != nil {
 		return nil
@@ -1818,27 +2004,22 @@ func (r *GatewayReconciler) mcpToGatewayRequests(ctx context.Context, obj client
 
 	var requests []ctrl.Request
 	for _, gateway := range gwList.Items {
-		if gateway.Spec.MCP == nil || !gateway.Spec.MCP.Enabled {
-			continue
-		}
-		if gateway.Spec.MCP.ServiceDiscovery == nil || !gateway.Spec.MCP.ServiceDiscovery.Enabled {
+		sd := discovery(&gateway)
+		if sd == nil {
 			continue
 		}
 
-		ns := gateway.Spec.MCP.ServiceDiscovery.Namespace
+		ns := sd.namespace
 		if ns == "" {
 			ns = gateway.Namespace
 		}
-		if ns != mcp.Namespace {
+		if ns != obj.GetNamespace() {
 			continue
 		}
 
-		if gateway.Spec.MCP.ServiceDiscovery.Selector != nil {
-			selector, err := metav1.LabelSelectorAsSelector(gateway.Spec.MCP.ServiceDiscovery.Selector)
-			if err != nil {
-				continue
-			}
-			if !selector.Matches(labels.Set(mcp.Labels)) {
+		if sd.selector != nil {
+			selector, err := metav1.LabelSelectorAsSelector(sd.selector)
+			if err != nil || !selector.Matches(labels.Set(obj.GetLabels())) {
 				continue
 			}
 		}
@@ -1851,4 +2032,13 @@ func (r *GatewayReconciler) mcpToGatewayRequests(ctx context.Context, obj client
 		})
 	}
 	return requests
+}
+
+// mcpToGatewayRequests maps an MCP event to the set of Gateway reconcile requests
+// whose MCP service discovery configuration selects that MCP.
+func (r *GatewayReconciler) mcpToGatewayRequests(ctx context.Context, obj client.Object) []ctrl.Request {
+	if _, ok := obj.(*corev1alpha1.MCP); !ok {
+		return nil
+	}
+	return r.gatewaysSelecting(ctx, obj, mcpDiscovery)
 }

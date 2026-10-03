@@ -840,6 +840,10 @@ spec:
       jsonPath: .status.mcpServerCount
       name: MCPS
       type: integer
+    - description: Number of A2A agents registered (static + discovered)
+      jsonPath: .status.a2aAgentCount
+      name: A2A
+      type: integer
     - description: Age of the resource
       jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -869,6 +873,136 @@ spec:
           spec:
             description: GatewaySpec defines the desired state of Gateway.
             properties:
+              a2a:
+                description: A2A (Agent-to-Agent) configuration
+                properties:
+                  agents:
+                    description: |-
+                      Agents are static agent entries, unioned with any agents discovered via
+                      ServiceDiscovery and rendered into A2A_AGENTS as "<name>=<url>".
+                    items:
+                      description: A2AAgent is a statically configured A2A agent.
+                      properties:
+                        name:
+                          description: |-
+                            Name is the agent's alias in A2A_AGENTS ("<name>=<url>"). It prefixes the agent's
+                            skill ids on the gateway card and every task id the gateway hands out. To be used
+                            as an alias the name must match ^[a-z0-9_-]+$ and be unique across static and
+                            discovered agents; otherwise the entry is rendered as a bare URL and the gateway
+                            derives an alias from the host.
+                          type: string
+                        url:
+                          description: |-
+                            URL is the agent's base URL. Per-agent credentials go in the URL as basic auth;
+                            the gateway does not forward the caller's bearer token to agents.
+                          type: string
+                      required:
+                      - name
+                      - url
+                      type: object
+                    type: array
+                  cardRefreshInterval:
+                    description: |-
+                      CardRefreshInterval is how often agent cards are re-fetched in the background so
+                      unreachable agents are retried and skill changes picked up. Emitted as
+                      A2A_CARD_REFRESH_INTERVAL; "0" disables the background refresh.
+                    type: string
+                  enabled:
+                    default: false
+                    description: Enabled turns the gateway into an A2A server. Emitted
+                      as A2A_ENABLED.
+                    type: boolean
+                  resourceUrl:
+                    description: |-
+                      ResourceURL pins the canonical public /a2a URL the gateway publishes on its agent
+                      card and as the RFC 9728 `resource` at GET /.well-known/oauth-protected-resource/a2a.
+                      Emitted as A2A_RESOURCE_URL. Defaults to "<scheme>://<first GatewayAPI HTTPRoute
+                      hostname>/a2a"; set it explicitly when the ingress rewrites scheme or Host.
+                    type: string
+                  serviceDiscovery:
+                    description: |-
+                      ServiceDiscovery configures automatic discovery of Agent CRs by label selector.
+                      Discovered agents are appended to the static Agents list as "<metadata.name>=<url>",
+                      deduped on URL and sorted for determinism.
+                    properties:
+                      enabled:
+                        description: Enabled toggles automatic discovery of Agent
+                          CRs.
+                        type: boolean
+                      namespace:
+                        description: |-
+                          Namespace is the namespace to discover Agent CRs in.
+                          Defaults to the Gateway's own namespace when empty.
+                        type: string
+                      selector:
+                        description: |-
+                          Selector filters which Agent CRs are discovered by their labels.
+                          A nil or empty selector matches all Agent CRs in the namespace.
+                          Supports matchLabels and matchExpressions.
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: |-
+                                A label selector requirement is a selector that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: |-
+                                    operator represents a key's relationship to a set of values.
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.
+                                  type: string
+                                values:
+                                  description: |-
+                                    values is an array of string values. If the operator is In or NotIn,
+                                    the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                    the values array must be empty. This array is replaced during a strategic
+                                    merge patch.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                              map is equivalent to an element of matchExpressions, whose key field is "key", the
+                              operator is "In", and the values array contains only "value". The requirements are ANDed.
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    required:
+                    - enabled
+                    type: object
+                  timeouts:
+                    description: Timeouts configures the A2A relay timeouts.
+                    properties:
+                      client:
+                        default: 30s
+                        description: |-
+                          Client is the timeout for one non-streaming call to an agent, including the agent
+                          card fetch. Emitted as A2A_CLIENT_TIMEOUT.
+                        type: string
+                      streamIdle:
+                        default: 5m
+                        description: |-
+                          StreamIdle is the idle cutoff for a relayed stream: the relay closes when the agent
+                          sends nothing for this long. Emitted as A2A_STREAM_IDLE_TIMEOUT; "0" disables it.
+                        type: string
+                    type: object
+                type: object
               auth:
                 description: Authentication configuration
                 properties:
@@ -2586,6 +2720,21 @@ spec:
           status:
             description: GatewayStatus defines the observed state of Gateway.
             properties:
+              a2aAgentCount:
+                description: |-
+                  A2AAgentCount is the number of A2A agents (static + discovered) currently wired
+                  into the gateway pod. Not omitempty so the column always renders as a number
+                  (0 when A2A is disabled or no agents configured).
+                format: int32
+                type: integer
+              a2aAgents:
+                description: |-
+                  A2AAgents is the sorted list of A2A agent entries (static + discovered) that the
+                  gateway pod is configured with, each rendered as "<name>=<url>". Mirrors the value
+                  of A2A_AGENTS passed to the container.
+                items:
+                  type: string
+                type: array
               availableReplicas:
                 description: Current number of available replicas
                 format: int32
@@ -2676,6 +2825,7 @@ spec:
                   otherwise it will use the service URL
                 type: string
             required:
+            - a2aAgentCount
             - mcpServerCount
             type: object
         type: object

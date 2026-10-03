@@ -63,6 +63,10 @@ type GatewaySpec struct {
 	// +optional
 	MCP *MCPServersSpec `json:"mcp,omitempty"`
 
+	// A2A (Agent-to-Agent) configuration
+	// +optional
+	A2A *A2ASpec `json:"a2a,omitempty"`
+
 	// Resource requirements for the gateway pods
 	// +optional
 	Resources *ResourceRequirements `json:"resources,omitempty"`
@@ -472,6 +476,92 @@ type MCPServiceDiscoverySpec struct {
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
+// A2ASpec contains Agent-to-Agent configuration. When enabled the gateway becomes an
+// A2A server that publishes one merged card at GET /.well-known/agent-card.json and
+// relays every POST /a2a call to the agent the request names.
+type A2ASpec struct {
+	// Enabled turns the gateway into an A2A server. Emitted as A2A_ENABLED.
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Agents are static agent entries, unioned with any agents discovered via
+	// ServiceDiscovery and rendered into A2A_AGENTS as "<name>=<url>".
+	// +optional
+	Agents []A2AAgent `json:"agents,omitempty"`
+
+	// ServiceDiscovery configures automatic discovery of Agent CRs by label selector.
+	// Discovered agents are appended to the static Agents list as "<metadata.name>=<url>",
+	// deduped on URL and sorted for determinism.
+	// +optional
+	ServiceDiscovery *A2AServiceDiscoverySpec `json:"serviceDiscovery,omitempty"`
+
+	// ResourceURL pins the canonical public /a2a URL the gateway publishes on its agent
+	// card and as the RFC 9728 `resource` at GET /.well-known/oauth-protected-resource/a2a.
+	// Emitted as A2A_RESOURCE_URL. Defaults to "<scheme>://<first GatewayAPI HTTPRoute
+	// hostname>/a2a"; set it explicitly when the ingress rewrites scheme or Host.
+	// +optional
+	ResourceURL string `json:"resourceUrl,omitempty"`
+
+	// Timeouts configures the A2A relay timeouts.
+	// +optional
+	Timeouts *A2ATimeouts `json:"timeouts,omitempty"`
+
+	// CardRefreshInterval is how often agent cards are re-fetched in the background so
+	// unreachable agents are retried and skill changes picked up. Emitted as
+	// A2A_CARD_REFRESH_INTERVAL; "0" disables the background refresh.
+	// +optional
+	CardRefreshInterval string `json:"cardRefreshInterval,omitempty"`
+}
+
+// A2AAgent is a statically configured A2A agent.
+type A2AAgent struct {
+	// Name is the agent's alias in A2A_AGENTS ("<name>=<url>"). It prefixes the agent's
+	// skill ids on the gateway card and every task id the gateway hands out. To be used
+	// as an alias the name must match ^[a-z0-9_-]+$ and be unique across static and
+	// discovered agents; otherwise the entry is rendered as a bare URL and the gateway
+	// derives an alias from the host.
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// URL is the agent's base URL. Per-agent credentials go in the URL as basic auth;
+	// the gateway does not forward the caller's bearer token to agents.
+	// +kubebuilder:validation:Required
+	URL string `json:"url"`
+}
+
+// A2AServiceDiscoverySpec configures automatic discovery of Agent CRs by label selector.
+type A2AServiceDiscoverySpec struct {
+	// Enabled toggles automatic discovery of Agent CRs.
+	Enabled bool `json:"enabled"`
+
+	// Namespace is the namespace to discover Agent CRs in.
+	// Defaults to the Gateway's own namespace when empty.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// Selector filters which Agent CRs are discovered by their labels.
+	// A nil or empty selector matches all Agent CRs in the namespace.
+	// Supports matchLabels and matchExpressions.
+	// +optional
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+}
+
+// A2ATimeouts contains timeout configurations for the A2A relay.
+type A2ATimeouts struct {
+	// Client is the timeout for one non-streaming call to an agent, including the agent
+	// card fetch. Emitted as A2A_CLIENT_TIMEOUT.
+	// +optional
+	// +kubebuilder:default="30s"
+	Client string `json:"client,omitempty"`
+
+	// StreamIdle is the idle cutoff for a relayed stream: the relay closes when the agent
+	// sends nothing for this long. Emitted as A2A_STREAM_IDLE_TIMEOUT; "0" disables it.
+	// +optional
+	// +kubebuilder:default="5m"
+	StreamIdle string `json:"streamIdle,omitempty"`
+}
+
 // MCPTimeouts contains timeout configurations for MCP
 type MCPTimeouts struct {
 	// Client timeout
@@ -754,6 +844,17 @@ type GatewayStatus struct {
 	// wired into the gateway pod. Not omitempty so the column always renders as
 	// a number (0 when MCP is disabled or no servers configured).
 	MCPServerCount int32 `json:"mcpServerCount"`
+
+	// A2AAgents is the sorted list of A2A agent entries (static + discovered) that the
+	// gateway pod is configured with, each rendered as "<name>=<url>". Mirrors the value
+	// of A2A_AGENTS passed to the container.
+	// +optional
+	A2AAgents []string `json:"a2aAgents,omitempty"`
+
+	// A2AAgentCount is the number of A2A agents (static + discovered) currently wired
+	// into the gateway pod. Not omitempty so the column always renders as a number
+	// (0 when A2A is disabled or no agents configured).
+	A2AAgentCount int32 `json:"a2aAgentCount"`
 }
 
 // GatewayCondition represents a condition of a Gateway deployment
@@ -785,6 +886,7 @@ type GatewayCondition struct {
 // +kubebuilder:printcolumn:name="Port",type=integer,JSONPath=".spec.server.port",description="Gateway port"
 // +kubebuilder:printcolumn:name="Providers",type=string,JSONPath=".status.providerSummary",description="Configured providers"
 // +kubebuilder:printcolumn:name="MCPS",type=integer,JSONPath=".status.mcpServerCount",description="Number of MCP servers connected (static + discovered)"
+// +kubebuilder:printcolumn:name="A2A",type=integer,JSONPath=".status.a2aAgentCount",description="Number of A2A agents registered (static + discovered)"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
