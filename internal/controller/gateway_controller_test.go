@@ -939,6 +939,181 @@ var _ = Describe("Gateway MCP service discovery", func() {
 	})
 })
 
+var _ = Describe("Gateway A2A service discovery", func() {
+	ctx := context.Background()
+
+	makeGateway := func(static []corev1alpha1.A2AAgent, sd *corev1alpha1.A2AServiceDiscoverySpec) *corev1alpha1.Gateway {
+		return &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec: corev1alpha1.GatewaySpec{
+				A2A: &corev1alpha1.A2ASpec{
+					Enabled:          true,
+					Agents:           static,
+					ServiceDiscovery: sd,
+				},
+			},
+		}
+	}
+
+	withFakeClient := func(agents ...*corev1alpha1.Agent) *GatewayReconciler {
+		objs := make([]client.Object, 0, len(agents))
+		for _, a := range agents {
+			objs = append(objs, a)
+		}
+		return &GatewayReconciler{Client: testutil.NewFakeClient(objs...), Scheme: gatewayTestScheme}
+	}
+
+	It("renders only static agents as name=url when service discovery is disabled", func() {
+		r := withFakeClient()
+		gw := makeGateway([]corev1alpha1.A2AAgent{
+			{Name: "research", URL: "http://research:8080"},
+			{Name: "writer", URL: "http://writer:8080"},
+		}, nil)
+		Expect(r.assembleA2AAgentEntries(ctx, gw)).To(Equal([]string{
+			"research=http://research:8080",
+			"writer=http://writer:8080",
+		}))
+	})
+
+	It("drops the alias for invalid and duplicate names but keeps the reserved MCP alias", func() {
+		r := withFakeClient()
+		gw := makeGateway([]corev1alpha1.A2AAgent{
+			{Name: "Research.A", URL: "http://invalid-alias:8080"},
+			{Name: "tools", URL: "http://tools:8080"},
+			{Name: "dup", URL: "http://dup-first:8080"},
+			{Name: "dup", URL: "http://dup-second:8080"},
+		}, nil)
+		Expect(r.assembleA2AAgentEntries(ctx, gw)).To(ConsistOf(
+			"http://invalid-alias:8080",
+			"tools=http://tools:8080",
+			"dup=http://dup-first:8080",
+			"http://dup-second:8080",
+		))
+	})
+
+	It("returns the union of static and discovered entries sorted, deduped on URL", func() {
+		r := withFakeClient(
+			&corev1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "agent-z",
+					Namespace: "default",
+					Labels:    map[string]string{"discoverable": "true"},
+				},
+				Status: corev1alpha1.AgentStatus{Card: corev1alpha1.Card{URL: "http://agent-z.example.com"}},
+			},
+			&corev1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "agent-a",
+					Namespace: "default",
+					Labels:    map[string]string{"discoverable": "true"},
+				},
+				Status: corev1alpha1.AgentStatus{Card: corev1alpha1.Card{URL: "http://static-a:8080"}},
+			},
+		)
+		gw := makeGateway(
+			[]corev1alpha1.A2AAgent{{Name: "static-a", URL: "http://static-a:8080"}},
+			&corev1alpha1.A2AServiceDiscoverySpec{
+				Enabled:  true,
+				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"discoverable": "true"}},
+			},
+		)
+		Expect(r.assembleA2AAgentEntries(ctx, gw)).To(Equal([]string{
+			"agent-z=http://agent-z.example.com",
+			"static-a=http://static-a:8080",
+		}))
+	})
+
+	It("falls back to the in-cluster Service URL when the card URL is not reported yet", func() {
+		r := withFakeClient(
+			&corev1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "pending", Namespace: "agents"},
+				Spec:       corev1alpha1.AgentSpec{Port: 9090},
+			},
+		)
+		gw := makeGateway(nil, &corev1alpha1.A2AServiceDiscoverySpec{Enabled: true, Namespace: "agents"})
+		Expect(r.assembleA2AAgentEntries(ctx, gw)).To(Equal([]string{
+			"pending=http://pending.agents.svc.cluster.local:9090",
+		}))
+	})
+
+	It("filters discovered Agents by selector", func() {
+		r := withFakeClient(
+			&corev1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "a1", Namespace: "default", Labels: map[string]string{"a": "1"}},
+			},
+			&corev1alpha1.Agent{
+				ObjectMeta: metav1.ObjectMeta{Name: "a2", Namespace: "default", Labels: map[string]string{"a": "2"}},
+			},
+		)
+		gw := makeGateway(nil, &corev1alpha1.A2AServiceDiscoverySpec{
+			Enabled:  true,
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"a": "1"}},
+		})
+		Expect(r.assembleA2AAgentEntries(ctx, gw)).To(Equal([]string{
+			"a1=http://a1.default.svc.cluster.local:8080",
+		}))
+	})
+
+	It("enqueues only the Gateways whose A2A discovery selects the Agent", func() {
+		selecting := makeGateway(nil, &corev1alpha1.A2AServiceDiscoverySpec{
+			Enabled:  true,
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"discoverable": "true"}},
+		})
+		other := makeGateway(nil, &corev1alpha1.A2AServiceDiscoverySpec{
+			Enabled:  true,
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"discoverable": "false"}},
+		})
+		other.Name = "gw-other"
+		disabled := makeGateway(nil, nil)
+		disabled.Name = "gw-disabled"
+
+		r := &GatewayReconciler{
+			Client: testutil.NewFakeClient(selecting, other, disabled),
+			Scheme: gatewayTestScheme,
+		}
+		agent := &corev1alpha1.Agent{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "a1",
+				Namespace: "default",
+				Labels:    map[string]string{"discoverable": "true"},
+			},
+		}
+		Expect(r.agentToGatewayRequests(ctx, agent)).To(Equal([]reconcile.Request{
+			{NamespacedName: types.NamespacedName{Name: "gw", Namespace: "default"}},
+		}))
+	})
+
+	It("renders the A2A env vars including the routed resource URL", func() {
+		r := withFakeClient()
+		gw := makeGateway([]corev1alpha1.A2AAgent{{Name: "research", URL: "http://research:8080"}}, nil)
+		gw.Spec.A2A.Timeouts = &corev1alpha1.A2ATimeouts{Client: "45s", StreamIdle: "0"}
+		gw.Spec.A2A.CardRefreshInterval = "2m"
+		gw.Spec.GatewayAPI = &corev1alpha1.RoutingSpec{
+			Enabled:   true,
+			HTTPRoute: &corev1alpha1.RoutingHTTPRouteSpec{Hostnames: []gwapiv1.Hostname{"gw.example.com"}},
+		}
+
+		Expect(r.buildContainer(ctx, gw, nil, nil).Env).To(ContainElements(
+			corev1.EnvVar{Name: "A2A_ENABLED", Value: "true"},
+			corev1.EnvVar{Name: "A2A_AGENTS", Value: "research=http://research:8080"},
+			corev1.EnvVar{Name: "A2A_RESOURCE_URL", Value: "http://gw.example.com/a2a"},
+			corev1.EnvVar{Name: "A2A_CLIENT_TIMEOUT", Value: "45s"},
+			corev1.EnvVar{Name: "A2A_STREAM_IDLE_TIMEOUT", Value: "0"},
+			corev1.EnvVar{Name: "A2A_CARD_REFRESH_INTERVAL", Value: "2m"},
+		))
+	})
+
+	It("emits no A2A env vars when A2A is disabled", func() {
+		r := withFakeClient()
+		gw := makeGateway(nil, nil)
+		gw.Spec.A2A.Enabled = false
+
+		for _, env := range r.buildContainer(ctx, gw, nil, nil).Env {
+			Expect(env.Name).NotTo(HavePrefix("A2A_"))
+		}
+	})
+})
+
 var _ = Describe("Gateway model routing", func() {
 	ctx := context.Background()
 
