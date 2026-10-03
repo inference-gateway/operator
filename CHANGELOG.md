@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.0](https://github.com/inference-gateway/operator/compare/v0.26.0...v0.27.0) (2026-10-03)
+
+### ✨ Features
+
+* **gateway:** add spec.a2a with Agent CR discovery ([#269](https://github.com/inference-gateway/operator/issues/269)) ([e707643](https://github.com/inference-gateway/operator/commit/e707643f48f87d6b1e8946541b97f26294b50755))
+
+### 🐛 Bug Fixes
+
+* **gateway:** apply service type and annotations ([#260](https://github.com/inference-gateway/operator/issues/260)) ([1a78570](https://github.com/inference-gateway/operator/commit/1a785705283a7c48e6d3c923c1f22c2970335d2d))
+
+### 👷 CI
+
+* **deps:** bump the gomod group with 4 updates ([#263](https://github.com/inference-gateway/operator/issues/263)) ([8c30df5](https://github.com/inference-gateway/operator/commit/8c30df5d0fdb617e628ab839bcbd6590f2269ed6))
+
+### 📚 Documentation
+
+* **agents:** add code readability guidelines ([#261](https://github.com/inference-gateway/operator/issues/261)) ([1b8157d](https://github.com/inference-gateway/operator/commit/1b8157ddd832ea16eef5c96259eff67b4929c1e6))
+* **agents:** add code readability guidelines ([#262](https://github.com/inference-gateway/operator/issues/262)) ([41c8e79](https://github.com/inference-gateway/operator/commit/41c8e794020571384adbbb8198c2ee6cc51e7bf3))
+* document gateway api crds and namespace label ([#258](https://github.com/inference-gateway/operator/issues/258)) ([a49a634](https://github.com/inference-gateway/operator/commit/a49a634a86ad16d52c1a0a315ac0607eb54dd38e))
+* fix install docs pinned version and stale claims ([#257](https://github.com/inference-gateway/operator/issues/257)) ([849e6f5](https://github.com/inference-gateway/operator/commit/849e6f5ca8099ebf8acfaa028dd55fe54ad51e6a))
+* fix readme monitoring labels, configmap and status ([#256](https://github.com/inference-gateway/operator/issues/256)) ([31516bd](https://github.com/inference-gateway/operator/commit/31516bd2e6177627798414594235921f6b6d6ccc))
+* fix removed and renamed CRD fields in docs ([#259](https://github.com/inference-gateway/operator/issues/259)) ([e81ea37](https://github.com/inference-gateway/operator/commit/e81ea37573fae449f608bb809ad0e61716e30986))
+
+### 🔧 Miscellaneous
+
+* **deps:** bump claude-code 2.1.278 -> 2.1.280 ([#249](https://github.com/inference-gateway/operator/issues/249)) ([8888466](https://github.com/inference-gateway/operator/commit/88884668bb09129c75777492c3bc6a8c39669754))
+* **deps:** bump claude-code 2.1.280 -> 2.1.283 ([#264](https://github.com/inference-gateway/operator/issues/264)) ([68d42bb](https://github.com/inference-gateway/operator/commit/68d42bbd2bf98f642c7d5bd0be15c4296b945909))
+* **deps:** bump claude-code 2.1.283 -> 2.1.285 ([#267](https://github.com/inference-gateway/operator/issues/267)) ([a940cb0](https://github.com/inference-gateway/operator/commit/a940cb0a3e9bc0c26fd8d10dbfee14ab91b4109a))
+* **deps:** bump infer CLI v0.205.3 -> v0.208.0 ([#250](https://github.com/inference-gateway/operator/issues/250)) ([3bcf0b1](https://github.com/inference-gateway/operator/commit/3bcf0b175fa344da86fe84eb05903ca50753e774))
+* **deps:** bump infer CLI v0.208.0 -> v0.218.0 ([#265](https://github.com/inference-gateway/operator/issues/265)) ([e08051d](https://github.com/inference-gateway/operator/commit/e08051d062437f47e2d635791001cc2c0aae7fd0))
+* **deps:** bump infer CLI v0.218.0 -> v0.221.1 ([#266](https://github.com/inference-gateway/operator/issues/266)) ([a75538a](https://github.com/inference-gateway/operator/commit/a75538a000362c21145af7c0bed044f0273a2846))
+
 ## [0.26.0](https://github.com/inference-gateway/operator/compare/v0.25.1...v0.26.0) (2026-09-25)
 
 ### ✨ Features
