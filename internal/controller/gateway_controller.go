@@ -271,6 +271,11 @@ func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway 
 			continue
 		}
 
+		if p.Env == nil {
+			logger.V(1).Info("Skipping provider without env", "provider", p)
+			continue
+		}
+
 		secret := &corev1.Secret{}
 		var secretNamespacedName types.NamespacedName
 

@@ -1560,3 +1560,49 @@ var _ = Describe("Gateway server and telemetry configuration", func() {
 		}
 	})
 })
+
+var _ = Describe("Gateway providers summary", func() {
+	ctx := context.Background()
+
+	gatewayWithProviders := func(ps ...corev1alpha1.ProviderSpec) *corev1alpha1.Gateway {
+		return &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       corev1alpha1.GatewaySpec{Providers: ps},
+		}
+	}
+
+	It("skips a provider without an env block instead of panicking", func() {
+		gw := gatewayWithProviders(corev1alpha1.ProviderSpec{Name: "ollama", Enabled: true})
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(gw), Scheme: gatewayTestScheme}
+
+		Expect(r.updateProvidersSummary(ctx, gw)).To(Succeed())
+		Expect(gw.Status.ProviderSummary).To(BeEmpty())
+	})
+
+	It("lists an enabled provider whose secret holds the API key", func() {
+		gw := gatewayWithProviders(
+			corev1alpha1.ProviderSpec{Name: "ollama", Enabled: true},
+			corev1alpha1.ProviderSpec{
+				Name:    "openai",
+				Enabled: true,
+				Env: &[]corev1.EnvVar{{
+					Name: "OPENAI_API_KEY",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{Name: "openai-secret"},
+							Key:                  "apiKey",
+						},
+					},
+				}},
+			},
+		)
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "openai-secret", Namespace: "default"},
+			Data:       map[string][]byte{"apiKey": []byte("sk-test")},
+		}
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(gw, secret), Scheme: gatewayTestScheme}
+
+		Expect(r.updateProvidersSummary(ctx, gw)).To(Succeed())
+		Expect(gw.Status.ProviderSummary).To(Equal("openai"))
+	})
+})
