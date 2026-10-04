@@ -160,9 +160,9 @@ name outside the list above is skipped - it is left out of
 - **MCP (Model Context Protocol)**: Integration with MCP servers for tool access
   - **Service Discovery**: Automatic discovery of `MCP` CRs via Kubernetes label selectors (Gateway and Orchestrator)
   - **Dynamic Updates**: The pod's `MCP_SERVERS` / mounted `mcp.yaml` is rebuilt and rolled when the discovered set changes
-- **A2A (Agent-to-Agent)**: Distributed agent communication and polling, driven by the `Orchestrator`
-  - **Service Discovery**: Automatic discovery of `Agent` CRs via Kubernetes label selectors (Orchestrator only)
-  - **Dynamic Agent Registration**: Discovered agents are written to the orchestrator's mounted `agents.yaml` and the pod is rolled when the set changes
+- **A2A (Agent-to-Agent)**: Distributed agent communication - the `Gateway` relays A2A calls when `spec.a2a.enabled` is set, the `Orchestrator` drives multi-turn agent tasks
+  - **Service Discovery**: Automatic discovery of `Agent` CRs via Kubernetes label selectors (Gateway and Orchestrator)
+  - **Dynamic Agent Registration**: The gateway's `A2A_AGENTS` is re-rendered and the pod rolled when the selected set changes, and discovered agents are written to the orchestrator's mounted `agents.yaml`
 - **Health Checks**: Automated health monitoring for external services
 
 ### Networking
@@ -623,9 +623,59 @@ spec:
 
 #### A2A Service Discovery Configuration
 
-A2A agent discovery is an **`Orchestrator`** feature — the `Gateway` does not
-discover or run A2A agents. The `Orchestrator` discovers `Agent` CRs by label
-selector and writes them into `~/.infer/agents.yaml` inside its pod:
+Both the `Gateway` and the `Orchestrator` discover `Agent` CRs by label
+selector. The `Gateway` unions them with its static `spec.a2a.agents[]` and
+renders `A2A_AGENTS` for the gateway pod, the `Orchestrator` writes them into
+`~/.infer/agents.yaml` inside its pod.
+
+With `spec.a2a.enabled`, the gateway becomes an A2A server: it publishes one
+merged card at `GET /.well-known/agent-card.json` and relays every `POST /a2a`
+call to the agent the request names.
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: gateway-with-a2a
+  namespace: default
+spec:
+  a2a:
+    # Turns the gateway into an A2A server (A2A_ENABLED).
+    enabled: true
+    # Static agents are {name, url} objects, kept alongside discovered ones.
+    # (The Orchestrator takes plain URL strings instead.)
+    agents:
+      - name: static-agent
+        url: "http://static-agent.agents.svc.cluster.local:8080"
+    # Automatic discovery of Agent CRs by label selector.
+    serviceDiscovery:
+      enabled: true
+      namespace: "agents" # Namespace to search (defaults to the Gateway's own namespace)
+      selector:
+        matchLabels:
+          agent-group: group1
+    # Canonical public /a2a URL published on the agent card and as the RFC 9728
+    # `resource` (A2A_RESOURCE_URL). Defaults to
+    # "<scheme>://<first httpRoute hostname>/a2a".
+    resourceUrl: "https://ai-gateway.company.com/a2a"
+    timeouts:
+      client: "30s" # A2A_CLIENT_TIMEOUT - one non-streaming call, including the card fetch
+      streamIdle: "5m" # A2A_STREAM_IDLE_TIMEOUT - idle cutoff for a relayed stream, "0" disables
+    # How often agent cards are re-fetched in the background
+    # (A2A_CARD_REFRESH_INTERVAL) - "0" disables the refresh.
+    cardRefreshInterval: "5m"
+```
+
+**Agent alias rule:** each entry is rendered into `A2A_AGENTS` as
+`<name>=<url>`, and that name prefixes the agent's skill ids on the gateway card
+and every task id the gateway hands out. To be used as an alias the name must
+match `^[a-z0-9_-]+$` and be unique across static and discovered agents.
+Otherwise the entry is rendered as a bare URL and the gateway derives the alias
+from the host. Discovered agents are named after `metadata.name` and use
+`status.card.url`, falling back to the in-cluster Service URL while status is
+still empty. Entries are deduped on URL and sorted for determinism.
+
+The `Orchestrator` configures the same discovery with plain URL strings:
 
 ```yaml
 apiVersion: core.inference-gateway.com/v1alpha1
@@ -651,9 +701,9 @@ spec:
 **Service Discovery Features:**
 
 - **Automatic Agent Discovery**: Discovers `Agent` CRs based on their Kubernetes labels
-- **Dynamic Configuration**: Discovered agents are written to the orchestrator's mounted `agents.yaml`; the pod is rolled when the set changes
+- **Dynamic Configuration**: The gateway's `A2A_AGENTS` is re-rendered and the orchestrator's mounted `agents.yaml` rewritten when the set changes, rolling the pod
 - **Label-Based Selection**: Uses a configurable label selector to identify `Agent` CRs
-- **Namespace Scoping**: Can search for `Agent` CRs in a specific namespace (defaults to the Orchestrator's namespace)
+- **Namespace Scoping**: Can search for `Agent` CRs in a specific namespace (defaults to the Gateway's or Orchestrator's own namespace)
 
 **Agent Requirements:**
 
@@ -795,7 +845,8 @@ spec:
 Visibility:
 
 ```bash
-kubectl get gateway       # MCPS column shows static + discovered MCP servers
+kubectl get gateway       # MCPS column shows static + discovered MCP servers,
+                          # A2A column (.status.a2aAgentCount) static + discovered A2A agents
 kubectl get orchestrator  # MCPS column shows the discovered count
 ```
 
@@ -819,8 +870,7 @@ kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/ma
 kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-minimal/gateway.yaml
 ```
 
-For an A2A service discovery example — `Agent` CRs discovered by the
-`Orchestrator`, not the `Gateway` — see
+For an A2A service discovery example, see
 [`examples/orchestrator/`](examples/orchestrator/).
 
 ### ✅ Configuration Validation
@@ -859,6 +909,8 @@ kubectl logs -l app=my-first-gateway -f
 - `serviceAccountName`: the ServiceAccount the gateway pods run as
 - `mcpServers`: sorted `<name>=<url>` entries the pod is configured with
 - `mcpServerCount`: number of static plus discovered MCP servers
+- `a2aAgents`: sorted `<name>=<url>` entries mirroring `A2A_AGENTS`
+- `a2aAgentCount`: number of static plus discovered A2A agents
 
 For replica counts and rollout health, check the Deployment directly
 (`kubectl get deployment my-first-gateway`) - the Gateway status does not
