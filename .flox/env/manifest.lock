@@ -23,7 +23,8 @@
       },
       "go": {
         "pkg-path": "go",
-        "version": "1.26.7"
+        "pkg-group": "go",
+        "version": "1.26.8"
       },
       "go-task": {
         "pkg-path": "go-task",
@@ -67,6 +68,93 @@
     "options": {}
   },
   "packages": [
+    {
+      "attr_path": "claude-code",
+      "broken": false,
+      "derivation": "/nix/store/fn7fbv0h7k9ranja2aa6whghc5fbck9v-claude-code-2.1.285.drv",
+      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
+      "install_id": "claude-code",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c59305bab2065cfecc4944690d9eedbb56f3a9fa",
+      "name": "claude-code-2.1.285",
+      "pname": "claude-code",
+      "rev": "c59305bab2065cfecc4944690d9eedbb56f3a9fa",
+      "rev_count": 1083223,
+      "rev_date": "2026-10-01T02:47:39Z",
+      "scrape_date": "2026-10-02T04:59:39.524171Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "2.1.285",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/cmml6r4w314k33d7w9bsr9bwad9d08qb-claude-code-2.1.285"
+      },
+      "system": "aarch64-darwin",
+      "group": "claude-code",
+      "priority": 5
+    },
+    {
+      "attr_path": "claude-code",
+      "broken": false,
+      "derivation": "/nix/store/slzz39299h3cimqn8y77qc9pli7f8kv6-claude-code-2.1.285.drv",
+      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
+      "install_id": "claude-code",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c59305bab2065cfecc4944690d9eedbb56f3a9fa",
+      "name": "claude-code-2.1.285",
+      "pname": "claude-code",
+      "rev": "c59305bab2065cfecc4944690d9eedbb56f3a9fa",
+      "rev_count": 1083223,
+      "rev_date": "2026-10-01T02:47:39Z",
+      "scrape_date": "2026-10-02T05:33:08.620890Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "2.1.285",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/ms3aqfix6sgps1gqcj7hjxywrx588sra-claude-code-2.1.285"
+      },
+      "system": "aarch64-linux",
+      "group": "claude-code",
+      "priority": 5
+    },
+    {
+      "attr_path": "claude-code",
+      "broken": false,
+      "derivation": "/nix/store/3xbljriss7kjdis3w6xvag3wzb5dl8z7-claude-code-2.1.285.drv",
+      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
+      "install_id": "claude-code",
+      "license": "Unfree",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c59305bab2065cfecc4944690d9eedbb56f3a9fa",
+      "name": "claude-code-2.1.285",
+      "pname": "claude-code",
+      "rev": "c59305bab2065cfecc4944690d9eedbb56f3a9fa",
+      "rev_count": 1083223,
+      "rev_date": "2026-10-01T02:47:39Z",
+      "scrape_date": "2026-10-02T06:09:41.942326Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": true,
+      "version": "2.1.285",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/8brs6pns19nrgnd4skl1p79m2kxgnabl-claude-code-2.1.285"
+      },
+      "system": "x86_64-linux",
+      "group": "claude-code",
+      "priority": 5
+    },
     {
       "attr_path": "codex",
       "broken": false,
@@ -326,93 +414,6 @@
       ],
       "outputs": {
         "out": "/nix/store/dpiajg8vgzpaq74jc79j01fd5bja3cik-gh-2.98.0"
-      },
-      "system": "x86_64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "go",
-      "broken": false,
-      "derivation": "/nix/store/w6w7pzbrnk1j01afyzxjhiwirql5lq6m-go-1.26.7.drv",
-      "description": "Go Programming language",
-      "install_id": "go",
-      "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d2f67949798825fe853f7c5d0492b8bf016d3f88",
-      "name": "go-1.26.7",
-      "pname": "go",
-      "rev": "d2f67949798825fe853f7c5d0492b8bf016d3f88",
-      "rev_count": 1064150,
-      "rev_date": "2026-08-29T21:32:09Z",
-      "scrape_date": "2026-08-31T04:56:52.823198Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.26.7",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/jdgrfinlrf89z3wdfa6ipr1chpny5v11-go-1.26.7"
-      },
-      "system": "aarch64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "go",
-      "broken": false,
-      "derivation": "/nix/store/0ki6ha0r6iqi6wkzqxjam67pbdzpsfr4-go-1.26.7.drv",
-      "description": "Go Programming language",
-      "install_id": "go",
-      "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d2f67949798825fe853f7c5d0492b8bf016d3f88",
-      "name": "go-1.26.7",
-      "pname": "go",
-      "rev": "d2f67949798825fe853f7c5d0492b8bf016d3f88",
-      "rev_count": 1064150,
-      "rev_date": "2026-08-29T21:32:09Z",
-      "scrape_date": "2026-08-31T05:29:12.786435Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.26.7",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/zbm0p3qbd92i7gj78rxajka9yvdrin7p-go-1.26.7"
-      },
-      "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "go",
-      "broken": false,
-      "derivation": "/nix/store/ra2z8ff739aawml2iirfz76g7gxv9i8g-go-1.26.7.drv",
-      "description": "Go Programming language",
-      "install_id": "go",
-      "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=d2f67949798825fe853f7c5d0492b8bf016d3f88",
-      "name": "go-1.26.7",
-      "pname": "go",
-      "rev": "d2f67949798825fe853f7c5d0492b8bf016d3f88",
-      "rev_count": 1064150,
-      "rev_date": "2026-08-29T21:32:09Z",
-      "scrape_date": "2026-08-31T06:07:48.480612Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.26.7",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/i77g9dmcd399rmxk8688qfr4g2wzgk37-go-1.26.7"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -1124,90 +1125,93 @@
       "priority": 5
     },
     {
-      "attr_path": "claude-code",
+      "attr_path": "go",
       "broken": false,
-      "derivation": "/nix/store/fn7fbv0h7k9ranja2aa6whghc5fbck9v-claude-code-2.1.285.drv",
-      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
-      "install_id": "claude-code",
-      "license": "Unfree",
+      "derivation": "/nix/store/hw9s3y4ggwn2mnr4dpnlr3pzlq6pfc3d-go-1.26.8.drv",
+      "description": "Go Programming language",
+      "install_id": "go",
+      "license": "BSD-3-Clause",
       "locked_url": "https://github.com/flox/nixpkgs?rev=c59305bab2065cfecc4944690d9eedbb56f3a9fa",
-      "name": "claude-code-2.1.285",
-      "pname": "claude-code",
+      "name": "go-1.26.8",
+      "pname": "go",
       "rev": "c59305bab2065cfecc4944690d9eedbb56f3a9fa",
       "rev_count": 1083223,
       "rev_date": "2026-10-01T02:47:39Z",
-      "scrape_date": "2026-10-02T04:59:39.524171Z",
+      "scrape_date": "2026-10-02T04:59:41.159239Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
-      "unfree": true,
-      "version": "2.1.285",
+      "unfree": false,
+      "version": "1.26.8",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/cmml6r4w314k33d7w9bsr9bwad9d08qb-claude-code-2.1.285"
+        "out": "/nix/store/isqxa82c7f65sbhi51npr0547yz87bh5-go-1.26.8"
       },
       "system": "aarch64-darwin",
-      "group": "claude-code",
+      "group": "go",
       "priority": 5
     },
     {
-      "attr_path": "claude-code",
+      "attr_path": "go",
       "broken": false,
-      "derivation": "/nix/store/slzz39299h3cimqn8y77qc9pli7f8kv6-claude-code-2.1.285.drv",
-      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
-      "install_id": "claude-code",
-      "license": "Unfree",
+      "derivation": "/nix/store/mvzy81jgrz380qa717xzvl3k8a978shb-go-1.26.8.drv",
+      "description": "Go Programming language",
+      "install_id": "go",
+      "license": "BSD-3-Clause",
       "locked_url": "https://github.com/flox/nixpkgs?rev=c59305bab2065cfecc4944690d9eedbb56f3a9fa",
-      "name": "claude-code-2.1.285",
-      "pname": "claude-code",
+      "name": "go-1.26.8",
+      "pname": "go",
       "rev": "c59305bab2065cfecc4944690d9eedbb56f3a9fa",
       "rev_count": 1083223,
       "rev_date": "2026-10-01T02:47:39Z",
-      "scrape_date": "2026-10-02T05:33:08.620890Z",
+      "scrape_date": "2026-10-02T05:33:11.003350Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
-      "unfree": true,
-      "version": "2.1.285",
+      "unfree": false,
+      "version": "1.26.8",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/ms3aqfix6sgps1gqcj7hjxywrx588sra-claude-code-2.1.285"
+        "out": "/nix/store/3677bfwiaibp0fs0dxijmn8bsmkx31vx-go-1.26.8"
       },
       "system": "aarch64-linux",
-      "group": "claude-code",
+      "group": "go",
       "priority": 5
     },
     {
-      "attr_path": "claude-code",
+      "attr_path": "go",
       "broken": false,
-      "derivation": "/nix/store/3xbljriss7kjdis3w6xvag3wzb5dl8z7-claude-code-2.1.285.drv",
-      "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
-      "install_id": "claude-code",
-      "license": "Unfree",
+      "derivation": "/nix/store/x0zllw4xw2cdql7jvzqdjhibgavvl7d9-go-1.26.8.drv",
+      "description": "Go Programming language",
+      "install_id": "go",
+      "license": "BSD-3-Clause",
       "locked_url": "https://github.com/flox/nixpkgs?rev=c59305bab2065cfecc4944690d9eedbb56f3a9fa",
-      "name": "claude-code-2.1.285",
-      "pname": "claude-code",
+      "name": "go-1.26.8",
+      "pname": "go",
       "rev": "c59305bab2065cfecc4944690d9eedbb56f3a9fa",
       "rev_count": 1083223,
       "rev_date": "2026-10-01T02:47:39Z",
-      "scrape_date": "2026-10-02T06:09:41.942326Z",
+      "scrape_date": "2026-10-02T06:09:44.595100Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
-      "unfree": true,
-      "version": "2.1.285",
+      "unfree": false,
+      "version": "1.26.8",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/8brs6pns19nrgnd4skl1p79m2kxgnabl-claude-code-2.1.285"
+        "out": "/nix/store/iqq9yz2yrcrzsn52h3vkkz72i92h1zds-go-1.26.8"
       },
       "system": "x86_64-linux",
-      "group": "claude-code",
+      "group": "go",
       "priority": 5
     },
     {

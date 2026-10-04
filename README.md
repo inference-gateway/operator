@@ -348,7 +348,7 @@ task deploy IMG=ghcr.io/inference-gateway/operator:latest
 ```
 
 `task deploy` builds the image with Docker, imports it into the local k3d cluster named `dev`
-(`k3d image import <IMG> -c dev`) and applies `config/environments/dev`. It needs Go 1.26.7+,
+(`k3d image import <IMG> -c dev`) and applies `config/environments/dev`. It needs Go 1.26.8+,
 Docker, and the k3d `dev` cluster created by `task cluster:create` - it does not work against an
 arbitrary `~/.kube/config` context.
 
