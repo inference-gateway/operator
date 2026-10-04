@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"reflect"
 	"regexp"
 	"sort"
@@ -341,7 +342,105 @@ const (
 	modelRoutingInlineKey = "routing.yaml"
 	// guardrailsPolicyDir is the default directory where Rego policy files are mounted.
 	guardrailsPolicyDir = "/etc/inference-gateway/guardrails"
+	// tlsMountDir is where the conventional inference-gateway-tls Secret is mounted
+	// when spec.server.tls sets no certificateRef/keyRef.
+	tlsMountDir = "/app/tls"
+	// tlsCertMountDir and tlsKeyMountDir are where spec.server.tls.certificateRef and
+	// keyRef are mounted; SERVER_TLS_CERT_PATH/SERVER_TLS_KEY_PATH point into them.
+	tlsCertMountDir = "/app/tls/cert"
+	tlsKeyMountDir  = "/app/tls/key"
+
+	defaultTLSSecretName = "inference-gateway-tls"
+	defaultServerPort    = int32(8080)
+	defaultMetricsPort   = int32(9464)
 )
+
+// gatewayServerPort is the port the gateway process listens on, from
+// spec.server.port.
+func gatewayServerPort(gateway *corev1alpha1.Gateway) int32 {
+	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
+		return gateway.Spec.Server.Port
+	}
+	return defaultServerPort
+}
+
+// gatewayServerHost is the address the gateway binds to, from spec.server.host.
+// The gateway itself defaults to loopback, which is unreachable from kubelet probes.
+func gatewayServerHost(gateway *corev1alpha1.Gateway) string {
+	if gateway.Spec.Server != nil && gateway.Spec.Server.Host != "" {
+		return gateway.Spec.Server.Host
+	}
+	return "0.0.0.0"
+}
+
+// gatewayMetricsPort is the port the gateway serves /metrics on, from
+// spec.telemetry.metrics.port.
+func gatewayMetricsPort(gateway *corev1alpha1.Gateway) int32 {
+	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Port > 0 {
+		return gateway.Spec.Telemetry.Metrics.Port
+	}
+	return defaultMetricsPort
+}
+
+// metricsEnabled reports whether the gateway should expose a metrics endpoint.
+func metricsEnabled(gateway *corev1alpha1.Gateway) bool {
+	tel := gateway.Spec.Telemetry
+	return tel != nil && tel.Enabled && tel.Metrics != nil && tel.Metrics.Enabled
+}
+
+// serverTLSEnabled reports whether spec.server.tls is turned on.
+func serverTLSEnabled(gateway *corev1alpha1.Gateway) bool {
+	return gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled
+}
+
+// tlsFilePaths resolves the in-container certificate and key paths the gateway reads.
+func tlsFilePaths(tls *corev1alpha1.TLSConfig) (certPath string, keyPath string) {
+	certPath = path.Join(tlsMountDir, "tls.crt")
+	keyPath = path.Join(tlsMountDir, "tls.key")
+	if tls.CertificateRef != nil {
+		certPath = path.Join(tlsCertMountDir, tls.CertificateRef.Key)
+	}
+	if tls.KeyRef != nil {
+		keyPath = path.Join(tlsKeyMountDir, tls.KeyRef.Key)
+	}
+	return certPath, keyPath
+}
+
+// tlsVolumes builds the Secret volumes and mounts backing spec.server.tls, falling
+// back to the conventional inference-gateway-tls Secret for any unset reference.
+func tlsVolumes(tls *corev1alpha1.TLSConfig) ([]corev1.Volume, []corev1.VolumeMount) {
+	var volumes []corev1.Volume
+	var mounts []corev1.VolumeMount
+
+	add := func(name, mountDir, secretName string, items []corev1.KeyToPath) {
+		volumes = append(volumes, corev1.Volume{
+			Name: name,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secretName,
+					Items:      items,
+				},
+			},
+		})
+		mounts = append(mounts, corev1.VolumeMount{
+			Name:      name,
+			MountPath: mountDir,
+			ReadOnly:  true,
+		})
+	}
+
+	if tls.CertificateRef == nil || tls.KeyRef == nil {
+		add(defaultTLSSecretName, tlsMountDir, defaultTLSSecretName, nil)
+	}
+	if ref := tls.CertificateRef; ref != nil {
+		add("tls-cert", tlsCertMountDir, ref.Name, []corev1.KeyToPath{{Key: ref.Key, Path: ref.Key}})
+	}
+	if ref := tls.KeyRef; ref != nil {
+		add("tls-key", tlsKeyMountDir, ref.Name, []corev1.KeyToPath{{Key: ref.Key, Path: ref.Key}})
+	}
+
+	return volumes, mounts
+}
 
 // guardrailsFailModeEnv maps the CRD failMode values onto the values the
 // gateway understands: it only fails closed when GUARDRAILS_FAIL_MODE=closed.
@@ -374,20 +473,10 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 	volumes := []corev1.Volume{}
 	volumeMounts := []corev1.VolumeMount{}
 
-	if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
-		volumes = append(volumes, corev1.Volume{
-			Name: "inference-gateway-tls",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: "inference-gateway-tls",
-				},
-			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "inference-gateway-tls",
-			MountPath: "/app/tls",
-			ReadOnly:  true,
-		})
+	if serverTLSEnabled(gateway) {
+		tlsVols, tlsMounts := tlsVolumes(gateway.Spec.Server.TLS)
+		volumes = append(volumes, tlsVols...)
+		volumeMounts = append(volumeMounts, tlsMounts...)
 	}
 
 	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled &&
@@ -477,10 +566,7 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 
 // buildContainer creates the main container specification with custom volume mounts
 func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1alpha1.Gateway, containerPorts []corev1.ContainerPort, volumeMounts []corev1.VolumeMount) corev1.Container { //nolint gocyclo
-	port := int32(8080)
-	if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
-		port = gateway.Spec.Server.Port
-	}
+	port := gatewayServerPort(gateway)
 
 	image := gateway.Spec.Image
 	if image == "" {
@@ -537,6 +623,29 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			Name:  "AUTH_ENABLED",
 			Value: strconv.FormatBool(gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled),
 		},
+		{
+			Name:  "SERVER_HOST",
+			Value: gatewayServerHost(gateway),
+		},
+		{
+			Name:  "SERVER_PORT",
+			Value: strconv.Itoa(int(port)),
+		},
+	}
+
+	if metricsEnabled(gateway) {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "TELEMETRY_METRICS_PORT",
+			Value: strconv.Itoa(int(gatewayMetricsPort(gateway))),
+		})
+	}
+
+	if serverTLSEnabled(gateway) {
+		certPath, keyPath := tlsFilePaths(gateway.Spec.Server.TLS)
+		envVars = append(envVars,
+			corev1.EnvVar{Name: "SERVER_TLS_CERT_PATH", Value: certPath},
+			corev1.EnvVar{Name: "SERVER_TLS_KEY_PATH", Value: keyPath},
+		)
 	}
 
 	tel := gateway.Spec.Telemetry
@@ -884,12 +993,9 @@ func desiredService(ctx context.Context, gateway *corev1alpha1.Gateway) *corev1.
 		},
 	}
 
-	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled && gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Enabled {
-		logger.V(1).Info("Adding metrics port to Service", "port", gateway.Spec.Telemetry.Metrics.Port)
-		metricsPort := int32(9464)
-		if gateway.Spec.Telemetry.Metrics.Port > 0 {
-			metricsPort = gateway.Spec.Telemetry.Metrics.Port
-		}
+	if metricsEnabled(gateway) {
+		metricsPort := gatewayMetricsPort(gateway)
+		logger.V(1).Info("Adding metrics port to Service", "port", metricsPort)
 		servicePorts = append(servicePorts, corev1.ServicePort{
 			Port:       metricsPort,
 			TargetPort: intstr.FromInt(int(metricsPort)),
@@ -1552,10 +1658,10 @@ func (r *GatewayReconciler) buildHPA(gateway *corev1alpha1.Gateway, deployment *
 
 // buildContainerPorts returns the container ports for the gateway container
 func (r *GatewayReconciler) buildContainerPorts(gateway *corev1alpha1.Gateway) []corev1.ContainerPort {
-	if gateway == nil || gateway.Spec.Server == nil {
+	if gateway == nil {
 		return []corev1.ContainerPort{
 			{
-				ContainerPort: 8080,
+				ContainerPort: defaultServerPort,
 				Name:          "http",
 			},
 		}
@@ -1563,26 +1669,21 @@ func (r *GatewayReconciler) buildContainerPorts(gateway *corev1alpha1.Gateway) [
 
 	ports := []corev1.ContainerPort{
 		{
-			ContainerPort: gateway.Spec.Server.Port,
+			ContainerPort: gatewayServerPort(gateway),
 			Name:          "http",
 		},
 	}
 
-	if gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
+	if serverTLSEnabled(gateway) {
 		ports = append(ports, corev1.ContainerPort{
 			ContainerPort: 8443,
 			Name:          "https",
 		})
 	}
 
-	if gateway.Spec.Telemetry != nil && gateway.Spec.Telemetry.Enabled &&
-		gateway.Spec.Telemetry.Metrics != nil && gateway.Spec.Telemetry.Metrics.Enabled {
-		metricsPort := int32(9464)
-		if gateway.Spec.Telemetry.Metrics.Port > 0 {
-			metricsPort = gateway.Spec.Telemetry.Metrics.Port
-		}
+	if metricsEnabled(gateway) {
 		ports = append(ports, corev1.ContainerPort{
-			ContainerPort: metricsPort,
+			ContainerPort: gatewayMetricsPort(gateway),
 			Name:          "metrics",
 		})
 	}
