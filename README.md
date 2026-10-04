@@ -118,8 +118,12 @@ Powered by **OpenTelemetry** for industry-standard observability:
 
 ### Authentication
 
-- **OIDC**: OpenID Connect integration with configurable issuers
-- **Provider Support**: Multiple authentication providers (oidc, jwt, basic)
+- **OIDC**: OpenID Connect is the only authentication method the gateway
+  implements. The operator maps `spec.auth.enabled` plus the `spec.auth.oidc`
+  fields `issuerUrl`, `clientId`, `audiences`, `clientSecretRef` and
+  `caCertRef` onto the gateway container.
+- `spec.auth.provider` currently has no effect - the Gateway controller never
+  reads it, so setting `jwt` or `basic` still yields OIDC.
 
 ### AI Providers
 
@@ -1051,8 +1055,14 @@ telemetry:
     exporter:
       otlp:
         endpoint: "http://otel-collector:4318"
-        protocol: "http/protobuf" # or "grpc" (e.g. http://otel-collector:4317)
+        protocol: "http/protobuf"
 ```
+
+The Gateway ignores `protocol` and always exports OTLP over HTTP, so
+`endpoint` must point at an OTLP/HTTP receiver such as
+`http://otel-collector:4318`. A gRPC endpoint like `:4317` receives OTLP/HTTP
+and no spans arrive. (`protocol` is forwarded only for `Agent` workloads, as
+`A2A_OTEL_EXPORTER_OTLP_PROTOCOL`.)
 
 `TELEMETRY_TRACING_ENABLED` and `TELEMETRY_TRACING_OTLP_ENDPOINT` are only set
 on the gateway container when `telemetry.enabled` is `true` **and**
