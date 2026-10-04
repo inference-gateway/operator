@@ -1437,6 +1437,130 @@ var _ = Describe("Gateway service configuration", func() {
 	})
 })
 
+var _ = Describe("Gateway server and telemetry configuration", func() {
+	ctx := context.Background()
+
+	containerOf := func(gw *corev1alpha1.Gateway) corev1.Container {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		return r.buildDeployment(ctx, gw).Spec.Template.Spec.Containers[0]
+	}
+
+	gatewayWith := func(spec corev1alpha1.GatewaySpec) *corev1alpha1.Gateway {
+		return &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       spec,
+		}
+	}
+
+	volumeOf := func(gw *corev1alpha1.Gateway, name string) *corev1.Volume {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		vols := r.buildDeployment(ctx, gw).Spec.Template.Spec.Volumes
+		for i := range vols {
+			if vols[i].Name == name {
+				return &vols[i]
+			}
+		}
+		return nil
+	}
+
+	It("emits the default host and port when no server spec is given", func() {
+		env := containerOf(gatewayWith(corev1alpha1.GatewaySpec{})).Env
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "SERVER_HOST", Value: "0.0.0.0"}))
+		Expect(env).To(ContainElement(corev1.EnvVar{Name: "SERVER_PORT", Value: "8080"}))
+	})
+
+	It("emits SERVER_PORT matching the container port and probes", func() {
+		container := containerOf(gatewayWith(corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{Host: "127.0.0.1", Port: 9000},
+		}))
+
+		Expect(container.Env).To(ContainElement(corev1.EnvVar{Name: "SERVER_HOST", Value: "127.0.0.1"}))
+		Expect(container.Env).To(ContainElement(corev1.EnvVar{Name: "SERVER_PORT", Value: "9000"}))
+		Expect(container.Ports[0].ContainerPort).To(Equal(int32(9000)))
+		Expect(container.LivenessProbe.HTTPGet.Port.IntValue()).To(Equal(9000))
+		Expect(container.ReadinessProbe.HTTPGet.Port.IntValue()).To(Equal(9000))
+	})
+
+	It("emits TELEMETRY_METRICS_PORT only when metrics are enabled", func() {
+		gw := gatewayWith(corev1alpha1.GatewaySpec{
+			Telemetry: &corev1alpha1.TelemetrySpec{
+				Enabled: true,
+				Metrics: &corev1alpha1.MetricsSpec{Enabled: true, Port: 9465},
+			},
+		})
+		Expect(containerOf(gw).Env).To(ContainElement(corev1.EnvVar{Name: "TELEMETRY_METRICS_PORT", Value: "9465"}))
+
+		disabled := gatewayWith(corev1alpha1.GatewaySpec{
+			Telemetry: &corev1alpha1.TelemetrySpec{Enabled: true},
+		})
+		for _, e := range containerOf(disabled).Env {
+			Expect(e.Name).NotTo(Equal("TELEMETRY_METRICS_PORT"))
+		}
+	})
+
+	It("defaults TELEMETRY_METRICS_PORT to the metrics container port", func() {
+		gw := gatewayWith(corev1alpha1.GatewaySpec{
+			Telemetry: &corev1alpha1.TelemetrySpec{
+				Enabled: true,
+				Metrics: &corev1alpha1.MetricsSpec{Enabled: true},
+			},
+		})
+		container := containerOf(gw)
+		Expect(container.Env).To(ContainElement(corev1.EnvVar{Name: "TELEMETRY_METRICS_PORT", Value: "9464"}))
+		Expect(container.Ports).To(ContainElement(corev1.ContainerPort{ContainerPort: 9464, Name: "metrics"}))
+	})
+
+	It("points the TLS path env vars at the conventional Secret mount by default", func() {
+		gw := gatewayWith(corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{Port: 8080, TLS: &corev1alpha1.TLSConfig{Enabled: true}},
+		})
+
+		Expect(containerOf(gw).Env).To(ContainElements(
+			corev1.EnvVar{Name: "SERVER_TLS_CERT_PATH", Value: "/app/tls/tls.crt"},
+			corev1.EnvVar{Name: "SERVER_TLS_KEY_PATH", Value: "/app/tls/tls.key"},
+		))
+		Expect(volumeOf(gw, "inference-gateway-tls").Secret.SecretName).To(Equal("inference-gateway-tls"))
+	})
+
+	It("mounts certificateRef and keyRef and points the env vars at them", func() {
+		gw := gatewayWith(corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{
+				Port: 8080,
+				TLS: &corev1alpha1.TLSConfig{
+					Enabled: true,
+					CertificateRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "my-certs"},
+						Key:                  "server.pem",
+					},
+					KeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "my-keys"},
+						Key:                  "server-key.pem",
+					},
+				},
+			},
+		})
+
+		Expect(containerOf(gw).Env).To(ContainElements(
+			corev1.EnvVar{Name: "SERVER_TLS_CERT_PATH", Value: "/app/tls/cert/server.pem"},
+			corev1.EnvVar{Name: "SERVER_TLS_KEY_PATH", Value: "/app/tls/key/server-key.pem"},
+		))
+		Expect(volumeOf(gw, "tls-cert").Secret.SecretName).To(Equal("my-certs"))
+		Expect(volumeOf(gw, "tls-key").Secret.SecretName).To(Equal("my-keys"))
+		Expect(volumeOf(gw, "inference-gateway-tls")).To(BeNil())
+		Expect(containerOf(gw).VolumeMounts).To(ContainElement(corev1.VolumeMount{
+			Name:      "tls-cert",
+			MountPath: "/app/tls/cert",
+			ReadOnly:  true,
+		}))
+	})
+
+	It("emits no TLS path env vars when TLS is disabled", func() {
+		for _, e := range containerOf(gatewayWith(corev1alpha1.GatewaySpec{})).Env {
+			Expect(e.Name).NotTo(HavePrefix("SERVER_TLS_"))
+		}
+	})
+})
+
 var _ = Describe("Gateway providers summary", func() {
 	ctx := context.Background()
 
