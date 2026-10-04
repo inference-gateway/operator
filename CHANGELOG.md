@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.1](https://github.com/inference-gateway/operator/compare/v0.27.0...v0.27.1) (2026-10-04)
+
+### ♻️ Improvements
+
+* bump go toolchain to 1.26.8 ([#282](https://github.com/inference-gateway/operator/issues/282)) ([949858a](https://github.com/inference-gateway/operator/commit/949858af5995c0471b0ddef7342862436f24ff1b))
+
+### 🐛 Bug Fixes
+
+* **gateway:** pass server and metrics ports to container ([#279](https://github.com/inference-gateway/operator/issues/279)) ([d3e3915](https://github.com/inference-gateway/operator/commit/d3e3915a5333529a4471ae371b87cf7ceee2e630))
+* **gateway:** skip providers without an env block ([#278](https://github.com/inference-gateway/operator/issues/278)) ([b069167](https://github.com/inference-gateway/operator/commit/b0691670c056294723f8553dc4a9e4905c5aefbf))
+
+### 📚 Documentation
+
+* **agents:** add code readability guidelines ([#275](https://github.com/inference-gateway/operator/issues/275)) ([6b6a444](https://github.com/inference-gateway/operator/commit/6b6a44461fa20448102e7f5bf768eede97b0dd26))
+* correct gateway auth and tracing claims ([#276](https://github.com/inference-gateway/operator/issues/276)) ([9f79f76](https://github.com/inference-gateway/operator/commit/9f79f764f816ea0f3a38a5044da03f3bbe72d53d))
+* fix gateway label selector and orchestrator snippets ([#280](https://github.com/inference-gateway/operator/issues/280)) ([bb93ed2](https://github.com/inference-gateway/operator/commit/bb93ed297521a54a50d92f864d2391563ccbbd0d))
+* **readme:** document gateway spec.a2a support ([#277](https://github.com/inference-gateway/operator/issues/277)) ([aad725c](https://github.com/inference-gateway/operator/commit/aad725cada0d19a8dd2438a98d1ecb2e179b5321))
+
 ## [0.27.0](https://github.com/inference-gateway/operator/compare/v0.26.0...v0.27.0) (2026-10-03)
 
 ### ✨ Features
