@@ -688,6 +688,17 @@ metadata:
   name: orchestrator-with-service-discovery
   namespace: default
 spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  channels:
+    telegram:
+      enabled: true
+      tokenSecretRef:
+        name: telegram-bot-credentials
+        key: token
+  gateway:
+    url: http://inference-gateway.inference-gateway.svc.cluster.local:8080
+  agent:
+    model: deepseek/deepseek-v4-pro
   a2a:
     enabled: true
     # Static agent URLs are kept alongside discovered ones.
@@ -816,6 +827,17 @@ metadata:
   name: orchestrator
   namespace: orchestrator
 spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  channels:
+    telegram:
+      enabled: true
+      tokenSecretRef:
+        name: telegram-bot-credentials
+        key: token
+  gateway:
+    url: http://inference-gateway.inference-gateway.svc.cluster.local:8080
+  agent:
+    model: deepseek/deepseek-v4-pro
   mcp:
     enabled: true
     servers: [] # static URLs, optional
@@ -897,9 +919,11 @@ kubectl get gateways -A
 # Get detailed gateway status
 kubectl describe gateway my-first-gateway
 
-# Check generated resources (everything the operator creates for a Gateway is
-# labeled app=<gateway-name>)
-kubectl get deployments,services,configmaps -l app=my-first-gateway
+# Check generated resources (the Deployment and Service are named after the
+# Gateway; the routing ConfigMap, HTTPRoute, upstream Gateway and HPA are the
+# ones labeled app=<gateway-name>)
+kubectl get deployment,service my-first-gateway
+kubectl get configmaps,httproutes,hpa -l app=my-first-gateway
 
 # View Gateway logs
 kubectl logs -l app=my-first-gateway -f
