@@ -36,7 +36,7 @@ jobs:
           version: latest
 
       - name: Install GoReleaser
-        uses: goreleaser/goreleaser-action@v7.2.3
+        uses: goreleaser/goreleaser-action@v7.3.0
         with:
           install-only: true
           version: v2.16.0
