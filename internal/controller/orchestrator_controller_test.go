@@ -209,6 +209,14 @@ var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 		Expect(envs["INFER_A2A_AGENTS"].Value).To(Equal("a,b"))
 	})
 
+	It("enables the channels only while a channel is enabled, since the daemon refuses channels without one", func() {
+		orch := makeOrchestrator()
+		orch.Spec.Channels.Telegram.Enabled = false
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(orch))
+		Expect(envs).NotTo(HaveKey("INFER_CHANNELS_ENABLED"))
+		Expect(envs["INFER_CHANNELS_TELEGRAM_ENABLED"].Value).To(Equal("false"))
+	})
+
 	It("omits optional channel fields when nil", func() {
 		orch := makeOrchestrator()
 		orch.Spec.Channels.MaxWorkers = nil
@@ -818,7 +826,8 @@ var _ = DescribeTable("daemonHasWork",
 		Expect(daemonHasWork(&spec)).To(Equal(expected))
 	},
 	Entry("nothing configured", corev1alpha1.OrchestratorSpec{}, false),
-	Entry("channels", corev1alpha1.OrchestratorSpec{Channels: &corev1alpha1.ChannelsSpec{}}, true),
+	Entry("an enabled Telegram channel", corev1alpha1.OrchestratorSpec{Channels: &corev1alpha1.ChannelsSpec{Telegram: &corev1alpha1.TelegramChannelSpec{Enabled: true}}}, true),
+	Entry("channels without an enabled channel, which the daemon refuses", corev1alpha1.OrchestratorSpec{Channels: &corev1alpha1.ChannelsSpec{Telegram: &corev1alpha1.TelegramChannelSpec{}}}, false),
 	Entry("the daemon binding", corev1alpha1.OrchestratorSpec{Daemon: &corev1alpha1.OrchestratorDaemonSpec{Binding: &corev1alpha1.DaemonBindingSpec{}}}, true),
 	Entry("a daemon section without a binding", corev1alpha1.OrchestratorSpec{Daemon: &corev1alpha1.OrchestratorDaemonSpec{}}, false),
 	Entry("the scheduler", corev1alpha1.OrchestratorSpec{Tools: corev1alpha1.OrchestratorToolsSpec{Schedule: true}}, true),

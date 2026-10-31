@@ -3996,7 +3996,11 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Whether the Orchestrator Deployment is available
+    - description: The workload the daemon runs as
+      jsonPath: .spec.runtime
+      name: RUNTIME
+      type: string
+    - description: Whether the Orchestrator's daemon is ready
       jsonPath: .status.ready
       name: READY
       type: boolean
@@ -4040,9 +4044,9 @@ spec:
 
               An Orchestrator deploys the Inference Gateway CLI's `infer daemon`: an
               LLM-driven loop that listens on chat channels, serves devices over its AG-UI
-              binding, and fans out to A2A Agents and tools (incl. MCP). The Deployment is
-              always a singleton (replicas=1, strategy=Recreate) because one daemon owns its
-              channels and sessions, and Telegram allows one getUpdates consumer per token.
+              binding, and fans out to A2A Agents and tools (incl. MCP). It always runs one
+              daemon, as a Recreate Deployment or an agent-sandbox Sandbox, because one
+              daemon owns its channels and sessions.
             properties:
               a2a:
                 description: OrchestratorA2ASpec configures Agent-to-Agent integration.
@@ -4610,6 +4614,62 @@ spec:
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
+              runtime:
+                default: Deployment
+                description: |-
+                  Runtime is the workload the daemon runs as, fixed at creation because a
+                  Sandbox's volumes would not survive a switch. Sandbox needs agent-sandbox
+                  (agents.x-k8s.io) installed in the cluster.
+                enum:
+                - Deployment
+                - Sandbox
+                type: string
+                x-kubernetes-validations:
+                - message: spec.runtime is fixed when the Orchestrator is created
+                  rule: self == oldSelf
+              sandbox:
+                description: 'Sandbox configures the Sandbox the daemon runs in with
+                  runtime: Sandbox.'
+                properties:
+                  operatingMode:
+                    default: Running
+                    description: |-
+                      OperatingMode runs the Sandbox or suspends it, keeping its volumes. The
+                      operator sets Suspended itself when the daemon idles out, so a client
+                      resumes the daemon by setting Running.
+                    enum:
+                    - Running
+                    - Suspended
+                    type: string
+                  retention:
+                    description: |-
+                      Retention deletes the Orchestrator this long after its daemon idled out
+                      with every agent done, unless a client resumed it first.
+                    type: string
+                  runtimeClassName:
+                    description: |-
+                      RuntimeClassName runs the pod under a RuntimeClass such as gVisor or Kata,
+                      the isolation agent-sandbox recommends for untrusted, LLM-driven code.
+                    type: string
+                  shutdownTime:
+                    description: |-
+                      ShutdownTime deletes the Orchestrator, its Sandbox and the volumes once
+                      it passes.
+                    format: date-time
+                    type: string
+                  storage:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      Storage is the size of the workspace and of the state volume, fixed when
+                      the Sandbox is created.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                    x-kubernetes-validations:
+                    - message: spec.sandbox.storage is fixed when the Sandbox is created
+                      rule: self == oldSelf
+                type: object
               telemetry:
                 description: |-
                   Telemetry configures observability (traces and metrics) for the
@@ -4746,6 +4806,9 @@ spec:
             required:
             - image
             type: object
+            x-kubernetes-validations:
+            - message: 'spec.sandbox needs spec.runtime: Sandbox'
+              rule: '!has(self.sandbox) || self.runtime == ''Sandbox'''
           status:
             description: OrchestratorStatus defines the observed state of Orchestrator.
             properties:
@@ -4833,6 +4896,11 @@ spec:
               observedGeneration:
                 format: int64
                 type: integer
+              podName:
+                description: |-
+                  PodName is the pod the daemon's Sandbox runs, for clients that
+                  port-forward to it. Empty with runtime: Deployment.
+                type: string
               ready:
                 type: boolean
             type: object
@@ -5132,6 +5200,24 @@ rules:
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+- apiGroups:
+  - agents.x-k8s.io
+  resources:
+  - sandboxes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - apps

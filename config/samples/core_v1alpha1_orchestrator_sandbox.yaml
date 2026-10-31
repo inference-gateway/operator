@@ -1,0 +1,24 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
+metadata:
+  labels:
+    app.kubernetes.io/name: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: orchestrator-sandbox-sample
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  runtime: Sandbox
+  sandbox:
+    storage: 5Gi
+    retention: 24h
+  daemon:
+    binding:
+      tokenSecretRef:
+        name: daemon-binding
+        key: token
+      tls:
+        secretName: daemon-binding-tls
+  gateway:
+    url: http://inference-gateway:8080
+  agent:
+    model: deepseek/deepseek-v4-pro

@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,11 +26,24 @@ import (
 //
 // An Orchestrator deploys the Inference Gateway CLI's `infer daemon`: an
 // LLM-driven loop that listens on chat channels, serves devices over its AG-UI
-// binding, and fans out to A2A Agents and tools (incl. MCP). The Deployment is
-// always a singleton (replicas=1, strategy=Recreate) because one daemon owns its
-// channels and sessions, and Telegram allows one getUpdates consumer per token.
+// binding, and fans out to A2A Agents and tools (incl. MCP). It always runs one
+// daemon, as a Recreate Deployment or an agent-sandbox Sandbox, because one
+// daemon owns its channels and sessions.
+// +kubebuilder:validation:XValidation:rule="!has(self.sandbox) || self.runtime == 'Sandbox'",message="spec.sandbox needs spec.runtime: Sandbox"
 type OrchestratorSpec struct {
 	Image string `json:"image"`
+
+	// Runtime is the workload the daemon runs as, fixed at creation because a
+	// Sandbox's volumes would not survive a switch. Sandbox needs agent-sandbox
+	// (agents.x-k8s.io) installed in the cluster.
+	// +optional
+	// +kubebuilder:default=Deployment
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.runtime is fixed when the Orchestrator is created"
+	Runtime OrchestratorRuntime `json:"runtime,omitempty"`
+
+	// Sandbox configures the Sandbox the daemon runs in with runtime: Sandbox.
+	// +optional
+	Sandbox *OrchestratorSandboxSpec `json:"sandbox,omitempty"`
 
 	// Channels configures the chat channels the daemon listens on.
 	// +optional
@@ -106,6 +120,63 @@ type OrchestratorGatewaySpec struct {
 
 	// +optional
 	APIKeySecretRef *corev1.SecretKeySelector `json:"apiKeySecretRef,omitempty"`
+}
+
+// OrchestratorRuntime is the workload an Orchestrator's daemon runs as.
+// +kubebuilder:validation:Enum=Deployment;Sandbox
+type OrchestratorRuntime string
+
+const (
+	// RuntimeDeployment runs the daemon as a singleton Recreate Deployment.
+	RuntimeDeployment OrchestratorRuntime = "Deployment"
+	// RuntimeSandbox runs the daemon in an agent-sandbox Sandbox: a stable pod
+	// with persistent volumes that can be suspended and resumed.
+	RuntimeSandbox OrchestratorRuntime = "Sandbox"
+)
+
+// SandboxOperatingMode runs or parks the daemon's Sandbox.
+// +kubebuilder:validation:Enum=Running;Suspended
+type SandboxOperatingMode string
+
+const (
+	// SandboxRunning keeps the Sandbox's pod running.
+	SandboxRunning SandboxOperatingMode = "Running"
+	// SandboxSuspended deletes the Sandbox's pod and keeps its volumes.
+	SandboxSuspended SandboxOperatingMode = "Suspended"
+)
+
+// OrchestratorSandboxSpec configures the Sandbox the daemon runs in. Its
+// volumes hold the daemon's workspace (/workspace) and its state
+// (~/.infer/projects), and outlive a suspension. The pod has no Kubernetes API
+// access and runs as a non-root user without capabilities.
+type OrchestratorSandboxSpec struct {
+	// Storage is the size of the workspace and of the state volume, fixed when
+	// the Sandbox is created.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.sandbox.storage is fixed when the Sandbox is created"
+	Storage *resource.Quantity `json:"storage,omitempty"`
+
+	// OperatingMode runs the Sandbox or suspends it, keeping its volumes. The
+	// operator sets Suspended itself when the daemon idles out, so a client
+	// resumes the daemon by setting Running.
+	// +optional
+	// +kubebuilder:default=Running
+	OperatingMode SandboxOperatingMode `json:"operatingMode,omitempty"`
+
+	// ShutdownTime deletes the Orchestrator, its Sandbox and the volumes once
+	// it passes.
+	// +optional
+	ShutdownTime *metav1.Time `json:"shutdownTime,omitempty"`
+
+	// Retention deletes the Orchestrator this long after its daemon idled out
+	// with every agent done, unless a client resumed it first.
+	// +optional
+	Retention *metav1.Duration `json:"retention,omitempty"`
+
+	// RuntimeClassName runs the pod under a RuntimeClass such as gVisor or Kata,
+	// the isolation agent-sandbox recommends for untrusted, LLM-driven code.
+	// +optional
+	RuntimeClassName *string `json:"runtimeClassName,omitempty"`
 }
 
 // OrchestratorDaemonSpec mirrors the CLI's daemon config for what the daemon
@@ -229,6 +300,11 @@ type OrchestratorStatus struct {
 	// +optional
 	Ready bool `json:"ready,omitempty"`
 
+	// PodName is the pod the daemon's Sandbox runs, for clients that
+	// port-forward to it. Empty with runtime: Deployment.
+	// +optional
+	PodName string `json:"podName,omitempty"`
+
 	// DiscoveredAgents is the sorted list of agent URLs found via service discovery.
 	// +optional
 	DiscoveredAgents []string `json:"discoveredAgents,omitempty"`
@@ -249,7 +325,8 @@ type OrchestratorStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=orch,categories=inference-gateway
-// +kubebuilder:printcolumn:name="READY",type=boolean,JSONPath=".status.ready",description="Whether the Orchestrator Deployment is available"
+// +kubebuilder:printcolumn:name="RUNTIME",type=string,JSONPath=".spec.runtime",description="The workload the daemon runs as"
+// +kubebuilder:printcolumn:name="READY",type=boolean,JSONPath=".status.ready",description="Whether the Orchestrator's daemon is ready"
 // +kubebuilder:printcolumn:name="AGENTS",type=integer,JSONPath=".status.discoveredAgentCount",description="Number of discovered agents"
 // +kubebuilder:printcolumn:name="MCPS",type=integer,JSONPath=".status.discoveredMCPCount",description="Number of discovered MCP servers"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
