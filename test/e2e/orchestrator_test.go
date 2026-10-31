@@ -139,12 +139,12 @@ spec:
 			g.Expect(strings.TrimSpace(out)).To(Equal("Recreate"), "expected Recreate strategy")
 		}, orchestratorTimeout, orchestratorInterval).Should(Succeed())
 
-		By("verifying the container command is `infer daemon`")
+		By("verifying the container keeps the image entrypoint and passes `daemon` as an argument")
 		Eventually(func(g Gomega) {
 			cmdOut, err := utils.Run(exec.Command("kubectl", "get", "deployment", orchestratorName,
 				"-n", orchestratorNamespace, "-o", "jsonpath={.spec.template.spec.containers[0].command}"))
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(cmdOut).To(ContainSubstring("infer"))
+			g.Expect(strings.TrimSpace(cmdOut)).To(BeEmpty())
 
 			argsOut, err := utils.Run(exec.Command("kubectl", "get", "deployment", orchestratorName,
 				"-n", orchestratorNamespace, "-o", "jsonpath={.spec.template.spec.containers[0].args}"))

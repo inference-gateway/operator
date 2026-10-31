@@ -104,7 +104,7 @@ var _ = Describe("Orchestrator Controller", func() {
 
 			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
 			c := deployment.Spec.Template.Spec.Containers[0]
-			Expect(c.Command).To(Equal([]string{"infer"}))
+			Expect(c.Command).To(BeEmpty())
 			Expect(c.Args).To(Equal([]string{"daemon"}))
 		})
 	})
