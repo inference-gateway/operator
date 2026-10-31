@@ -359,6 +359,8 @@ func (r *MCPReconciler) buildDeployment(mcp *corev1alpha1.MCP) *appsv1.Deploymen
 		},
 	}
 
+	mcp.Spec.Pod.ApplyTo(&deployment.Spec.Template)
+
 	if mcp.Spec.Replicas != nil && (mcp.Spec.HPA == nil || !mcp.Spec.HPA.Enabled) {
 		deployment.Spec.Replicas = mcp.Spec.Replicas
 	}

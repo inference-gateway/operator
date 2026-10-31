@@ -175,6 +175,40 @@ name outside the list above is skipped - it is left out of
 - **Routing**: Kubernetes Gateway API (`gateway.networking.k8s.io/v1`) - operator-managed `Gateway` + `HTTPRoute`, or attach to a platform-team-managed shared `Gateway` via `parentRefs`
 - **TLS**: Listener-level TLS termination via cert-manager (Gateway API integration)
 
+### Pod Customization and Scheduling
+
+`Gateway`, `Agent` and `MCP` accept a `spec.pod` block that shapes the pods of the Deployment each one creates - pod labels and annotations for sidecar injectors (Istio, Linkerd, NetBird), and `nodeSelector` / `tolerations` / `affinity` for scheduling:
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway
+spec:
+  pod:
+    labels:
+      sidecar.example.com/inject: "true"
+    annotations:
+      linkerd.io/inject: enabled
+    nodeSelector:
+      kubernetes.io/hostname: worker-0
+    tolerations:
+      - key: gpu
+        operator: Exists
+        effect: NoSchedule
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: inference-gateway
+```
+
+The operator's own `app: <name>` pod label always wins over `spec.pod.labels`, so Deployment selectors and Services keep working. Changing or removing a `spec.pod` field rolls the Deployment.
+
 ## 🚀 Quick Start
 
 ### Prerequisites

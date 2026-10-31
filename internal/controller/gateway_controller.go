@@ -582,6 +582,7 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 		},
 	}
 
+	gateway.Spec.Pod.ApplyTo(&deployment.Spec.Template)
 	r.setDeploymentReplicas(gateway, deployment, parked)
 	return deployment
 }
