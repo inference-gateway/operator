@@ -163,9 +163,10 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 		return err
 	}
 
-	getHostAndScheme := func(gw *corev1alpha1.Gateway) (string, string) {
+	gatewayURL := func(gw *corev1alpha1.Gateway) string {
 		routing := gw.Spec.GatewayAPI
 		var host, scheme string
+		viaRoute := false
 
 		if routing != nil && routing.Enabled {
 			httpRoute := &gwapiv1.HTTPRoute{}
@@ -175,6 +176,7 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 				host = fmt.Sprintf("%s.%s.svc.cluster.local", gw.Name, gw.Namespace)
 			} else {
 				host = string(httpRoute.Spec.Hostnames[0])
+				viaRoute = true
 			}
 			switch {
 			case tlsEnabled(gw):
@@ -191,7 +193,15 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 				scheme = "http"
 			}
 		}
-		return host, scheme
+
+		newURL := fmt.Sprintf("%s://%s", scheme, host)
+		if viaRoute {
+			return newURL
+		}
+		if port := gatewayServicePort(gw); port != schemeDefaultPort(scheme) {
+			newURL += fmt.Sprintf(":%d", port)
+		}
+		return newURL
 	}
 
 	const maxRetries = 3
@@ -203,8 +213,7 @@ func (r *GatewayReconciler) reconcileGatewayStatus(ctx context.Context, gateway 
 			return err
 		}
 
-		host, scheme := getHostAndScheme(latest)
-		newURL := fmt.Sprintf("%s://%s", scheme, host)
+		newURL := gatewayURL(latest)
 
 		var mcpEntries []string
 		if latest.Spec.MCP != nil && latest.Spec.MCP.Enabled {
@@ -1548,6 +1557,14 @@ func gatewayServicePort(gateway *corev1alpha1.Gateway) int32 {
 	default:
 		return 8080
 	}
+}
+
+// schemeDefaultPort is the port a URL scheme implies when none is named.
+func schemeDefaultPort(scheme string) int32 {
+	if scheme == "https" {
+		return 443
+	}
+	return 80
 }
 
 func tlsSpec(gateway *corev1alpha1.Gateway) *corev1alpha1.RoutingTLSSpec {

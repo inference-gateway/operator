@@ -47,8 +47,10 @@ type GatewaySpec struct {
 	// +optional
 	Telemetry *TelemetrySpec `json:"telemetry,omitempty"`
 
-	// Server configuration
+	// Server configuration. Defaults to an empty object so the nested host
+	// (0.0.0.0) and port (8080) defaults apply even when server is omitted.
 	// +optional
+	// +kubebuilder:default={}
 	Server *ServerSpec `json:"server,omitempty"`
 
 	// Authentication configuration
