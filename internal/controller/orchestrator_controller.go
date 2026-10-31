@@ -62,7 +62,7 @@ type OrchestratorReconciler struct {
 // Reconcile drives an Orchestrator resource toward its desired state.
 //
 // The controller manages a singleton Deployment (replicas=1, strategy=Recreate)
-// that runs the Inference Gateway CLI's `infer channels-manager` daemon.
+// that runs the Inference Gateway CLI's `infer daemon`.
 // No Service is created because the orchestrator is outbound-only (Telegram long-poll).
 // When spec.a2a.serviceDiscovery.enabled is true, the controller also discovers Agent CRs
 // matching the configured selector and writes them into a ConfigMap mounted as
@@ -471,7 +471,7 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *corev1alpha1.
 		Name:      "orchestrator",
 		Image:     orch.Spec.Image,
 		Command:   []string{"infer"},
-		Args:      []string{"channels-manager"},
+		Args:      []string{"daemon"},
 		Env:       buildOrchestratorEnvironmentVars(orch),
 		Resources: orch.Spec.Resources,
 	}
@@ -921,7 +921,7 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *corev1a
 			Type:               "ReceiverPortContention",
 			Status:             metav1.ConditionTrue,
 			Reason:             "ChannelsAndReceiverEnabled",
-			Message:            "telemetry.receiver.enabled and channels are both enabled - agent subprocesses spawned by channels-manager contend for the receiver port",
+			Message:            "telemetry.receiver.enabled and channels are both enabled - agent subprocesses spawned by the daemon contend for the receiver port",
 			ObservedGeneration: orch.Generation,
 			LastTransitionTime: metav1.Now(),
 		})

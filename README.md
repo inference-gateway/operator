@@ -447,10 +447,10 @@ kubectl create secret generic openai-secret \
 
 ## 🤖 Deploy an Orchestrator
 
-The `Orchestrator` CRD deploys the Inference Gateway CLI's `channels-manager`
-daemon: an LLM-driven loop that reads messages from a chat channel, optionally
-fans out to A2A `Agent`s and tools (incl. MCP), and replies. Telegram is the
-channel currently supported; more channels are planned.
+The `Orchestrator` CRD deploys the Inference Gateway CLI's `infer daemon`: an
+LLM-driven loop that reads messages from a chat channel, optionally fans out to
+A2A `Agent`s and tools (incl. MCP), and replies. Telegram is the channel
+currently supported; more channels are planned.
 
 When the Telegram channel is enabled, the Deployment is forced to a singleton
 (`replicas: 1`, `strategy: Recreate`) because Telegram allows only one active

@@ -79,7 +79,7 @@ var _ = Describe("Orchestrator Controller", Ordered, func() {
 		_, _ = utils.Run(cmd)
 	})
 
-	It("should reconcile a singleton Recreate Deployment running channels-manager", func() {
+	It("should reconcile a singleton Recreate Deployment running infer daemon", func() {
 		By("creating the orchestrator credentials secret")
 		secretYAML := fmt.Sprintf(`
 apiVersion: v1
@@ -139,7 +139,7 @@ spec:
 			g.Expect(strings.TrimSpace(out)).To(Equal("Recreate"), "expected Recreate strategy")
 		}, orchestratorTimeout, orchestratorInterval).Should(Succeed())
 
-		By("verifying the container command is `infer channels-manager`")
+		By("verifying the container command is `infer daemon`")
 		Eventually(func(g Gomega) {
 			cmdOut, err := utils.Run(exec.Command("kubectl", "get", "deployment", orchestratorName,
 				"-n", orchestratorNamespace, "-o", "jsonpath={.spec.template.spec.containers[0].command}"))
@@ -149,7 +149,7 @@ spec:
 			argsOut, err := utils.Run(exec.Command("kubectl", "get", "deployment", orchestratorName,
 				"-n", orchestratorNamespace, "-o", "jsonpath={.spec.template.spec.containers[0].args}"))
 			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(argsOut).To(ContainSubstring("channels-manager"))
+			g.Expect(argsOut).To(ContainSubstring("daemon"))
 		}, orchestratorTimeout, orchestratorInterval).Should(Succeed())
 
 		By("verifying the env vars include the Telegram token via secretKeyRef")

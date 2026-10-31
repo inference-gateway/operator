@@ -184,7 +184,7 @@ type TelemetrySpec struct {
 	// that other processes (e.g. the gateway, A2A agents) can push spans to
 	// it. Only one process per pod can bind the receiver port; enabling both
 	// receiver and channels causes a port conflict because agent subprocesses
-	// spawned by the channels-manager would contend for it.
+	// spawned by the daemon would contend for it.
 	// +optional
 	Receiver *ReceiverSpec `json:"receiver,omitempty"`
 }
