@@ -5589,7 +5589,7 @@ spec:
         env:
         - name: WATCH_NAMESPACE_SELECTOR
           value: inference-gateway.com/managed=true
-        image: ghcr.io/inference-gateway/operator:0.28.0
+        image: ghcr.io/inference-gateway/operator:0.28.1
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:

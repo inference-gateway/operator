@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.28.1](https://github.com/inference-gateway/operator/compare/v0.28.0...v0.28.1) (2026-10-31)
+
+### 🐛 Bug Fixes
+
+* **orchestrator:** keep the image entrypoint, pass daemon as arg ([#303](https://github.com/inference-gateway/operator/issues/303)) ([98b0f26](https://github.com/inference-gateway/operator/commit/98b0f263112f3b2862d453f3cda0defefa58f7d3)), closes [#302](https://github.com/inference-gateway/operator/issues/302)
+
 ## [0.28.0](https://github.com/inference-gateway/operator/compare/v0.27.1...v0.28.0) (2026-10-31)
 
 ### ✨ Features
