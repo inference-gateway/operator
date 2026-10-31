@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -119,5 +120,37 @@ var _ = Describe("Agent invalid spec handling", func() {
 			svcErr := k8sClient.Get(ctx, key, &corev1.Service{})
 			return apierrors.IsNotFound(depErr) && apierrors.IsNotFound(svcErr)
 		}, time.Second*2, interval).Should(BeTrue())
+	})
+})
+
+var _ = Describe("Gateway without spec.server", func() {
+	const (
+		timeout  = time.Second * 10
+		interval = time.Millisecond * 250
+	)
+
+	ctx := context.Background()
+
+	It("defaults server.port to 8080 and reports it in status.url", func() {
+		gateway := testutil.NewGateway("portless-gw", "default")
+		Expect(k8sClient.Create(ctx, gateway)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, gateway) })
+
+		key := types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}
+
+		By("applying the spec.server CRD defaults so the Port column renders")
+		updated := &corev1alpha1.Gateway{}
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, key, updated)).To(Succeed())
+			g.Expect(updated.Spec.Server).NotTo(BeNil())
+			g.Expect(updated.Spec.Server.Port).To(Equal(int32(8080)))
+		}, timeout, interval).Should(Succeed())
+
+		By("naming the service port in status.url")
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, key, updated)).To(Succeed())
+			g.Expect(updated.Status.URL).To(Equal(fmt.Sprintf(
+				"http://%s.%s.svc.cluster.local:8080", gateway.Name, gateway.Namespace)))
+		}, timeout, interval).Should(Succeed())
 	})
 })
