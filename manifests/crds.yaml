@@ -2471,7 +2471,10 @@ spec:
                     type: boolean
                 type: object
               server:
-                description: Server configuration
+                default: {}
+                description: |-
+                  Server configuration. Defaults to an empty object so the nested host
+                  (0.0.0.0) and port (8080) defaults apply even when server is omitted.
                 properties:
                   host:
                     default: 0.0.0.0
