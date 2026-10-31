@@ -1,0 +1,22 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
+metadata:
+  labels:
+    app.kubernetes.io/name: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: orchestrator-binding-sample
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  daemon:
+    binding:
+      port: 52789
+      tokenSecretRef:
+        name: daemon-binding
+        key: token
+      tls:
+        secretName: daemon-binding-tls
+        clientAuth: true
+  gateway:
+    url: http://inference-gateway:8080
+  agent:
+    model: deepseek/deepseek-v4-pro

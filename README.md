@@ -448,9 +448,13 @@ kubectl create secret generic openai-secret \
 ## 🤖 Deploy an Orchestrator
 
 The `Orchestrator` CRD deploys the Inference Gateway CLI's `infer daemon`: an
-LLM-driven loop that reads messages from a chat channel, optionally fans out to
-A2A `Agent`s and tools (incl. MCP), and replies. Telegram is the channel
-currently supported; more channels are planned.
+LLM-driven loop that listens on chat channels, serves devices over its AG-UI
+binding, and fans out to A2A `Agent`s and tools (incl. MCP). Telegram is the
+channel currently supported - more channels are planned. Channels, the gateway
+and the agent are all optional, but the daemon needs something to run: an
+Orchestrator without `channels`, `daemon.binding` or `tools.schedule` (or a
+switch for the heartbeat or the A2A server in `env`) gets `Ready=False` with
+reason `InvalidSpec`.
 
 When the Telegram channel is enabled, the Deployment is forced to a singleton
 (`replicas: 1`, `strategy: Recreate`) because Telegram allows only one active
@@ -500,6 +504,31 @@ kubectl logs -n orchestrators deploy/orchestrator-controlled-by-telegram -f
 A full end-to-end example - Gateway, two A2A worker Agents, and the Orchestrator
 - with a step-by-step walkthrough is available at
 [`examples/orchestrator/`](examples/orchestrator/).
+
+### Serve devices over the AG-UI binding
+
+`spec.daemon.binding` turns on the daemon's AG-UI binding, the WebSocket the
+chat TUI, the browser extension and other daemons sync sessions over. The
+binding listens on every interface, so it always serves TLS from
+`tls.secretName` (`tls.crt` and `tls.key`, plus `ca.crt` with
+`clientAuth: true`). Clients authenticate with the token from `tokenSecretRef`,
+a client certificate, or both, and the API rejects a binding with neither. The
+controller adds a `<name>-binding` Service on the binding port (default `52789`)
+and holds the pod back from Ready until the binding listens.
+
+```bash
+# 1. The certificate must name the host clients dial: daemon-binding.orchestrators.svc
+#    in the cluster, or localhost through a port-forward
+kubectl create secret tls daemon-binding-tls -n orchestrators --cert=tls.crt --key=tls.key
+kubectl create secret generic daemon-binding -n orchestrators \
+  --from-literal=token="$(openssl rand -hex 24)"
+
+# 2. An Orchestrator that only serves the binding
+kubectl apply -f examples/daemon/orchestrator.yaml
+
+# 3. Reach it from your machine
+kubectl port-forward -n orchestrators svc/daemon-binding 52789
+```
 
 ## 🔄 Upgrade
 

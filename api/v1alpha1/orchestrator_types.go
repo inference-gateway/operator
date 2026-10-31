@@ -23,16 +23,29 @@ import (
 
 // OrchestratorSpec defines the desired state of Orchestrator.
 //
-// An Orchestrator deploys the Inference Gateway CLI's `infer daemon`:
-// an LLM-driven loop that receives messages from a chat channel, optionally
-// fans out to A2A Agents and tools (incl. MCP), and replies. The Deployment is
-// always a singleton (replicas=1, strategy=Recreate) because Telegram allows
-// only one active getUpdates consumer per token.
+// An Orchestrator deploys the Inference Gateway CLI's `infer daemon`: an
+// LLM-driven loop that listens on chat channels, serves devices over its AG-UI
+// binding, and fans out to A2A Agents and tools (incl. MCP). The Deployment is
+// always a singleton (replicas=1, strategy=Recreate) because one daemon owns its
+// channels and sessions, and Telegram allows one getUpdates consumer per token.
 type OrchestratorSpec struct {
-	Image    string                  `json:"image"`
-	Channels ChannelsSpec            `json:"channels"`
-	Gateway  OrchestratorGatewaySpec `json:"gateway"`
-	Agent    OrchestratorAgentSpec   `json:"agent"`
+	Image string `json:"image"`
+
+	// Channels configures the chat channels the daemon listens on.
+	// +optional
+	Channels *ChannelsSpec `json:"channels,omitempty"`
+
+	// Gateway configures how the daemon reaches the Inference Gateway.
+	// +optional
+	Gateway *OrchestratorGatewaySpec `json:"gateway,omitempty"`
+
+	// Agent configures the daemon's LLM agent.
+	// +optional
+	Agent *OrchestratorAgentSpec `json:"agent,omitempty"`
+
+	// Daemon configures what `infer daemon` serves beyond its channels.
+	// +optional
+	Daemon *OrchestratorDaemonSpec `json:"daemon,omitempty"`
 
 	// +optional
 	Tools OrchestratorToolsSpec `json:"tools,omitempty"`
@@ -69,7 +82,8 @@ type ChannelsSpec struct {
 	// +optional
 	RequireApproval *bool `json:"requireApproval,omitempty"`
 
-	Telegram TelegramChannelSpec `json:"telegram"`
+	// +optional
+	Telegram *TelegramChannelSpec `json:"telegram,omitempty"`
 }
 
 // TelegramChannelSpec mirrors the CLI's TelegramChannelConfig.
@@ -92,6 +106,45 @@ type OrchestratorGatewaySpec struct {
 
 	// +optional
 	APIKeySecretRef *corev1.SecretKeySelector `json:"apiKeySecretRef,omitempty"`
+}
+
+// OrchestratorDaemonSpec mirrors the CLI's daemon config for what the daemon
+// serves to devices and other daemons.
+type OrchestratorDaemonSpec struct {
+	// Binding exposes the daemon's AG-UI binding to devices and other daemons.
+	// +optional
+	Binding *DaemonBindingSpec `json:"binding,omitempty"`
+}
+
+// DaemonBindingSpec exposes the daemon's AG-UI binding, the WebSocket the
+// chat TUI, the browser extension and other daemons sync sessions over. It
+// listens on every interface, so it always serves TLS, and clients prove who
+// they are with the token, a client certificate, or both.
+// +kubebuilder:validation:XValidation:rule="has(self.tokenSecretRef) || (has(self.tls.clientAuth) && self.tls.clientAuth)",message="binding needs tokenSecretRef or tls.clientAuth to authenticate clients"
+type DaemonBindingSpec struct {
+	// Port is the port the binding listens on.
+	// +optional
+	// +kubebuilder:default=52789
+	// +kubebuilder:validation:Minimum=1024
+	// +kubebuilder:validation:Maximum=65535
+	Port int32 `json:"port,omitempty"`
+
+	// TokenSecretRef selects the token clients present in their hello.
+	// +optional
+	TokenSecretRef *corev1.SecretKeySelector `json:"tokenSecretRef,omitempty"`
+
+	TLS DaemonBindingTLSSpec `json:"tls"`
+}
+
+// DaemonBindingTLSSpec is the certificate the binding serves.
+type DaemonBindingTLSSpec struct {
+	// SecretName names a Secret holding tls.crt and tls.key, plus ca.crt when
+	// clientAuth is on.
+	SecretName string `json:"secretName"`
+
+	// ClientAuth requires clients to present a certificate signed by ca.crt.
+	// +optional
+	ClientAuth bool `json:"clientAuth,omitempty"`
 }
 
 // OrchestratorAgentSpec configures the orchestrating LLM agent.

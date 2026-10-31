@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -51,6 +52,26 @@ type OrchestratorReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+// The daemon's AG-UI binding as the Orchestrator's pod serves it.
+const (
+	defaultBindingPort  = 52789
+	bindingPortName     = "binding"
+	bindingTLSVolume    = "binding-tls"
+	bindingTLSMountPath = "/etc/infer/tls"
+)
+
+const nothingToRunMessage = "the daemon has nothing to run: set spec.channels, spec.daemon.binding or spec.tools.schedule, " +
+	"or enable the heartbeat or the A2A server through spec.env"
+
+// daemonSwitchEnvVars switch on what `infer daemon` runs beyond the spec's own
+// fields, so setting one in spec.env gives the daemon something to run.
+var daemonSwitchEnvVars = []string{
+	"INFER_CHANNELS_ENABLED",
+	"INFER_DAEMON_BINDING_ENABLED",
+	"INFER_HEARTBEAT_ENABLED",
+	"INFER_A2A_SERVER_ENABLED",
+}
+
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=orchestrators,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=orchestrators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=orchestrators/finalizers,verbs=update
@@ -62,8 +83,8 @@ type OrchestratorReconciler struct {
 // Reconcile drives an Orchestrator resource toward its desired state.
 //
 // The controller manages a singleton Deployment (replicas=1, strategy=Recreate)
-// that runs the Inference Gateway CLI's `infer daemon`.
-// No Service is created because the orchestrator is outbound-only (Telegram long-poll).
+// that runs the Inference Gateway CLI's `infer daemon`, plus a Service per port it serves:
+// the AG-UI binding (spec.daemon.binding) and the OTLP receiver (spec.telemetry.receiver).
 // When spec.a2a.serviceDiscovery.enabled is true, the controller also discovers Agent CRs
 // matching the configured selector and writes them into a ConfigMap mounted as
 // ~/.infer/agents.yaml inside the orchestrator pod for hot-reload without restarts.
@@ -77,6 +98,11 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if !orch.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, nil
+	}
+
+	if !daemonHasWork(&orch.Spec) {
+		logger.Info("rejecting Orchestrator with invalid spec", "reason", nothingToRunMessage)
+		return ctrl.Result{}, r.patchStatusInvalidSpec(ctx, &orch, nothingToRunMessage)
 	}
 
 	// Reconcile the agents ConfigMap (handles both static and discovered agents).
@@ -113,6 +139,11 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if err := r.reconcileReceiverService(ctx, &orch); err != nil {
 		logger.Error(err, "failed to reconcile receiver service")
+		return ctrl.Result{}, err
+	}
+
+	if err := r.reconcileBindingService(ctx, &orch); err != nil {
+		logger.Error(err, "failed to reconcile binding service")
 		return ctrl.Result{}, err
 	}
 
@@ -540,6 +571,10 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *corev1alpha1.
 		podAnnotations["inference-gateway.com/mcps-config-hash"] = hex.EncodeToString(sum[:])
 	}
 
+	if binding := daemonBinding(&orch.Spec); binding != nil {
+		serveBinding(&podSpec, binding)
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      orch.Name,
@@ -573,77 +608,21 @@ func buildOrchestratorEnvironmentVars(orch *corev1alpha1.Orchestrator) []corev1.
 		envVars = append(envVars, *orch.Spec.Env...)
 	}
 
+	if orch.Spec.Channels != nil {
+		envVars = append(envVars, corev1.EnvVar{Name: "INFER_CHANNELS_ENABLED", Value: "true"})
+	}
+
 	envVars = append(envVars,
-		corev1.EnvVar{Name: "INFER_CHANNELS_ENABLED", Value: "true"},
 		corev1.EnvVar{Name: "INFER_LOGGING_STDOUT", Value: "true"},
 		corev1.EnvVar{Name: "INFER_GATEWAY_RUN", Value: "false"},
 	)
 
 	envVars = append(envVars, orchestratorTelemetryEnvVars(orch.Spec.Telemetry)...)
-
-	if orch.Spec.Channels.MaxWorkers != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name:  "INFER_CHANNELS_MAX_WORKERS",
-			Value: strconv.Itoa(int(*orch.Spec.Channels.MaxWorkers)),
-		})
-	}
-	if orch.Spec.Channels.ImageRetention != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name:  "INFER_CHANNELS_IMAGE_RETENTION",
-			Value: strconv.Itoa(int(*orch.Spec.Channels.ImageRetention)),
-		})
-	}
-	if orch.Spec.Channels.RequireApproval != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name:  "INFER_CHANNELS_REQUIRE_APPROVAL",
-			Value: strconv.FormatBool(*orch.Spec.Channels.RequireApproval),
-		})
-	}
-
-	tg := orch.Spec.Channels.Telegram
-	envVars = append(envVars,
-		corev1.EnvVar{
-			Name:  "INFER_CHANNELS_TELEGRAM_ENABLED",
-			Value: strconv.FormatBool(tg.Enabled),
-		},
-		corev1.EnvVar{
-			Name: "INFER_CHANNELS_TELEGRAM_BOT_TOKEN",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: tg.TokenSecretRef.DeepCopy(),
-			},
-		},
-	)
-	if tg.AllowedUsersSecretRef != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name: "INFER_CHANNELS_TELEGRAM_ALLOWED_USERS",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: tg.AllowedUsersSecretRef.DeepCopy(),
-			},
-		})
-	}
-	if tg.PollTimeout != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name:  "INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT",
-			Value: strconv.Itoa(int(tg.PollTimeout.Seconds())),
-		})
-	}
-
-	envVars = append(envVars, corev1.EnvVar{
-		Name:  "INFER_GATEWAY_URL",
-		Value: orch.Spec.Gateway.URL,
-	})
-	if orch.Spec.Gateway.APIKeySecretRef != nil {
-		envVars = append(envVars, corev1.EnvVar{
-			Name: "INFER_GATEWAY_API_KEY",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: orch.Spec.Gateway.APIKeySecretRef.DeepCopy(),
-			},
-		})
-	}
+	envVars = append(envVars, channelsEnvVars(orch.Spec.Channels)...)
+	envVars = append(envVars, gatewayEnvVars(orch.Spec.Gateway)...)
+	envVars = append(envVars, agentEnvVars(orch.Spec.Agent)...)
 
 	envVars = append(envVars,
-		corev1.EnvVar{Name: "INFER_AGENT_MODEL", Value: orch.Spec.Agent.Model},
-		corev1.EnvVar{Name: "INFER_AGENT_SYSTEM_PROMPT", Value: orch.Spec.Agent.SystemPrompt},
 		corev1.EnvVar{
 			Name:  "INFER_TOOLS_ENABLED",
 			Value: strconv.FormatBool(orch.Spec.Tools.Enabled),
@@ -662,7 +641,169 @@ func buildOrchestratorEnvironmentVars(orch *corev1alpha1.Orchestrator) []corev1.
 		},
 	)
 
+	return append(envVars, bindingEnvVars(daemonBinding(&orch.Spec))...)
+}
+
+// channelsEnvVars maps the shared channel knobs and the Telegram channel onto
+// INFER_CHANNELS_* env vars.
+func channelsEnvVars(channels *corev1alpha1.ChannelsSpec) []corev1.EnvVar {
+	if channels == nil {
+		return nil
+	}
+	var envVars []corev1.EnvVar
+	if channels.MaxWorkers != nil {
+		envVars = append(envVars, corev1.EnvVar{Name: "INFER_CHANNELS_MAX_WORKERS", Value: strconv.Itoa(int(*channels.MaxWorkers))})
+	}
+	if channels.ImageRetention != nil {
+		envVars = append(envVars, corev1.EnvVar{Name: "INFER_CHANNELS_IMAGE_RETENTION", Value: strconv.Itoa(int(*channels.ImageRetention))})
+	}
+	if channels.RequireApproval != nil {
+		envVars = append(envVars, corev1.EnvVar{Name: "INFER_CHANNELS_REQUIRE_APPROVAL", Value: strconv.FormatBool(*channels.RequireApproval)})
+	}
+	return append(envVars, telegramEnvVars(channels.Telegram)...)
+}
+
+// telegramEnvVars maps the Telegram channel onto INFER_CHANNELS_TELEGRAM_* env
+// vars, the bot token and allowed users read from their Secrets.
+func telegramEnvVars(telegram *corev1alpha1.TelegramChannelSpec) []corev1.EnvVar {
+	if telegram == nil {
+		return nil
+	}
+	envVars := []corev1.EnvVar{
+		{Name: "INFER_CHANNELS_TELEGRAM_ENABLED", Value: strconv.FormatBool(telegram.Enabled)},
+		{Name: "INFER_CHANNELS_TELEGRAM_BOT_TOKEN", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: telegram.TokenSecretRef.DeepCopy()}},
+	}
+	if telegram.AllowedUsersSecretRef != nil {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:      "INFER_CHANNELS_TELEGRAM_ALLOWED_USERS",
+			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: telegram.AllowedUsersSecretRef.DeepCopy()},
+		})
+	}
+	if telegram.PollTimeout != nil {
+		envVars = append(envVars, corev1.EnvVar{Name: "INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT", Value: strconv.Itoa(int(telegram.PollTimeout.Seconds()))})
+	}
 	return envVars
+}
+
+// gatewayEnvVars maps spec.gateway onto INFER_GATEWAY_URL and the API key Secret.
+func gatewayEnvVars(gateway *corev1alpha1.OrchestratorGatewaySpec) []corev1.EnvVar {
+	if gateway == nil {
+		return nil
+	}
+	envVars := []corev1.EnvVar{{Name: "INFER_GATEWAY_URL", Value: gateway.URL}}
+	if gateway.APIKeySecretRef != nil {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:      "INFER_GATEWAY_API_KEY",
+			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: gateway.APIKeySecretRef.DeepCopy()},
+		})
+	}
+	return envVars
+}
+
+// agentEnvVars maps spec.agent onto the daemon agent's model and system prompt.
+func agentEnvVars(agent *corev1alpha1.OrchestratorAgentSpec) []corev1.EnvVar {
+	if agent == nil {
+		return nil
+	}
+	return []corev1.EnvVar{
+		{Name: "INFER_AGENT_MODEL", Value: agent.Model},
+		{Name: "INFER_AGENT_SYSTEM_PROMPT", Value: agent.SystemPrompt},
+	}
+}
+
+// bindingEnvVars turns on the daemon's AG-UI binding on every interface,
+// serving the certificate the binding's Secret mounts at bindingTLSMountPath.
+func bindingEnvVars(binding *corev1alpha1.DaemonBindingSpec) []corev1.EnvVar {
+	if binding == nil {
+		return nil
+	}
+	envVars := []corev1.EnvVar{
+		{Name: "INFER_DAEMON_BINDING_ENABLED", Value: "true"},
+		{Name: "INFER_DAEMON_BINDING_HOST", Value: "0.0.0.0"},
+		{Name: "INFER_DAEMON_BINDING_PORT", Value: strconv.Itoa(int(bindingPort(binding)))},
+		{Name: "INFER_DAEMON_BINDING_TLS_MODE", Value: "files"},
+		{Name: "INFER_DAEMON_BINDING_TLS_CERT_FILE", Value: bindingTLSMountPath + "/tls.crt"},
+		{Name: "INFER_DAEMON_BINDING_TLS_KEY_FILE", Value: bindingTLSMountPath + "/tls.key"},
+		{Name: "INFER_DAEMON_BINDING_TLS_CLIENT_AUTH", Value: strconv.FormatBool(binding.TLS.ClientAuth)},
+	}
+	if binding.TLS.ClientAuth {
+		envVars = append(envVars, corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CA_FILE", Value: bindingTLSMountPath + "/ca.crt"})
+	}
+	if binding.TokenSecretRef != nil {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:      "INFER_DAEMON_BINDING_TOKEN",
+			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: binding.TokenSecretRef.DeepCopy()},
+		})
+	}
+	return envVars
+}
+
+// serveBinding exposes the binding's port on the daemon container, mounts its
+// TLS Secret, and holds the pod back from Ready until the binding listens.
+func serveBinding(podSpec *corev1.PodSpec, binding *corev1alpha1.DaemonBindingSpec) {
+	port := bindingPort(binding)
+	podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+		Name:         bindingTLSVolume,
+		VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: binding.TLS.SecretName}},
+	})
+	container := &podSpec.Containers[0]
+	container.Ports = append(container.Ports, corev1.ContainerPort{Name: bindingPortName, ContainerPort: port, Protocol: corev1.ProtocolTCP})
+	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{Name: bindingTLSVolume, MountPath: bindingTLSMountPath, ReadOnly: true})
+	container.ReadinessProbe = &corev1.Probe{
+		ProbeHandler:        corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt32(port)}},
+		InitialDelaySeconds: 2,
+		PeriodSeconds:       5,
+	}
+}
+
+// daemonBinding is the AG-UI binding spec.daemon configures, nil without one.
+func daemonBinding(spec *corev1alpha1.OrchestratorSpec) *corev1alpha1.DaemonBindingSpec {
+	if spec.Daemon == nil {
+		return nil
+	}
+	return spec.Daemon.Binding
+}
+
+// bindingPort is the binding's port, the CLI's default when the spec leaves it out.
+func bindingPort(binding *corev1alpha1.DaemonBindingSpec) int32 {
+	if binding.Port == 0 {
+		return defaultBindingPort
+	}
+	return binding.Port
+}
+
+// daemonHasWork reports whether `infer daemon` would run anything for spec,
+// the same check the daemon refuses to start without. spec.env counts too, so
+// an Orchestrator that only enables the heartbeat or the A2A server stays valid.
+func daemonHasWork(spec *corev1alpha1.OrchestratorSpec) bool {
+	if spec.Channels != nil || daemonBinding(spec) != nil || spec.Tools.Schedule {
+		return true
+	}
+	if spec.Env == nil {
+		return false
+	}
+	return slices.ContainsFunc(*spec.Env, func(env corev1.EnvVar) bool {
+		enabled, _ := strconv.ParseBool(env.Value)
+		return enabled && slices.Contains(daemonSwitchEnvVars, env.Name)
+	})
+}
+
+// patchStatusInvalidSpec marks the Orchestrator Ready=False with an InvalidSpec
+// reason before any child resource exists, so a rejected spec leaves no
+// crash-looping Deployment behind.
+func (r *OrchestratorReconciler) patchStatusInvalidSpec(ctx context.Context, orch *corev1alpha1.Orchestrator, message string) error {
+	patch := client.MergeFrom(orch.DeepCopy())
+	orch.Status.Ready = false
+	orch.Status.ObservedGeneration = orch.Generation
+	setCondition(&orch.Status.Conditions, metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionFalse,
+		Reason:             "InvalidSpec",
+		Message:            message,
+		ObservedGeneration: orch.Generation,
+		LastTransitionTime: metav1.Now(),
+	})
+	return r.Status().Patch(ctx, orch, patch)
 }
 
 // orchestratorTelemetryEnvVars maps spec.telemetry onto the CLI's
@@ -712,14 +853,36 @@ func orchestratorTelemetryEnvVars(tel *corev1alpha1.TelemetrySpec) []corev1.EnvV
 }
 
 // reconcileReceiverService creates or removes the Service exposing the OTLP
-// receiver port based on spec.telemetry.receiver.enabled. The Service uses the
-// same labels as the Deployment so the selector stays in sync with the controller.
+// receiver port based on spec.telemetry.receiver.enabled.
 func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, orch *corev1alpha1.Orchestrator) error {
+	var port *corev1.ServicePort
+	if orch.Spec.Telemetry != nil && orch.Spec.Telemetry.Receiver != nil && orch.Spec.Telemetry.Receiver.Enabled {
+		receiverPort := orch.Spec.Telemetry.Receiver.Port
+		if receiverPort == 0 {
+			receiverPort = 4318
+		}
+		port = &corev1.ServicePort{Name: "otlp-http", Protocol: corev1.ProtocolTCP, Port: receiverPort, TargetPort: intstr.FromInt32(receiverPort)}
+	}
+	return r.reconcilePortService(ctx, orch, orch.Name+"-receiver", port)
+}
+
+// reconcileBindingService creates or removes the <name>-binding Service that
+// devices and other daemons reach the AG-UI binding through.
+func (r *OrchestratorReconciler) reconcileBindingService(ctx context.Context, orch *corev1alpha1.Orchestrator) error {
+	var port *corev1.ServicePort
+	if binding := daemonBinding(&orch.Spec); binding != nil {
+		listenPort := bindingPort(binding)
+		port = &corev1.ServicePort{Name: bindingPortName, Protocol: corev1.ProtocolTCP, Port: listenPort, TargetPort: intstr.FromInt32(listenPort)}
+	}
+	return r.reconcilePortService(ctx, orch, orch.Name+"-binding", port)
+}
+
+// reconcilePortService keeps the Service svcName exposing port on the
+// Orchestrator's pod, and deletes it when port is nil. The Service uses the
+// same labels as the Deployment so the selector stays in sync with the controller.
+func (r *OrchestratorReconciler) reconcilePortService(ctx context.Context, orch *corev1alpha1.Orchestrator, svcName string, port *corev1.ServicePort) error {
 	logger := log.FromContext(ctx)
 
-	enabled := orch.Spec.Telemetry != nil && orch.Spec.Telemetry.Receiver != nil && orch.Spec.Telemetry.Receiver.Enabled
-
-	svcName := orch.Name + "-receiver"
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      svcName,
@@ -727,22 +890,10 @@ func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, o
 			Labels:    map[string]string{"app": orch.Name},
 		},
 	}
-
-	if enabled {
-		port := orch.Spec.Telemetry.Receiver.Port
-		if port == 0 {
-			port = 4318
-		}
+	if port != nil {
 		svc.Spec = corev1.ServiceSpec{
 			Selector: map[string]string{"app": orch.Name},
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "otlp-http",
-					Protocol:   corev1.ProtocolTCP,
-					Port:       port,
-					TargetPort: intstr.FromInt32(port),
-				},
-			},
+			Ports:    []corev1.ServicePort{*port},
 		}
 	}
 
@@ -753,23 +904,23 @@ func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, o
 	found := &corev1.Service{}
 	err := r.Get(ctx, types.NamespacedName{Name: svcName, Namespace: orch.Namespace}, found)
 	if err != nil && apierrors.IsNotFound(err) {
-		if !enabled {
+		if port == nil {
 			return nil
 		}
-		logger.Info("creating receiver service", "Service.Name", svcName)
+		logger.Info("creating service", "Service.Name", svcName)
 		return r.Create(ctx, svc)
 	} else if err != nil {
 		return err
 	}
 
-	if !enabled {
-		logger.Info("deleting receiver service", "Service.Name", svcName)
+	if port == nil {
+		logger.Info("deleting service", "Service.Name", svcName)
 		return r.Delete(ctx, found)
 	}
 
 	if !reflect.DeepEqual(found.Spec, svc.Spec) {
 		found.Spec = svc.Spec
-		logger.Info("updating receiver service", "Service.Name", svcName)
+		logger.Info("updating service", "Service.Name", svcName)
 		return r.Update(ctx, found)
 	}
 
@@ -916,7 +1067,7 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *corev1a
 	}
 
 	if orch.Spec.Telemetry != nil && orch.Spec.Telemetry.Receiver != nil && orch.Spec.Telemetry.Receiver.Enabled &&
-		orch.Spec.Channels.Telegram.Enabled {
+		telegramEnabled(orch.Spec.Channels) {
 		setCondition(&orch.Status.Conditions, metav1.Condition{
 			Type:               "ReceiverPortContention",
 			Status:             metav1.ConditionTrue,
@@ -937,6 +1088,11 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *corev1a
 	}
 
 	return r.Status().Patch(ctx, orch, patch)
+}
+
+// telegramEnabled reports whether the daemon polls Telegram.
+func telegramEnabled(channels *corev1alpha1.ChannelsSpec) bool {
+	return channels != nil && channels.Telegram != nil && channels.Telegram.Enabled
 }
 
 // setCondition upserts a condition by Type, preserving LastTransitionTime when Status is unchanged.

@@ -56,8 +56,8 @@ var _ = Describe("Orchestrator Controller", func() {
 					},
 					Spec: corev1alpha1.OrchestratorSpec{
 						Image: "ghcr.io/inference-gateway/cli:test",
-						Channels: corev1alpha1.ChannelsSpec{
-							Telegram: corev1alpha1.TelegramChannelSpec{
+						Channels: &corev1alpha1.ChannelsSpec{
+							Telegram: &corev1alpha1.TelegramChannelSpec{
 								Enabled: true,
 								TokenSecretRef: corev1.SecretKeySelector{
 									LocalObjectReference: corev1.LocalObjectReference{Name: "telegram-bot-credentials"},
@@ -65,8 +65,8 @@ var _ = Describe("Orchestrator Controller", func() {
 								},
 							},
 						},
-						Gateway: corev1alpha1.OrchestratorGatewaySpec{URL: "http://inference-gateway:8080"},
-						Agent:   corev1alpha1.OrchestratorAgentSpec{Model: "test/model"},
+						Gateway: &corev1alpha1.OrchestratorGatewaySpec{URL: "http://inference-gateway:8080"},
+						Agent:   &corev1alpha1.OrchestratorAgentSpec{Model: "test/model"},
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -134,22 +134,22 @@ var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "default"},
 			Spec: corev1alpha1.OrchestratorSpec{
 				Image: "img",
-				Channels: corev1alpha1.ChannelsSpec{
+				Channels: &corev1alpha1.ChannelsSpec{
 					MaxWorkers:      &maxWorkers,
 					ImageRetention:  &imageRetention,
 					RequireApproval: &requireApproval,
-					Telegram: corev1alpha1.TelegramChannelSpec{
+					Telegram: &corev1alpha1.TelegramChannelSpec{
 						Enabled:               true,
 						TokenSecretRef:        tokenRef,
 						AllowedUsersSecretRef: &allowedUsersRef,
 						PollTimeout:           &pollTimeout,
 					},
 				},
-				Gateway: corev1alpha1.OrchestratorGatewaySpec{
+				Gateway: &corev1alpha1.OrchestratorGatewaySpec{
 					URL:             "http://gw:8080",
 					APIKeySecretRef: &apiKeyRef,
 				},
-				Agent: corev1alpha1.OrchestratorAgentSpec{
+				Agent: &corev1alpha1.OrchestratorAgentSpec{
 					Model:        "openai/gpt-test",
 					SystemPrompt: "be helpful",
 				},
@@ -322,8 +322,8 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "default"},
 			Spec: corev1alpha1.OrchestratorSpec{
 				Image: "img",
-				Channels: corev1alpha1.ChannelsSpec{
-					Telegram: corev1alpha1.TelegramChannelSpec{
+				Channels: &corev1alpha1.ChannelsSpec{
+					Telegram: &corev1alpha1.TelegramChannelSpec{
 						Enabled: true,
 						TokenSecretRef: corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{Name: "telegram-bot-credentials"},
@@ -331,8 +331,8 @@ var _ = Describe("orchestratorTelemetryEnvVars", func() {
 						},
 					},
 				},
-				Gateway: corev1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
-				Agent:   corev1alpha1.OrchestratorAgentSpec{Model: "m"},
+				Gateway: &corev1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
+				Agent:   &corev1alpha1.OrchestratorAgentSpec{Model: "m"},
 				Telemetry: &corev1alpha1.TelemetrySpec{
 					Enabled: true,
 					Traces: &corev1alpha1.TracesSpec{
@@ -463,8 +463,8 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "orch", Namespace: "default"},
 			Spec: corev1alpha1.OrchestratorSpec{
 				Image: "img",
-				Channels: corev1alpha1.ChannelsSpec{
-					Telegram: corev1alpha1.TelegramChannelSpec{
+				Channels: &corev1alpha1.ChannelsSpec{
+					Telegram: &corev1alpha1.TelegramChannelSpec{
 						Enabled: true,
 						TokenSecretRef: corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
@@ -472,8 +472,8 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 						},
 					},
 				},
-				Gateway: corev1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
-				Agent:   corev1alpha1.OrchestratorAgentSpec{Model: "m"},
+				Gateway: &corev1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
+				Agent:   &corev1alpha1.OrchestratorAgentSpec{Model: "m"},
 				A2A: corev1alpha1.OrchestratorA2ASpec{
 					Enabled: true,
 					ServiceDiscovery: corev1alpha1.OrchestratorServiceDiscoverySpec{
@@ -600,8 +600,8 @@ var _ = Describe("buildOrchestratorDeployment with MCP service discovery", func(
 			ObjectMeta: metav1.ObjectMeta{Name: "orch", Namespace: "default"},
 			Spec: corev1alpha1.OrchestratorSpec{
 				Image: "img",
-				Channels: corev1alpha1.ChannelsSpec{
-					Telegram: corev1alpha1.TelegramChannelSpec{
+				Channels: &corev1alpha1.ChannelsSpec{
+					Telegram: &corev1alpha1.TelegramChannelSpec{
 						Enabled: true,
 						TokenSecretRef: corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
@@ -609,8 +609,8 @@ var _ = Describe("buildOrchestratorDeployment with MCP service discovery", func(
 						},
 					},
 				},
-				Gateway: corev1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
-				Agent:   corev1alpha1.OrchestratorAgentSpec{Model: "m"},
+				Gateway: &corev1alpha1.OrchestratorGatewaySpec{URL: "http://gw:8080"},
+				Agent:   &corev1alpha1.OrchestratorAgentSpec{Model: "m"},
 				MCP: corev1alpha1.OrchestratorMCPSpec{
 					Enabled: true,
 					ServiceDiscovery: corev1alpha1.OrchestratorServiceDiscoverySpec{
@@ -661,6 +661,171 @@ var _ = Describe("buildOrchestratorDeployment with MCP service discovery", func(
 		Expect(hash1).NotTo(Equal(hash2))
 	})
 })
+
+var _ = Describe("Orchestrator running the daemon without Telegram", func() {
+	ctx := context.Background()
+	tokenRef := &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "binding-credentials"},
+		Key:                  "token",
+	}
+
+	reconcile := func(name string) {
+		reconciler := &OrchestratorReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: name, Namespace: "default"}})
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	create := func(name string, spec corev1alpha1.OrchestratorSpec) *corev1alpha1.Orchestrator {
+		orch := &corev1alpha1.Orchestrator{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"}, Spec: spec}
+		Expect(k8sClient.Create(ctx, orch)).To(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, orch))).To(Succeed()) })
+		return orch
+	}
+
+	It("rejects a spec that gives the daemon nothing to run and creates no Deployment", func() {
+		create("idle-orchestrator", corev1alpha1.OrchestratorSpec{Image: "img"})
+		reconcile("idle-orchestrator")
+
+		orch := &corev1alpha1.Orchestrator{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "idle-orchestrator", Namespace: "default"}, orch)).To(Succeed())
+		Expect(orch.Status.Ready).To(BeFalse())
+		Expect(orch.Status.Conditions).To(ContainElement(SatisfyAll(
+			HaveField("Type", "Ready"),
+			HaveField("Reason", "InvalidSpec"),
+			HaveField("Message", nothingToRunMessage),
+		)))
+
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: "idle-orchestrator", Namespace: "default"}, &appsv1.Deployment{})
+		Expect(client.IgnoreNotFound(err)).To(Succeed())
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("serves the binding through a <name>-binding Service on the default port", func() {
+		create("binding-orchestrator", corev1alpha1.OrchestratorSpec{
+			Image: "img",
+			Daemon: &corev1alpha1.OrchestratorDaemonSpec{Binding: &corev1alpha1.DaemonBindingSpec{
+				TokenSecretRef: tokenRef,
+				TLS:            corev1alpha1.DaemonBindingTLSSpec{SecretName: "binding-tls"},
+			}},
+		})
+		reconcile("binding-orchestrator")
+
+		svc := &corev1.Service{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "binding-orchestrator-binding", Namespace: "default"}, svc)).To(Succeed())
+		Expect(svc.Spec.Selector).To(Equal(map[string]string{"app": "binding-orchestrator"}))
+		Expect(svc.Spec.Ports).To(HaveLen(1))
+		Expect(svc.Spec.Ports[0].Port).To(Equal(int32(52789)))
+		Expect(svc.Spec.Ports[0].TargetPort.IntVal).To(Equal(int32(52789)))
+	})
+
+	It("rejects a binding that authenticates no client", func() {
+		orch := &corev1alpha1.Orchestrator{
+			ObjectMeta: metav1.ObjectMeta{Name: "open-binding", Namespace: "default"},
+			Spec: corev1alpha1.OrchestratorSpec{
+				Image: "img",
+				Daemon: &corev1alpha1.OrchestratorDaemonSpec{Binding: &corev1alpha1.DaemonBindingSpec{
+					TLS: corev1alpha1.DaemonBindingTLSSpec{SecretName: "binding-tls"},
+				}},
+			},
+		}
+		err := k8sClient.Create(ctx, orch)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.daemon.binding"))
+		Expect(err.Error()).To(ContainSubstring("binding needs tokenSecretRef or tls.clientAuth"))
+	})
+})
+
+var _ = Describe("binding wiring", func() {
+	tokenRef := &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "binding-credentials"},
+		Key:                  "token",
+	}
+	makeOrchestrator := func(binding *corev1alpha1.DaemonBindingSpec) *corev1alpha1.Orchestrator {
+		return &corev1alpha1.Orchestrator{
+			ObjectMeta: metav1.ObjectMeta{Name: "orch", Namespace: "default"},
+			Spec:       corev1alpha1.OrchestratorSpec{Image: "img", Daemon: &corev1alpha1.OrchestratorDaemonSpec{Binding: binding}},
+		}
+	}
+
+	It("serves TLS from the mounted Secret on every interface and reads the token from its Secret", func() {
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(makeOrchestrator(&corev1alpha1.DaemonBindingSpec{
+			Port:           50000,
+			TokenSecretRef: tokenRef,
+			TLS:            corev1alpha1.DaemonBindingTLSSpec{SecretName: "binding-tls"},
+		})))
+
+		Expect(envs["INFER_DAEMON_BINDING_ENABLED"].Value).To(Equal("true"))
+		Expect(envs["INFER_DAEMON_BINDING_HOST"].Value).To(Equal("0.0.0.0"))
+		Expect(envs["INFER_DAEMON_BINDING_PORT"].Value).To(Equal("50000"))
+		Expect(envs["INFER_DAEMON_BINDING_TLS_MODE"].Value).To(Equal("files"))
+		Expect(envs["INFER_DAEMON_BINDING_TLS_CERT_FILE"].Value).To(Equal("/etc/infer/tls/tls.crt"))
+		Expect(envs["INFER_DAEMON_BINDING_TLS_KEY_FILE"].Value).To(Equal("/etc/infer/tls/tls.key"))
+		Expect(envs["INFER_DAEMON_BINDING_TLS_CLIENT_AUTH"].Value).To(Equal("false"))
+		Expect(envs).NotTo(HaveKey("INFER_DAEMON_BINDING_TLS_CA_FILE"))
+		Expect(envs["INFER_DAEMON_BINDING_TOKEN"].ValueFrom.SecretKeyRef).To(Equal(tokenRef))
+	})
+
+	It("verifies client certificates against ca.crt when clientAuth is on", func() {
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(makeOrchestrator(&corev1alpha1.DaemonBindingSpec{
+			TLS: corev1alpha1.DaemonBindingTLSSpec{SecretName: "binding-tls", ClientAuth: true},
+		})))
+
+		Expect(envs["INFER_DAEMON_BINDING_PORT"].Value).To(Equal("52789"))
+		Expect(envs["INFER_DAEMON_BINDING_TLS_CLIENT_AUTH"].Value).To(Equal("true"))
+		Expect(envs["INFER_DAEMON_BINDING_TLS_CA_FILE"].Value).To(Equal("/etc/infer/tls/ca.crt"))
+		Expect(envs).NotTo(HaveKey("INFER_DAEMON_BINDING_TOKEN"))
+	})
+
+	It("mounts the TLS Secret, exposes the port and waits for the binding to listen", func() {
+		r := &OrchestratorReconciler{}
+		dep := r.buildOrchestratorDeployment(makeOrchestrator(&corev1alpha1.DaemonBindingSpec{
+			TokenSecretRef: tokenRef,
+			TLS:            corev1alpha1.DaemonBindingTLSSpec{SecretName: "binding-tls"},
+		}), "", "")
+
+		pod := dep.Spec.Template.Spec
+		Expect(pod.Volumes).To(ConsistOf(HaveField("Secret.SecretName", "binding-tls")))
+		container := pod.Containers[0]
+		Expect(container.VolumeMounts).To(ConsistOf(corev1.VolumeMount{Name: "binding-tls", MountPath: "/etc/infer/tls", ReadOnly: true}))
+		Expect(container.Ports).To(ConsistOf(HaveField("ContainerPort", int32(52789))))
+		Expect(container.ReadinessProbe.TCPSocket.Port.IntVal).To(Equal(int32(52789)))
+	})
+
+	It("leaves the Deployment without binding wiring when spec.daemon.binding is unset", func() {
+		r := &OrchestratorReconciler{}
+		orch := makeOrchestrator(nil)
+		dep := r.buildOrchestratorDeployment(orch, "", "")
+
+		container := dep.Spec.Template.Spec.Containers[0]
+		Expect(dep.Spec.Template.Spec.Volumes).To(BeEmpty())
+		Expect(container.Ports).To(BeEmpty())
+		Expect(container.ReadinessProbe).To(BeNil())
+		Expect(envByNameFn(buildOrchestratorEnvironmentVars(orch))).NotTo(HaveKey("INFER_DAEMON_BINDING_ENABLED"))
+	})
+
+	It("omits the channel, gateway and agent env vars the spec leaves out", func() {
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(makeOrchestrator(nil)))
+		for name := range envs {
+			Expect(name).NotTo(HavePrefix("INFER_CHANNELS_"))
+		}
+		Expect(envs).NotTo(HaveKey("INFER_GATEWAY_URL"))
+		Expect(envs).NotTo(HaveKey("INFER_AGENT_MODEL"))
+	})
+})
+
+var _ = DescribeTable("daemonHasWork",
+	func(spec corev1alpha1.OrchestratorSpec, expected bool) {
+		Expect(daemonHasWork(&spec)).To(Equal(expected))
+	},
+	Entry("nothing configured", corev1alpha1.OrchestratorSpec{}, false),
+	Entry("channels", corev1alpha1.OrchestratorSpec{Channels: &corev1alpha1.ChannelsSpec{}}, true),
+	Entry("the daemon binding", corev1alpha1.OrchestratorSpec{Daemon: &corev1alpha1.OrchestratorDaemonSpec{Binding: &corev1alpha1.DaemonBindingSpec{}}}, true),
+	Entry("a daemon section without a binding", corev1alpha1.OrchestratorSpec{Daemon: &corev1alpha1.OrchestratorDaemonSpec{}}, false),
+	Entry("the scheduler", corev1alpha1.OrchestratorSpec{Tools: corev1alpha1.OrchestratorToolsSpec{Schedule: true}}, true),
+	Entry("the heartbeat through spec.env", corev1alpha1.OrchestratorSpec{Env: &[]corev1.EnvVar{{Name: "INFER_HEARTBEAT_ENABLED", Value: "true"}}}, true),
+	Entry("a switch turned off in spec.env", corev1alpha1.OrchestratorSpec{Env: &[]corev1.EnvVar{{Name: "INFER_A2A_SERVER_ENABLED", Value: "false"}}}, false),
+	Entry("an unrelated env var", corev1alpha1.OrchestratorSpec{Env: &[]corev1.EnvVar{{Name: "EXTRA", Value: "true"}}}, false),
+)
 
 // envByNameFn converts a slice of EnvVar to a map keyed by name.
 func envByNameFn(envs []corev1.EnvVar) map[string]corev1.EnvVar {
