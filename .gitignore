@@ -24,6 +24,9 @@ go.work
 # Gateway API CRDs fetched on-demand for envtest by `task fetch-gateway-api-crds`
 test/crds/gateway-api/
 
+# The agent-sandbox release manifest fetched for envtest by `task fetch-agent-sandbox-crds`
+test/crds/agent-sandbox/
+
 # editor and IDE paraphernalia
 .idea
 .vscode

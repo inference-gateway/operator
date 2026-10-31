@@ -18,6 +18,7 @@ vars:
   ENVTEST_VERSION: "release-0.23"
   ENVTEST_K8S_VERSION: "1.35"
   GATEWAY_API_VERSION: v1.5.1
+  AGENT_SANDBOX_VERSION: v1.0.8
   ENVOY_GATEWAY_VERSION: v1.2.0
   GOLANGCI_LINT_VERSION: v2.11.4
   CERT_MANAGER_VERSION: v1.20.2
@@ -140,6 +141,7 @@ tasks:
         fi
       - task: envoy-gateway:install
       - kubectl -n envoy-gateway-system wait --for=condition=Available --timeout=120s deployment/envoy-gateway
+      - task: agent-sandbox:install
 
   cert-manager:install:
     desc: Install cert-manager in the cluster
@@ -176,6 +178,12 @@ tasks:
         fi
         kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
 
+  agent-sandbox:install:
+    desc: 'Install the agent-sandbox controller and its Sandbox CRD (for runtime: Sandbox Orchestrators)'
+    cmds:
+      - kubectl apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/{{.AGENT_SANDBOX_VERSION}}/sandbox.yaml
+      - kubectl -n agent-sandbox-system wait --for=condition=Available --timeout=180s deployment --all
+
   envoy-gateway:install:
     desc: Install Envoy Gateway and a default `envoy` GatewayClass
     deps:
@@ -207,11 +215,20 @@ tasks:
       - mkdir -p test/crds/gateway-api
       - curl -fsSL -o test/crds/gateway-api/standard-install.yaml https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
 
+  fetch-agent-sandbox-crds:
+    desc: Download the agent-sandbox release manifest, whose Sandbox CRD envtest installs
+    status:
+      - test -f test/crds/agent-sandbox/sandbox.yaml
+    cmds:
+      - mkdir -p test/crds/agent-sandbox
+      - curl -fsSL -o test/crds/agent-sandbox/sandbox.yaml https://github.com/kubernetes-sigs/agent-sandbox/releases/download/{{.AGENT_SANDBOX_VERSION}}/sandbox.yaml
+
   test:
     desc: Run tests
     deps:
       - ensure-k8s-envtest
       - fetch-gateway-api-crds
+      - fetch-agent-sandbox-crds
     cmds:
       - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path)" go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
 
@@ -220,6 +237,7 @@ tasks:
     deps:
       - ensure-k8s-envtest
       - fetch-gateway-api-crds
+      - fetch-agent-sandbox-crds
     cmds:
       - KUBEBUILDER_ASSETS="$({{.ENVTEST}} use {{.ENVTEST_K8S_VERSION}} -p path)" go test ./internal/controller/ -coverprofile cover.out -covermode=atomic
       - 'echo "=== internal/controller coverage ==="'

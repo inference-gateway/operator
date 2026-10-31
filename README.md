@@ -189,6 +189,12 @@ name outside the list above is skipped - it is left out of
 
   `install.yaml` does not bundle them. v1.5.1 is the version this repo tests against (`GATEWAY_API_VERSION` in `Taskfile.yaml`); newer standard-channel releases work too.
 
+- **[agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox)** (optional) - only for Orchestrators with `runtime: Sandbox`. Install it before the operator starts, or restart the operator afterwards, so it watches Sandboxes. v1.0.8 is the version this repo tests against (`AGENT_SANDBOX_VERSION` in `Taskfile.yaml`):
+
+  ```bash
+  kubectl apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.8/sandbox.yaml
+  ```
+
 ## 📦 Installation
 
 The Inference Gateway Operator supports multiple installation methods. Choose the one that best fits your deployment strategy:
@@ -529,6 +535,49 @@ kubectl apply -f examples/daemon/orchestrator.yaml
 # 3. Reach it from your machine
 kubectl port-forward -n orchestrators svc/daemon-binding 52789
 ```
+
+### Run the daemon in a Sandbox
+
+`spec.runtime: Sandbox` runs the daemon in an agent-sandbox `Sandbox` instead of a
+Deployment: a stable pod with two persistent volumes, the daemon's workspace
+(`/workspace`) and its state (`~/.infer/projects`), that outlive a suspension.
+It needs [agent-sandbox](#prerequisites) installed. Without it, the Orchestrator
+reports `Ready=False` with reason `SandboxCRDMissing` and everything else keeps
+running.
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
+metadata:
+  name: sandboxed-daemon
+  namespace: orchestrators
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  runtime: Sandbox
+  sandbox:
+    storage: 5Gi
+    operatingMode: Running
+  daemon:
+    binding:
+      tokenSecretRef:
+        name: daemon-binding
+        key: token
+      tls:
+        secretName: daemon-binding-tls
+```
+
+- `spec.sandbox.operatingMode: Suspended` deletes the pod and keeps the volumes,
+  and `Running` resumes it on a fresh pod. A pod that finished is replaced the
+  same way.
+- `spec.sandbox.shutdownTime` deletes the Orchestrator once it passes, with its
+  Sandbox, the volumes and everything else it owns.
+- `spec.sandbox.storage` (default `5Gi`) sizes both volumes when the Sandbox is
+  created.
+- The pod runs as its own ServiceAccount, `<name>-daemon`, which may only get and
+  patch its own Orchestrator. That lets the daemon suspend itself when it idles
+  out. It finds the Orchestrator through `INFER_DAEMON_KUBERNETES_ORCHESTRATOR`
+  and `INFER_DAEMON_KUBERNETES_NAMESPACE`.
+- `status.podName` names the Sandbox's pod, for clients that port-forward to it.
 
 ## 🔄 Upgrade
 
