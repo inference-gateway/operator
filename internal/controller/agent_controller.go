@@ -339,7 +339,7 @@ func (r *AgentReconciler) buildAgentDeployment(agent *corev1alpha1.Agent) *appsv
 		port = agent.Spec.Port
 	}
 
-	return &appsv1.Deployment{
+	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      agent.Name,
 			Namespace: agent.Namespace,
@@ -364,6 +364,9 @@ func (r *AgentReconciler) buildAgentDeployment(agent *corev1alpha1.Agent) *appsv
 			},
 		},
 	}
+
+	agent.Spec.Pod.ApplyTo(&deployment.Spec.Template)
+	return deployment
 }
 
 // buildAgentEnvironmentVars creates environment variables from Agent spec.

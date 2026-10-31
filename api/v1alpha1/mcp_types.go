@@ -39,6 +39,11 @@ type MCPSpec struct {
 	// HPA defines the Horizontal Pod Autoscaler configuration for the MCP server.
 	// +optional
 	HPA *HPASpec `json:"hpa,omitempty"`
+
+	// Pod customizes the pods of the MCP server deployment (labels, annotations,
+	// nodeSelector, tolerations, affinity).
+	// +optional
+	Pod *PodSpec `json:"pod,omitempty"`
 }
 
 type MCPBridgeSpec struct {

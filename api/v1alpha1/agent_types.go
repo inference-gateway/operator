@@ -95,6 +95,11 @@ type AgentSpec struct {
 	// Resources are the compute resource requirements for the agent container.
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// Pod customizes the pods of the agent deployment (labels, annotations,
+	// nodeSelector, tolerations, affinity).
+	// +optional
+	Pod *PodSpec `json:"pod,omitempty"`
 }
 
 type LoggingSpec struct {

@@ -98,6 +98,11 @@ type GatewaySpec struct {
 	// Guardrails configuration for OPA/Rego policy enforcement
 	// +optional
 	Guardrails *GuardrailsSpec `json:"guardrails,omitempty"`
+
+	// Pod customizes the pods of the gateway deployment (labels, annotations,
+	// nodeSelector, tolerations, affinity)
+	// +optional
+	Pod *PodSpec `json:"pod,omitempty"`
 }
 
 // ServiceAccountSpec contains service account configuration for RBAC
