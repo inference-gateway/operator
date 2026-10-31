@@ -23,7 +23,7 @@ import (
 
 // OrchestratorSpec defines the desired state of Orchestrator.
 //
-// An Orchestrator deploys the Inference Gateway CLI's `channels-manager` daemon:
+// An Orchestrator deploys the Inference Gateway CLI's `infer daemon`:
 // an LLM-driven loop that receives messages from a chat channel, optionally
 // fans out to A2A Agents and tools (incl. MCP), and replies. The Deployment is
 // always a singleton (replicas=1, strategy=Recreate) because Telegram allows
@@ -54,7 +54,7 @@ type OrchestratorSpec struct {
 
 	// Telemetry configures observability (traces and metrics) for the
 	// orchestrator. Mapped onto INFER_TELEMETRY_* env vars consumed by
-	// the `infer channels-manager` CLI.
+	// the `infer daemon` CLI.
 	// +optional
 	Telemetry *TelemetrySpec `json:"telemetry,omitempty"`
 }

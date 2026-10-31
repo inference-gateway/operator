@@ -10,7 +10,7 @@ End-to-end deployment of an `Orchestrator` that:
 ```text
               ┌─────────────────────┐
    Telegram ◀▶│    Orchestrator     │──▶ Gateway ──▶ DeepSeek
-   (long-poll)│  (channels-manager) │      ▲
+   (long-poll)│   (infer daemon)    │      ▲
               └─────────────────────┘      │
                        │   │               │
                        │   └──▶ Redis (conversation storage)

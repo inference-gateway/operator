@@ -69,7 +69,7 @@ spec:
         matchLabels:
           mcp-group: group1
   # Telemetry pushes over a single shared OTLP endpoint
-  # (INFER_TELEMETRY_OTLP_ENDPOINT): the channels-manager daemon exports metrics
+  # (INFER_TELEMETRY_OTLP_ENDPOINT): the infer daemon exports metrics
   # (and traces) to the collector. Prometheus scrape is not an option here - the
   # orchestrator exposes no Service - so OTLP push is the only path out.
   telemetry:
