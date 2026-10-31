@@ -82,7 +82,7 @@ var _ = Describe("Orchestrator Controller", func() {
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 
-		It("should create a singleton Recreate Deployment running channels-manager", func() {
+		It("should create a singleton Recreate Deployment running infer daemon", func() {
 			By("Reconciling the created resource")
 			controllerReconciler := &OrchestratorReconciler{
 				Client: k8sClient,
@@ -105,7 +105,7 @@ var _ = Describe("Orchestrator Controller", func() {
 			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
 			c := deployment.Spec.Template.Spec.Containers[0]
 			Expect(c.Command).To(Equal([]string{"infer"}))
-			Expect(c.Args).To(Equal([]string{"channels-manager"}))
+			Expect(c.Args).To(Equal([]string{"daemon"}))
 		})
 	})
 })

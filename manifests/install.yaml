@@ -602,7 +602,7 @@ spec:
                       that other processes (e.g. the gateway, A2A agents) can push spans to
                       it. Only one process per pod can bind the receiver port; enabling both
                       receiver and channels causes a port conflict because agent subprocesses
-                      spawned by the channels-manager would contend for it.
+                      spawned by the daemon would contend for it.
                     properties:
                       enabled:
                         default: false
@@ -2680,7 +2680,7 @@ spec:
                       that other processes (e.g. the gateway, A2A agents) can push spans to
                       it. Only one process per pod can bind the receiver port; enabling both
                       receiver and channels causes a port conflict because agent subprocesses
-                      spawned by the channels-manager would contend for it.
+                      spawned by the daemon would contend for it.
                     properties:
                       enabled:
                         default: false
@@ -4038,7 +4038,7 @@ spec:
             description: |-
               OrchestratorSpec defines the desired state of Orchestrator.
 
-              An Orchestrator deploys the Inference Gateway CLI's `channels-manager` daemon:
+              An Orchestrator deploys the Inference Gateway CLI's `infer daemon`:
               an LLM-driven loop that receives messages from a chat channel, optionally
               fans out to A2A Agents and tools (incl. MCP), and replies. The Deployment is
               always a singleton (replicas=1, strategy=Recreate) because Telegram allows
@@ -4553,7 +4553,7 @@ spec:
                 description: |-
                   Telemetry configures observability (traces and metrics) for the
                   orchestrator. Mapped onto INFER_TELEMETRY_* env vars consumed by
-                  the `infer channels-manager` CLI.
+                  the `infer daemon` CLI.
                 properties:
                   enabled:
                     default: false
@@ -4627,7 +4627,7 @@ spec:
                       that other processes (e.g. the gateway, A2A agents) can push spans to
                       it. Only one process per pod can bind the receiver port; enabling both
                       receiver and channels causes a port conflict because agent subprocesses
-                      spawned by the channels-manager would contend for it.
+                      spawned by the daemon would contend for it.
                     properties:
                       enabled:
                         default: false
