@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"reflect"
@@ -54,7 +55,14 @@ type OrchestratorReconciler struct {
 	// SandboxAvailable says the cluster serves agent-sandbox Sandboxes, which
 	// runtime: Sandbox needs. SetupWithManager detects it.
 	SandboxAvailable bool
+
+	// PodReader reads a Sandbox's pod uncached, so the operator never caches
+	// every pod in the cluster. SetupWithManager uses the manager's API reader.
+	PodReader client.Reader
 }
+
+// orchestratorContainerName is the daemon's container in either runtime.
+const orchestratorContainerName = "orchestrator"
 
 // workloadState is how the daemon's workload reports: whether it is ready,
 // why, and the pod it runs when the runtime knows it.
@@ -73,7 +81,7 @@ const (
 	bindingTLSMountPath = "/etc/infer/tls"
 )
 
-const nothingToRunMessage = "the daemon has nothing to run: set spec.channels, spec.daemon.binding or spec.tools.schedule, " +
+const nothingToRunMessage = "the daemon has nothing to run: enable a channel in spec.channels, set spec.daemon.binding or spec.tools.schedule, " +
 	"or enable the heartbeat or the A2A server through spec.env"
 
 // daemonSwitchEnvVars switch on what `infer daemon` runs beyond the spec's own
@@ -113,15 +121,15 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
-	if !daemonHasWork(&orch.Spec) {
-		logger.Info("rejecting Orchestrator with invalid spec", "reason", nothingToRunMessage)
-		return ctrl.Result{}, r.patchStatusNotReady(ctx, &orch, "InvalidSpec", nothingToRunMessage)
-	}
-
 	now := time.Now()
 	if expiry := sandboxExpiry(&orch.Spec); !expiry.IsZero() && !now.Before(expiry) {
 		logger.Info("deleting the Orchestrator, its sandbox shutdown time passed", "shutdownTime", expiry)
 		return ctrl.Result{}, client.IgnoreNotFound(r.Delete(ctx, &orch))
+	}
+
+	if !daemonHasWork(&orch.Spec) {
+		logger.Info("rejecting Orchestrator with invalid spec", "reason", nothingToRunMessage)
+		return ctrl.Result{}, r.patchStatusNotReady(ctx, &orch, "InvalidSpec", nothingToRunMessage)
 	}
 
 	if runsInSandbox(&orch.Spec) && !r.SandboxAvailable {
@@ -150,8 +158,12 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	workload, err := r.reconcileWorkload(ctx, &orch, agentsYAML, mcpYAML)
+	workload, err := r.reconcileWorkload(ctx, &orch, agentsYAML, mcpYAML, now)
 	if err != nil {
+		if errors.Is(err, errOrchestratorExpired) {
+			logger.Info("deleted the Orchestrator, its sandbox expired")
+			return ctrl.Result{}, nil
+		}
 		if apierrors.IsConflict(err) {
 			logger.V(1).Info("workload reconciliation conflict, requeueing", "error", err)
 			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
@@ -181,16 +193,11 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
-// reconcileWorkload runs the daemon as the spec's runtime and removes the
-// workload the other runtime left behind.
-func (r *OrchestratorReconciler) reconcileWorkload(ctx context.Context, orch *corev1alpha1.Orchestrator, agentsYAML, mcpYAML string) (workloadState, error) {
+// reconcileWorkload runs the daemon as the spec's runtime, which is fixed at
+// creation.
+func (r *OrchestratorReconciler) reconcileWorkload(ctx context.Context, orch *corev1alpha1.Orchestrator, agentsYAML, mcpYAML string, now time.Time) (workloadState, error) {
 	if runsInSandbox(&orch.Spec) {
-		return r.reconcileSandboxWorkload(ctx, orch, buildOrchestratorPodTemplate(orch, agentsYAML, mcpYAML))
-	}
-	if r.SandboxAvailable {
-		if err := r.deleteOwned(ctx, orch, newSandbox(orch)); err != nil {
-			return workloadState{}, err
-		}
+		return r.reconcileSandboxWorkload(ctx, orch, buildOrchestratorPodTemplate(orch, agentsYAML, mcpYAML), now)
 	}
 	deployment, err := r.reconcileDeployment(ctx, orch, agentsYAML, mcpYAML)
 	if err != nil {
@@ -205,10 +212,6 @@ func deploymentState(deployment *appsv1.Deployment) workloadState {
 		return workloadState{ready: true, reason: "DeploymentAvailable", message: "orchestrator deployment is available"}
 	}
 	return workloadState{reason: "DeploymentNotAvailable", message: "orchestrator deployment has no available replicas yet"}
-}
-
-func orchestratorDeploymentKey(orch *corev1alpha1.Orchestrator) *appsv1.Deployment {
-	return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: orch.Name, Namespace: orch.Namespace}}
 }
 
 // reconcileAgentsConfigMap discovers Agent CRs matching the service discovery selector,
@@ -573,7 +576,7 @@ func (r *OrchestratorReconciler) buildOrchestratorDeployment(orch *corev1alpha1.
 // Kubernetes does not propagate live updates to ConfigMap volumes that use subPath.
 func buildOrchestratorPodTemplate(orch *corev1alpha1.Orchestrator, agentsYAML, mcpYAML string) corev1.PodTemplateSpec {
 	container := corev1.Container{
-		Name:      "orchestrator",
+		Name:      orchestratorContainerName,
 		Image:     orch.Spec.Image,
 		Command:   []string{"infer"},
 		Args:      []string{"daemon"},
@@ -668,7 +671,7 @@ func buildOrchestratorEnvironmentVars(orch *corev1alpha1.Orchestrator) []corev1.
 		envVars = append(envVars, *orch.Spec.Env...)
 	}
 
-	if orch.Spec.Channels != nil {
+	if telegramEnabled(orch.Spec.Channels) {
 		envVars = append(envVars, corev1.EnvVar{Name: "INFER_CHANNELS_ENABLED", Value: "true"})
 	}
 
@@ -836,7 +839,7 @@ func bindingPort(binding *corev1alpha1.DaemonBindingSpec) int32 {
 // the same check the daemon refuses to start without. spec.env counts too, so
 // an Orchestrator that only enables the heartbeat or the A2A server stays valid.
 func daemonHasWork(spec *corev1alpha1.OrchestratorSpec) bool {
-	if spec.Channels != nil || daemonBinding(spec) != nil || spec.Tools.Schedule {
+	if telegramEnabled(spec.Channels) || daemonBinding(spec) != nil || spec.Tools.Schedule {
 		return true
 	}
 	if spec.Env == nil {
@@ -1279,7 +1282,12 @@ func (r *OrchestratorReconciler) mcpToOrchestratorRequests(ctx context.Context, 
 // reconciliations when one matching an Orchestrator's service discovery selector changes.
 // It watches Sandboxes only when agent-sandbox is installed, so the operator runs without it.
 func (r *OrchestratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.SandboxAvailable = sandboxCRDInstalled(mgr.GetRESTMapper())
+	sandboxAvailable, err := sandboxCRDInstalled(mgr.GetRESTMapper())
+	if err != nil {
+		return err
+	}
+	r.SandboxAvailable = sandboxAvailable
+	r.PodReader = mgr.GetAPIReader()
 	if !r.SandboxAvailable {
 		mgr.GetLogger().Info("agent-sandbox is not installed, Orchestrators with runtime: Sandbox stay not ready until it is and the operator restarts")
 	}
@@ -1290,7 +1298,7 @@ func (r *OrchestratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{})
 	if r.SandboxAvailable {
-		builder = builder.Owns(newSandbox(nil))
+		builder = builder.Owns(sandboxKind())
 	}
 	return builder.
 		Watches(

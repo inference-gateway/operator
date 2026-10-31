@@ -4608,23 +4608,39 @@ spec:
               runtime:
                 default: Deployment
                 description: |-
-                  Runtime is the workload the daemon runs as. Sandbox needs agent-sandbox
+                  Runtime is the workload the daemon runs as, fixed at creation because a
+                  Sandbox's volumes would not survive a switch. Sandbox needs agent-sandbox
                   (agents.x-k8s.io) installed in the cluster.
                 enum:
                 - Deployment
                 - Sandbox
                 type: string
+                x-kubernetes-validations:
+                - message: spec.runtime is fixed when the Orchestrator is created
+                  rule: self == oldSelf
               sandbox:
                 description: 'Sandbox configures the Sandbox the daemon runs in with
                   runtime: Sandbox.'
                 properties:
                   operatingMode:
                     default: Running
-                    description: OperatingMode runs the Sandbox or suspends it, keeping
-                      its volumes.
+                    description: |-
+                      OperatingMode runs the Sandbox or suspends it, keeping its volumes. The
+                      operator sets Suspended itself when the daemon idles out, so a client
+                      resumes the daemon by setting Running.
                     enum:
                     - Running
                     - Suspended
+                    type: string
+                  retention:
+                    description: |-
+                      Retention deletes the Orchestrator this long after its daemon idled out
+                      with every agent done, unless a client resumed it first.
+                    type: string
+                  runtimeClassName:
+                    description: |-
+                      RuntimeClassName runs the pod under a RuntimeClass such as gVisor or Kata,
+                      the isolation agent-sandbox recommends for untrusted, LLM-driven code.
                     type: string
                   shutdownTime:
                     description: |-
@@ -4641,6 +4657,9 @@ spec:
                       the Sandbox is created.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
+                    x-kubernetes-validations:
+                    - message: spec.sandbox.storage is fixed when the Sandbox is created
+                      rule: self == oldSelf
                 type: object
               telemetry:
                 description: |-

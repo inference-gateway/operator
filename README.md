@@ -543,7 +543,8 @@ Deployment: a stable pod with two persistent volumes, the daemon's workspace
 (`/workspace`) and its state (`~/.infer/projects`), that outlive a suspension.
 It needs [agent-sandbox](#prerequisites) installed. Without it, the Orchestrator
 reports `Ready=False` with reason `SandboxCRDMissing` and everything else keeps
-running.
+running. `spec.runtime` is fixed at creation, because switching away from a
+Sandbox would delete its volumes.
 
 ```yaml
 apiVersion: core.inference-gateway.com/v1alpha1
@@ -556,7 +557,12 @@ spec:
   runtime: Sandbox
   sandbox:
     storage: 5Gi
-    operatingMode: Running
+    retention: 24h
+    runtimeClassName: gvisor
+  resources:
+    limits:
+      cpu: "2"
+      memory: 4Gi
   daemon:
     binding:
       tokenSecretRef:
@@ -566,18 +572,73 @@ spec:
         secretName: daemon-binding-tls
 ```
 
-- `spec.sandbox.operatingMode: Suspended` deletes the pod and keeps the volumes,
-  and `Running` resumes it on a fresh pod. A pod that finished is replaced the
-  same way.
-- `spec.sandbox.shutdownTime` deletes the Orchestrator once it passes, with its
-  Sandbox, the volumes and everything else it owns.
-- `spec.sandbox.storage` (default `5Gi`) sizes both volumes when the Sandbox is
-  created.
-- The pod runs as its own ServiceAccount, `<name>-daemon`, which may only get and
-  patch its own Orchestrator. That lets the daemon suspend itself when it idles
-  out. It finds the Orchestrator through `INFER_DAEMON_KUBERNETES_ORCHESTRATOR`
-  and `INFER_DAEMON_KUBERNETES_NAMESPACE`.
-- `status.podName` names the Sandbox's pod, for clients that port-forward to it.
+- `spec.sandbox.operatingMode: Suspended` deletes the pod and keeps the volumes.
+  `Running` resumes it on a fresh pod once the suspension completed.
+- The daemon idles out by exiting 0 (`INFER_DAEMON_IDLE_EXIT` in `spec.env`). The
+  operator then parks the Orchestrator itself: it sets `operatingMode: Suspended`,
+  and a client resumes the daemon by setting `Running`. A daemon that writes
+  `agents-done=true` to its termination message has every agent done, which starts
+  `spec.sandbox.retention`: the Orchestrator is deleted that long after, unless a
+  client resumed it first.
+- `spec.sandbox.shutdownTime` expires the Sandbox at that time, and the operator
+  deletes the Orchestrator with the Sandbox, the volumes and everything else it
+  owns once agent-sandbox reports `SandboxExpired`.
+- A change to the daemon's pod (its image, env, binding or discovered agents) cycles
+  the pod through `Suspended`, because agent-sandbox only applies a new template to
+  the pod it creates next. A pod that fails is recreated by agent-sandbox with a
+  backoff (`failedPodPolicy: Recreate`).
+- `spec.sandbox.storage` (default `5Gi`) sizes both volumes and is fixed at creation.
+- `status.podName` names the Sandbox's pod once it is ready, for clients that
+  port-forward to it.
+
+The pod follows agent-sandbox's
+[threat model](https://github.com/kubernetes-sigs/agent-sandbox/blob/main/docs/security/threat_model.md)
+for untrusted, LLM-driven code: it has no Kubernetes API access
+(`automountServiceAccountToken: false`), runs as a non-root user without
+capabilities or privilege escalation under the `RuntimeDefault` seccomp profile,
+and `spec.sandbox.runtimeClassName` runs it under gVisor or Kata. Set
+`spec.resources` limits too. The operator creates no NetworkPolicy, because the
+daemon reaches the inference gateway, MCP servers and A2A agents inside the
+cluster. Restrict its traffic with one of your own, for example:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sandboxed-daemon
+  namespace: orchestrators
+spec:
+  podSelector:
+    matchLabels:
+      app: sandboxed-daemon
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 52789
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: inference-gateway
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+```
 
 ## 🔄 Upgrade
 

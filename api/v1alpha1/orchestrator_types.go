@@ -33,10 +33,12 @@ import (
 type OrchestratorSpec struct {
 	Image string `json:"image"`
 
-	// Runtime is the workload the daemon runs as. Sandbox needs agent-sandbox
+	// Runtime is the workload the daemon runs as, fixed at creation because a
+	// Sandbox's volumes would not survive a switch. Sandbox needs agent-sandbox
 	// (agents.x-k8s.io) installed in the cluster.
 	// +optional
 	// +kubebuilder:default=Deployment
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.runtime is fixed when the Orchestrator is created"
 	Runtime OrchestratorRuntime `json:"runtime,omitempty"`
 
 	// Sandbox configures the Sandbox the daemon runs in with runtime: Sandbox.
@@ -145,14 +147,18 @@ const (
 
 // OrchestratorSandboxSpec configures the Sandbox the daemon runs in. Its
 // volumes hold the daemon's workspace (/workspace) and its state
-// (~/.infer/projects), and outlive a suspension.
+// (~/.infer/projects), and outlive a suspension. The pod has no Kubernetes API
+// access and runs as a non-root user without capabilities.
 type OrchestratorSandboxSpec struct {
 	// Storage is the size of the workspace and of the state volume, fixed when
 	// the Sandbox is created.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec.sandbox.storage is fixed when the Sandbox is created"
 	Storage *resource.Quantity `json:"storage,omitempty"`
 
-	// OperatingMode runs the Sandbox or suspends it, keeping its volumes.
+	// OperatingMode runs the Sandbox or suspends it, keeping its volumes. The
+	// operator sets Suspended itself when the daemon idles out, so a client
+	// resumes the daemon by setting Running.
 	// +optional
 	// +kubebuilder:default=Running
 	OperatingMode SandboxOperatingMode `json:"operatingMode,omitempty"`
@@ -161,6 +167,16 @@ type OrchestratorSandboxSpec struct {
 	// it passes.
 	// +optional
 	ShutdownTime *metav1.Time `json:"shutdownTime,omitempty"`
+
+	// Retention deletes the Orchestrator this long after its daemon idled out
+	// with every agent done, unless a client resumed it first.
+	// +optional
+	Retention *metav1.Duration `json:"retention,omitempty"`
+
+	// RuntimeClassName runs the pod under a RuntimeClass such as gVisor or Kata,
+	// the isolation agent-sandbox recommends for untrusted, LLM-driven code.
+	// +optional
+	RuntimeClassName *string `json:"runtimeClassName,omitempty"`
 }
 
 // OrchestratorDaemonSpec mirrors the CLI's daemon config for what the daemon

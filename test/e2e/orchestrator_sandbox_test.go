@@ -28,6 +28,10 @@ import (
 	utils "github.com/inference-gateway/operator/test/utils"
 )
 
+// idleExitCLIImage is the first CLI image whose daemon idles out
+// (INFER_DAEMON_IDLE_EXIT). Move to cli:latest once 0.239.0 is released.
+const idleExitCLIImage = "ghcr.io/inference-gateway/cli:0.239.0-rc.9"
+
 var _ = Describe("Orchestrator with runtime: Sandbox", Ordered, func() {
 	const (
 		orchestratorName = "e2e-sandboxed-orchestrator"
@@ -81,6 +85,7 @@ var _ = Describe("Orchestrator with runtime: Sandbox", Ordered, func() {
 
 	AfterAll(func() {
 		_, _ = kubectl("delete", "orchestrator", orchestratorName, "-n", testNamespace, "--ignore-not-found=true")
+		_, _ = kubectl("delete", "secret", orchestratorName+"-tls", orchestratorName+"-token", "-n", testNamespace, "--ignore-not-found=true")
 	})
 
 	It("runs the daemon in a Sandbox that suspends, resumes and expires", func() {
@@ -109,6 +114,10 @@ EOF`, orchestratorName, testNamespace)))
 		_, err = kubectl("get", "sandbox", orchestratorName, "-n", testNamespace)
 		Expect(err).NotTo(HaveOccurred())
 
+		By("writing to the workspace volume")
+		_, err = kubectl("exec", podName, "-n", testNamespace, "--", "sh", "-c", "echo kept > /workspace/marker")
+		Expect(err).NotTo(HaveOccurred())
+
 		By("suspending the Sandbox, which removes its pod")
 		patchSandbox(`{"operatingMode":"Suspended"}`)
 		Eventually(orchestratorField(`{.status.conditions[?(@.type=="Ready")].reason}`), sandboxTimeout, sandboxInterval).
@@ -118,15 +127,71 @@ EOF`, orchestratorName, testNamespace)))
 			return err
 		}, sandboxTimeout, sandboxInterval).Should(MatchError(ContainSubstring("NotFound")))
 
-		By("resuming the Sandbox")
+		By("resuming the Sandbox on a fresh pod that still has the workspace")
 		patchSandbox(`{"operatingMode":"Running"}`)
 		Eventually(orchestratorField("{.status.ready}"), sandboxTimeout, sandboxInterval).Should(Equal("true"))
+		marker, err := kubectl("exec", podName, "-n", testNamespace, "--", "cat", "/workspace/marker")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(strings.TrimSpace(marker)).To(Equal("kept"))
 
-		By("deleting the Orchestrator once its shutdown time passes")
+		By("deleting the Orchestrator once its Sandbox expires")
 		patchSandbox(fmt.Sprintf(`{"shutdownTime":%q}`, time.Now().Add(10*time.Second).UTC().Format(time.RFC3339)))
 		Eventually(func() error {
 			_, err := kubectl("get", "orchestrator", orchestratorName, "-n", testNamespace)
 			return err
 		}, sandboxTimeout, sandboxInterval).Should(MatchError(ContainSubstring("NotFound")))
+		Eventually(func() error {
+			_, err := kubectl("get", "sandbox", orchestratorName, "-n", testNamespace)
+			return err
+		}, sandboxTimeout, sandboxInterval).Should(MatchError(ContainSubstring("NotFound")))
+	})
+
+	It("parks the Orchestrator when its daemon idles out, and resumes it on request", func() {
+		By("creating the binding's certificate and token, so the daemon serves something it can idle out of")
+		_, err := utils.Run(exec.Command("sh", "-c", fmt.Sprintf(`set -e
+dir=$(mktemp -d)
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=%[1]s -keyout "$dir/tls.key" -out "$dir/tls.crt" 2>/dev/null
+kubectl create secret tls %[1]s-tls -n %[2]s --cert="$dir/tls.crt" --key="$dir/tls.key" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic %[1]s-token -n %[2]s --from-literal=token=e2e --dry-run=client -o yaml | kubectl apply -f -
+rm -rf "$dir"`, orchestratorName, testNamespace)))
+		Expect(err).NotTo(HaveOccurred())
+
+		By("creating a Sandbox Orchestrator whose daemon idles out after 20 seconds")
+		_, err = utils.Run(exec.Command("sh", "-c", fmt.Sprintf(`cat <<'EOF' | kubectl apply -f -
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
+metadata:
+  name: %[1]s
+  namespace: %[2]s
+spec:
+  image: %[3]s
+  runtime: Sandbox
+  sandbox:
+    storage: 1Gi
+  daemon:
+    binding:
+      tokenSecretRef:
+        name: %[1]s-token
+        key: token
+      tls:
+        secretName: %[1]s-tls
+  env:
+    - name: INFER_DAEMON_IDLE_EXIT
+      value: 20s
+EOF`, orchestratorName, testNamespace, idleExitCLIImage)))
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(orchestratorField("{.status.ready}"), sandboxTimeout, sandboxInterval).Should(Equal("true"))
+
+		By("waiting for the operator to park it once the daemon exited")
+		Eventually(orchestratorField("{.spec.sandbox.operatingMode}"), sandboxTimeout, sandboxInterval).Should(Equal("Suspended"))
+		Eventually(orchestratorField(`{.status.conditions[?(@.type=="Ready")].reason}`), sandboxTimeout, sandboxInterval).
+			Should(Equal("SandboxSuspended"))
+		annotations, err := kubectl("get", "sandbox", orchestratorName, "-n", testNamespace, "-o", "jsonpath={.metadata.annotations}")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(annotations).To(ContainSubstring("inference-gateway.com/idle-since"))
+
+		By("resuming it the way a client does")
+		patchSandbox(`{"operatingMode":"Running"}`)
+		Eventually(orchestratorField("{.status.ready}"), sandboxTimeout, sandboxInterval).Should(Equal("true"))
 	})
 })

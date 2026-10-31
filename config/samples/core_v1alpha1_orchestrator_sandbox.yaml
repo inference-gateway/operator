@@ -10,7 +10,7 @@ spec:
   runtime: Sandbox
   sandbox:
     storage: 5Gi
-    operatingMode: Running
+    retention: 24h
   daemon:
     binding:
       tokenSecretRef:
