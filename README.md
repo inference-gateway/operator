@@ -511,6 +511,31 @@ A full end-to-end example - Gateway, two A2A worker Agents, and the Orchestrator
 - with a step-by-step walkthrough is available at
 [`examples/orchestrator/`](examples/orchestrator/).
 
+### Link the daemon to a Gateway
+
+`spec.gateway` takes either `url`, the address of any gateway, or `ref`, the name
+of a `Gateway` in the same namespace - one or the other, not both. With `ref` the
+operator addresses that Gateway on its own Service port, so the daemon's
+`INFER_GATEWAY_URL` follows a port change instead of hard-coding one, and it runs
+the Gateway with zero replicas while every Orchestrator referencing it is
+suspended:
+
+```yaml
+spec:
+  gateway:
+    ref: inference-gateway
+```
+
+- A Gateway no Orchestrator references keeps its `spec.replicas` and its HPA.
+- A parked Gateway keeps its Deployment, Service and Secrets, and has no HPA
+  while it is parked - an HPA would scale the parked Deployment straight back up.
+  It gets one again when a referencing Orchestrator resumes.
+- Resuming an Orchestrator (`spec.sandbox.operatingMode: Running`) scales its
+  Gateway back up right away, because the Gateway's controller watches the
+  Orchestrators that reference it.
+- An Orchestrator whose `ref` names no Gateway reports `Ready=False` with reason
+  `GatewayNotFound`.
+
 ### Serve devices over the AG-UI binding
 
 `spec.daemon.binding` turns on the daemon's AG-UI binding, the WebSocket the
@@ -573,7 +598,8 @@ spec:
 ```
 
 - `spec.sandbox.operatingMode: Suspended` deletes the pod and keeps the volumes.
-  `Running` resumes it on a fresh pod once the suspension completed.
+  `Running` resumes it on a fresh pod once the suspension completed. A
+  [linked Gateway](#link-the-daemon-to-a-gateway) is scaled down and up with it.
 - The daemon idles out by exiting 0 (`INFER_DAEMON_IDLE_EXIT` in `spec.env`). The
   operator then parks the Orchestrator itself: it sets `operatingMode: Suspended`,
   and a client resumes the daemon by setting `Running`. A daemon that writes

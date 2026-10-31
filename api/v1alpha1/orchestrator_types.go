@@ -114,9 +114,20 @@ type TelegramChannelSpec struct {
 	PollTimeout *metav1.Duration `json:"pollTimeout,omitempty"`
 }
 
-// OrchestratorGatewaySpec configures how the orchestrator reaches the Inference Gateway.
+// OrchestratorGatewaySpec configures how the orchestrator reaches the Inference
+// Gateway: a URL for a gateway the operator does not manage, or a Gateway in the
+// same namespace, which the operator addresses and scales for this daemon.
+// +kubebuilder:validation:XValidation:rule="has(self.url) != has(self.ref)",message="spec.gateway needs url or ref, not both"
 type OrchestratorGatewaySpec struct {
-	URL string `json:"url"`
+	// URL is the address the daemon calls the gateway at.
+	// +optional
+	URL string `json:"url,omitempty"`
+
+	// Ref names a Gateway in the same namespace. The operator derives the
+	// daemon's gateway URL from that Gateway's Service, and runs the Gateway
+	// with zero replicas while every Orchestrator referencing it is suspended.
+	// +optional
+	Ref string `json:"ref,omitempty"`
 
 	// +optional
 	APIKeySecretRef *corev1.SecretKeySelector `json:"apiKeySecretRef,omitempty"`

@@ -136,6 +136,14 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, r.patchStatusNotReady(ctx, &orch, "SandboxCRDMissing", sandboxCRDMissingMessage)
 	}
 
+	if err := r.resolveGatewayRef(ctx, &orch); err != nil {
+		logger.Error(err, "failed to resolve spec.gateway.ref")
+		if statusErr := r.patchStatusNotReady(ctx, &orch, "GatewayNotFound", err.Error()); statusErr != nil {
+			return ctrl.Result{}, statusErr
+		}
+		return ctrl.Result{}, err
+	}
+
 	// Reconcile the agents ConfigMap (handles both static and discovered agents).
 	discoveredAgentURLs, agentsYAML, err := r.reconcileAgentsConfigMap(ctx, &orch)
 	if err != nil {
@@ -745,6 +753,25 @@ func telegramEnvVars(telegram *corev1alpha1.TelegramChannelSpec) []corev1.EnvVar
 		envVars = append(envVars, corev1.EnvVar{Name: "INFER_CHANNELS_TELEGRAM_POLL_TIMEOUT", Value: strconv.Itoa(int(telegram.PollTimeout.Seconds()))})
 	}
 	return envVars
+}
+
+// resolveGatewayRef points spec.gateway.url at the Service of the Gateway
+// spec.gateway.ref names, in the Orchestrator the controller holds, so the
+// daemon's INFER_GATEWAY_URL carries that Gateway's own port. The Orchestrator
+// stored in the cluster keeps its spec.
+func (r *OrchestratorReconciler) resolveGatewayRef(ctx context.Context, orch *corev1alpha1.Orchestrator) error {
+	if orch.Spec.Gateway == nil || orch.Spec.Gateway.Ref == "" {
+		return nil
+	}
+
+	var gateway corev1alpha1.Gateway
+	key := types.NamespacedName{Name: orch.Spec.Gateway.Ref, Namespace: orch.Namespace}
+	if err := r.Get(ctx, key, &gateway); err != nil {
+		return fmt.Errorf("reading the Gateway %s spec.gateway.ref names: %w", key, err)
+	}
+
+	orch.Spec.Gateway.URL = gatewayServiceURL(&gateway)
+	return nil
 }
 
 // gatewayEnvVars maps spec.gateway onto INFER_GATEWAY_URL and the API key Secret.
