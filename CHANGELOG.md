@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.28.0](https://github.com/inference-gateway/operator/compare/v0.27.1...v0.28.0) (2026-10-31)
+
+### ✨ Features
+
+* **orchestrator:** run the daemon in an agent-sandbox Sandbox with runtime: Sandbox ([#301](https://github.com/inference-gateway/operator/issues/301)) ([63386e2](https://github.com/inference-gateway/operator/commit/63386e22b4818c01ce86464ba38345ee183e6a18)), closes [#298](https://github.com/inference-gateway/operator/issues/298)
+* **orchestrator:** run the full infer daemon with optional channels and the AG-UI binding ([#300](https://github.com/inference-gateway/operator/issues/300)) ([fa7d927](https://github.com/inference-gateway/operator/commit/fa7d92778fe3495c71fe5fb8e9c0ee066ab4f2f4)), closes [#297](https://github.com/inference-gateway/operator/issues/297)
+
+### 🐛 Bug Fixes
+
+* **orchestrator:** run infer daemon instead of the removed channels-manager ([#299](https://github.com/inference-gateway/operator/issues/299)) ([62a6af7](https://github.com/inference-gateway/operator/commit/62a6af7393fb796e68587d1763026a6c59e29940)), closes [#296](https://github.com/inference-gateway/operator/issues/296), references [inference-gateway/cli#1051](https://github.com/inference-gateway/cli/issues/1051)
+
+### 👷 CI
+
+* **deps:** bump actions/setup-node ([#288](https://github.com/inference-gateway/operator/issues/288)) ([d98dcb2](https://github.com/inference-gateway/operator/commit/d98dcb25f2e09b0b54257eccf062670d81dd2735))
+* **deps:** bump docker/login-action ([#293](https://github.com/inference-gateway/operator/issues/293)) ([5f0cef1](https://github.com/inference-gateway/operator/commit/5f0cef1c07d8fdbd993ade7a02d1223a9dce2dbc))
+* **deps:** bump github.com/onsi/ginkgo/v2 ([#289](https://github.com/inference-gateway/operator/issues/289)) ([03684df](https://github.com/inference-gateway/operator/commit/03684df37236b82cd1b42d75b4667435352fb3fc))
+* **deps:** bump rancher/k3s ([#283](https://github.com/inference-gateway/operator/issues/283)) ([d58b0db](https://github.com/inference-gateway/operator/commit/d58b0dbbd4f72e538383bf60b2beb92421b0ff79))
+* **deps:** bump sigs.k8s.io/controller-runtime ([#284](https://github.com/inference-gateway/operator/issues/284)) ([4dc8bc9](https://github.com/inference-gateway/operator/commit/4dc8bc90a02c7d48b60bf30c2810bf3eab55cc1d))
+* **deps:** bump sigs.k8s.io/gateway-api ([#287](https://github.com/inference-gateway/operator/issues/287)) ([262ff14](https://github.com/inference-gateway/operator/commit/262ff14a4964e306375425200c655625c3fd94f6))
+* **deps:** bump the github-actions group with 2 updates ([#290](https://github.com/inference-gateway/operator/issues/290)) ([cf4c07b](https://github.com/inference-gateway/operator/commit/cf4c07b96b4e7b49ab1ba6e2125415d026ea9e52))
+* **release:** label issues and PRs shipped in an rc with rc ([#295](https://github.com/inference-gateway/operator/issues/295)) ([25cac50](https://github.com/inference-gateway/operator/commit/25cac50ab7ef1be8ad21b0ce54ce883b44c1966e))
+
+### 🔧 Miscellaneous
+
+* **deps:** bump claude-code 2.1.285 -> 2.1.289 ([#285](https://github.com/inference-gateway/operator/issues/285)) ([5e36bc7](https://github.com/inference-gateway/operator/commit/5e36bc7ea3e501b0d35ce632c02fd533eea945a8))
+* **deps:** bump claude-code 2.1.289 -> 2.1.296 ([#291](https://github.com/inference-gateway/operator/issues/291)) ([eb53de2](https://github.com/inference-gateway/operator/commit/eb53de29a6e13f627a28bef108a67117990241ab))
+* **deps:** bump claude-code 2.1.296 -> 2.1.308 ([#294](https://github.com/inference-gateway/operator/issues/294)) ([025a54a](https://github.com/inference-gateway/operator/commit/025a54a86ae0de6a198c60e9f9c574888ad76667))
+* **deps:** bump infer CLI v0.221.1 -> v0.226.0 ([#286](https://github.com/inference-gateway/operator/issues/286)) ([505d489](https://github.com/inference-gateway/operator/commit/505d48938fde18f4cfdf980bfbc4204904f05a90))
+* **deps:** bump infer CLI v0.226.0 -> v0.231.1 ([#292](https://github.com/inference-gateway/operator/issues/292)) ([490b5af](https://github.com/inference-gateway/operator/commit/490b5af4639c0290950f590d8f6c2bf1a0dd321f))
+
 ## [0.27.1](https://github.com/inference-gateway/operator/compare/v0.27.0...v0.27.1) (2026-10-04)
 
 ### ♻️ Improvements
