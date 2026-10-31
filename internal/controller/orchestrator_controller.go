@@ -578,7 +578,6 @@ func buildOrchestratorPodTemplate(orch *corev1alpha1.Orchestrator, agentsYAML, m
 	container := corev1.Container{
 		Name:      orchestratorContainerName,
 		Image:     orch.Spec.Image,
-		Command:   []string{"infer"},
 		Args:      []string{"daemon"},
 		Env:       buildOrchestratorEnvironmentVars(orch),
 		Resources: orch.Spec.Resources,
