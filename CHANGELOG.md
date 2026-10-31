@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.30.0](https://github.com/inference-gateway/operator/compare/v0.29.0...v0.30.0) (2026-10-31)
+
+### ✨ Features
+
+* **api:** add spec.pod to Gateway, Agent and MCP ([#309](https://github.com/inference-gateway/operator/issues/309)) ([62e951b](https://github.com/inference-gateway/operator/commit/62e951b25a1bf066e481acd632b218dead213d07))
+
 ## [0.29.0](https://github.com/inference-gateway/operator/compare/v0.28.1...v0.29.0) (2026-10-31)
 
 ### ✨ Features
