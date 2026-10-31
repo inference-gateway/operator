@@ -1,0 +1,18 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
+metadata:
+  name: daemon
+  namespace: orchestrators
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  daemon:
+    binding:
+      tokenSecretRef:
+        name: daemon-binding
+        key: token
+      tls:
+        secretName: daemon-binding-tls
+  gateway:
+    url: http://inference-gateway.inference-gateway.svc.cluster.local:8080
+  agent:
+    model: deepseek/deepseek-v4-pro
