@@ -32,6 +32,7 @@ import (
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+	testutil "github.com/inference-gateway/operator/internal/controller/testutil"
 )
 
 var _ = Describe("Orchestrator Controller", func() {
@@ -207,6 +208,35 @@ var _ = Describe("buildOrchestratorEnvironmentVars", func() {
 		Expect(envs["INFER_TOOLS_SCHEDULE_ENABLED"].Value).To(Equal("true"))
 		Expect(envs["INFER_A2A_ENABLED"].Value).To(Equal("true"))
 		Expect(envs["INFER_A2A_AGENTS"].Value).To(Equal("a,b"))
+	})
+
+	It("addresses the Gateway spec.gateway.ref names on its own Service port", func() {
+		orch := makeOrchestrator()
+		orch.Spec.Gateway = &corev1alpha1.OrchestratorGatewaySpec{Ref: "gw"}
+		gateway := testutil.NewGateway("gw", "default")
+		gateway.Spec.Server = &corev1alpha1.ServerSpec{Port: 9090}
+		r := &OrchestratorReconciler{Client: testutil.NewFakeClient(gateway), Scheme: testutil.Scheme()}
+
+		Expect(r.resolveGatewayRef(context.Background(), orch)).To(Succeed())
+
+		envs := envByNameFn(buildOrchestratorEnvironmentVars(orch))
+		Expect(envs["INFER_GATEWAY_URL"].Value).To(Equal("http://gw.default.svc.cluster.local:9090"))
+	})
+
+	It("fails while the Gateway spec.gateway.ref names is missing", func() {
+		orch := makeOrchestrator()
+		orch.Spec.Gateway = &corev1alpha1.OrchestratorGatewaySpec{Ref: "gone"}
+		r := &OrchestratorReconciler{Client: testutil.NewFakeClient(), Scheme: testutil.Scheme()}
+
+		Expect(r.resolveGatewayRef(context.Background(), orch)).NotTo(Succeed())
+	})
+
+	It("leaves a plain spec.gateway.url untouched", func() {
+		orch := makeOrchestrator()
+		r := &OrchestratorReconciler{Client: testutil.NewFakeClient(), Scheme: testutil.Scheme()}
+
+		Expect(r.resolveGatewayRef(context.Background(), orch)).To(Succeed())
+		Expect(orch.Spec.Gateway.URL).To(Equal("http://gw:8080"))
 	})
 
 	It("enables the channels only while a channel is enabled, since the daemon refuses channels without one", func() {

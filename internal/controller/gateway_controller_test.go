@@ -1148,7 +1148,7 @@ var _ = Describe("Gateway model routing", func() {
 
 	It("emits no routing env vars or volume when model routing is unset", func() {
 		r := newReconciler()
-		dep := r.buildDeployment(ctx, makeGateway(nil))
+		dep := r.buildDeployment(ctx, makeGateway(nil), false)
 		env := dep.Spec.Template.Spec.Containers[0].Env
 		Expect(hasEnv(env, "ROUTING_ENABLED")).To(BeFalse())
 		Expect(hasEnv(env, "ROUTING_CONFIG_PATH")).To(BeFalse())
@@ -1162,7 +1162,7 @@ var _ = Describe("Gateway model routing", func() {
 		})
 		r := newReconciler()
 
-		dep := r.buildDeployment(ctx, gw)
+		dep := r.buildDeployment(ctx, gw, false)
 		env := dep.Spec.Template.Spec.Containers[0].Env
 		Expect(env).To(ContainElement(corev1.EnvVar{Name: "ROUTING_ENABLED", Value: "true"}))
 		Expect(env).To(ContainElement(corev1.EnvVar{Name: "ROUTING_CONFIG_PATH", Value: "/etc/inference-gateway/routing/routing.yaml"}))
@@ -1187,7 +1187,7 @@ var _ = Describe("Gateway model routing", func() {
 		})
 		r := newReconciler()
 
-		dep := r.buildDeployment(ctx, gw)
+		dep := r.buildDeployment(ctx, gw, false)
 		env := dep.Spec.Template.Spec.Containers[0].Env
 		Expect(env).To(ContainElement(corev1.EnvVar{Name: "ROUTING_CONFIG_PATH", Value: "/etc/inference-gateway/routing/custom.yaml"}))
 		vol := hasVolume(dep.Spec.Template.Spec.Volumes, "model-routing")
@@ -1248,7 +1248,7 @@ var _ = Describe("Gateway guardrails", func() {
 
 	It("emits no guardrails env vars or volume when guardrails is unset", func() {
 		r := newReconciler()
-		dep := r.buildDeployment(ctx, makeGateway(nil))
+		dep := r.buildDeployment(ctx, makeGateway(nil), false)
 		env := dep.Spec.Template.Spec.Containers[0].Env
 		Expect(hasEnv(env, "GUARDRAILS_ENABLED")).To(BeFalse())
 		Expect(hasEnv(env, "GUARDRAILS_POLICY_DIR")).To(BeFalse())
@@ -1261,7 +1261,7 @@ var _ = Describe("Gateway guardrails", func() {
 		dep := r.buildDeployment(ctx, makeGateway(&corev1alpha1.GuardrailsSpec{
 			Enabled:      true,
 			ConfigMapRef: &corev1.LocalObjectReference{Name: "guardrails-policies"},
-		}))
+		}), false)
 		env := dep.Spec.Template.Spec.Containers[0].Env
 		Expect(env).To(ContainElement(corev1.EnvVar{Name: "GUARDRAILS_ENABLED", Value: "true"}))
 		Expect(env).To(ContainElement(corev1.EnvVar{Name: "GUARDRAILS_POLICY_DIR", Value: "/etc/inference-gateway/guardrails"}))
@@ -1277,7 +1277,7 @@ var _ = Describe("Gateway guardrails", func() {
 	DescribeTable("maps failMode onto the gateway's fail mode values",
 		func(failMode, expected string) {
 			r := newReconciler()
-			dep := r.buildDeployment(ctx, makeGateway(&corev1alpha1.GuardrailsSpec{Enabled: true, FailMode: failMode}))
+			dep := r.buildDeployment(ctx, makeGateway(&corev1alpha1.GuardrailsSpec{Enabled: true, FailMode: failMode}), false)
 			env := dep.Spec.Template.Spec.Containers[0].Env
 			Expect(env).To(ContainElement(corev1.EnvVar{Name: "GUARDRAILS_FAIL_MODE", Value: expected}))
 		},
@@ -1287,7 +1287,7 @@ var _ = Describe("Gateway guardrails", func() {
 
 	It("omits GUARDRAILS_FAIL_MODE when failMode is unset", func() {
 		r := newReconciler()
-		dep := r.buildDeployment(ctx, makeGateway(&corev1alpha1.GuardrailsSpec{Enabled: true}))
+		dep := r.buildDeployment(ctx, makeGateway(&corev1alpha1.GuardrailsSpec{Enabled: true}), false)
 		Expect(hasEnv(dep.Spec.Template.Spec.Containers[0].Env, "GUARDRAILS_FAIL_MODE")).To(BeFalse())
 	})
 })
@@ -1301,7 +1301,7 @@ var _ = Describe("Gateway MCP tool mode", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
 			Spec:       corev1alpha1.GatewaySpec{MCP: mcp},
 		}
-		return r.buildDeployment(ctx, gw).Spec.Template.Spec.Containers[0].Env
+		return r.buildDeployment(ctx, gw, false).Spec.Template.Spec.Containers[0].Env
 	}
 
 	It("defaults MCP_TOOL_MODE to selector when unset", func() {
@@ -1328,7 +1328,7 @@ var _ = Describe("Gateway MCP resource URL", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
 			Spec:       corev1alpha1.GatewaySpec{MCP: mcp, GatewayAPI: routing},
 		}
-		return r.buildDeployment(ctx, gw).Spec.Template.Spec.Containers[0].Env
+		return r.buildDeployment(ctx, gw, false).Spec.Template.Spec.Containers[0].Env
 	}
 
 	routingWith := func(tls bool, hostnames ...gwapiv1.Hostname) *corev1alpha1.RoutingSpec {
@@ -1442,7 +1442,7 @@ var _ = Describe("Gateway server and telemetry configuration", func() {
 
 	containerOf := func(gw *corev1alpha1.Gateway) corev1.Container {
 		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
-		return r.buildDeployment(ctx, gw).Spec.Template.Spec.Containers[0]
+		return r.buildDeployment(ctx, gw, false).Spec.Template.Spec.Containers[0]
 	}
 
 	gatewayWith := func(spec corev1alpha1.GatewaySpec) *corev1alpha1.Gateway {
@@ -1454,7 +1454,7 @@ var _ = Describe("Gateway server and telemetry configuration", func() {
 
 	volumeOf := func(gw *corev1alpha1.Gateway, name string) *corev1.Volume {
 		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
-		vols := r.buildDeployment(ctx, gw).Spec.Template.Spec.Volumes
+		vols := r.buildDeployment(ctx, gw, false).Spec.Template.Spec.Volumes
 		for i := range vols {
 			if vols[i].Name == name {
 				return &vols[i]
@@ -1604,5 +1604,87 @@ var _ = Describe("Gateway providers summary", func() {
 
 		Expect(r.updateProvidersSummary(ctx, gw)).To(Succeed())
 		Expect(gw.Status.ProviderSummary).To(Equal("openai"))
+	})
+})
+
+var _ = Describe("Gateway scaling with its Orchestrators", func() {
+	ctx := context.Background()
+
+	gw := testutil.NewGateway("gw", "default", testutil.WithGatewayReplicas(2))
+
+	makeOrchestrator := func(name, ref string, mode corev1alpha1.SandboxOperatingMode) *corev1alpha1.Orchestrator {
+		orch := &corev1alpha1.Orchestrator{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec: corev1alpha1.OrchestratorSpec{
+				Image:   "ghcr.io/inference-gateway/cli:latest",
+				Runtime: corev1alpha1.RuntimeSandbox,
+				Sandbox: &corev1alpha1.OrchestratorSandboxSpec{OperatingMode: mode},
+			},
+		}
+		if ref != "" {
+			orch.Spec.Gateway = &corev1alpha1.OrchestratorGatewaySpec{Ref: ref}
+		}
+		return orch
+	}
+
+	parked := func(objs ...client.Object) bool {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(objs...), Scheme: gatewayTestScheme}
+		isParked, err := r.gatewayParked(ctx, gw)
+		Expect(err).NotTo(HaveOccurred())
+		return isParked
+	}
+
+	replicasOf := func(isParked bool, hpa *corev1alpha1.HPASpec) *int32 {
+		gateway := gw.DeepCopy()
+		gateway.Spec.HPA = hpa
+		deployment := &appsv1.Deployment{}
+		(&GatewayReconciler{}).setDeploymentReplicas(gateway, deployment, isParked)
+		return deployment.Spec.Replicas
+	}
+
+	It("parks the Gateway once every Orchestrator referencing it is suspended", func() {
+		Expect(parked(
+			makeOrchestrator("one", "gw", corev1alpha1.SandboxSuspended),
+			makeOrchestrator("two", "gw", corev1alpha1.SandboxSuspended),
+		)).To(BeTrue())
+		Expect(replicasOf(true, nil)).To(HaveValue(Equal(int32(0))))
+	})
+
+	It("keeps the Gateway running while one of them runs", func() {
+		Expect(parked(
+			makeOrchestrator("one", "gw", corev1alpha1.SandboxSuspended),
+			makeOrchestrator("two", "gw", corev1alpha1.SandboxRunning),
+		)).To(BeFalse())
+	})
+
+	It("leaves a Gateway no Orchestrator references alone", func() {
+		Expect(parked()).To(BeFalse())
+		Expect(parked(makeOrchestrator("other", "other-gw", corev1alpha1.SandboxSuspended))).To(BeFalse())
+		Expect(parked(makeOrchestrator("no-gateway", "", corev1alpha1.SandboxSuspended))).To(BeFalse())
+		Expect(replicasOf(false, nil)).To(HaveValue(Equal(int32(2))))
+		Expect(replicasOf(false, &corev1alpha1.HPASpec{Enabled: true})).To(BeNil())
+	})
+
+	It("takes the HPA out of the way of a parked Gateway", func() {
+		Expect(replicasOf(true, &corev1alpha1.HPASpec{Enabled: true})).To(HaveValue(Equal(int32(0))))
+
+		deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"}}
+		hpa := &autoscalingv2.HorizontalPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw-hpa", Namespace: "default"},
+		}
+		gateway := gw.DeepCopy()
+		gateway.Spec.HPA = &corev1alpha1.HPASpec{Enabled: true}
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(gateway, hpa), Scheme: gatewayTestScheme}
+
+		Expect(r.reconcileHPA(ctx, gateway, deployment, true)).To(Succeed())
+		err := r.Get(ctx, types.NamespacedName{Name: "gw-hpa", Namespace: "default"}, hpa)
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("maps an Orchestrator event to the Gateway it references", func() {
+		Expect(orchestratorToGatewayRequests(ctx, makeOrchestrator("one", "gw", corev1alpha1.SandboxRunning))).
+			To(ConsistOf(reconcile.Request{NamespacedName: types.NamespacedName{Name: "gw", Namespace: "default"}}))
+		Expect(orchestratorToGatewayRequests(ctx, makeOrchestrator("one", "", corev1alpha1.SandboxRunning))).To(BeEmpty())
+		Expect(orchestratorToGatewayRequests(ctx, gw)).To(BeEmpty())
 	})
 })

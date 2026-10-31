@@ -489,11 +489,19 @@ spec:
                     - key
                     type: object
                     x-kubernetes-map-type: atomic
-                  url:
+                  ref:
+                    description: |-
+                      Ref names a Gateway in the same namespace. The operator derives the
+                      daemon's gateway URL from that Gateway's Service, and runs the Gateway
+                      with zero replicas while every Orchestrator referencing it is suspended.
                     type: string
-                required:
-                - url
+                  url:
+                    description: URL is the address the daemon calls the gateway at.
+                    type: string
                 type: object
+                x-kubernetes-validations:
+                - message: spec.gateway needs url or ref, not both
+                  rule: has(self.url) != has(self.ref)
               image:
                 type: string
               mcp:

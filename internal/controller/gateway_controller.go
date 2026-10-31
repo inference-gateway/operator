@@ -100,7 +100,13 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	deployment, err := r.reconcileDeployment(ctx, gateway)
+	parked, err := r.gatewayParked(ctx, gateway)
+	if err != nil {
+		logger.Error(err, "Failed to read the Orchestrators referencing the Gateway")
+		return ctrl.Result{}, err
+	}
+
+	deployment, err := r.reconcileDeployment(ctx, gateway, parked)
 	if err != nil {
 		if apierrors.IsConflict(err) {
 			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
@@ -122,7 +128,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	err = r.reconcileHPA(ctx, gateway, deployment)
+	err = r.reconcileHPA(ctx, gateway, deployment, parked)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile HPA")
 		return ctrl.Result{}, err
@@ -469,19 +475,21 @@ func guardrailsFailModeEnv(failMode string) string {
 	}
 }
 
-// reconcileDeployment ensures the Deployment exists with the correct configuration
-func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway) (*appsv1.Deployment, error) {
-	deployment := r.buildDeployment(ctx, gateway)
+// reconcileDeployment ensures the Deployment exists with the correct
+// configuration, parked at zero replicas while the Gateway's Orchestrators are
+// all suspended.
+func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway, parked bool) (*appsv1.Deployment, error) {
+	deployment := r.buildDeployment(ctx, gateway, parked)
 
 	if err := controllerutil.SetControllerReference(gateway, deployment, r.Scheme); err != nil {
 		return nil, err
 	}
 
-	return r.createOrUpdateDeployment(ctx, gateway, deployment)
+	return r.createOrUpdateDeployment(ctx, deployment)
 }
 
 // buildDeployment creates a Deployment resource based on Gateway spec
-func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1alpha1.Gateway) *appsv1.Deployment {
+func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1alpha1.Gateway, parked bool) *appsv1.Deployment {
 	containerPorts := r.buildContainerPorts(gateway)
 
 	volumes := []corev1.Volume{}
@@ -574,7 +582,7 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 		},
 	}
 
-	r.setDeploymentReplicas(gateway, deployment)
+	r.setDeploymentReplicas(gateway, deployment, parked)
 	return deployment
 }
 
@@ -866,21 +874,57 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 	}
 }
 
-// setDeploymentReplicas sets the replica count based on HPA configuration
-func (r *GatewayReconciler) setDeploymentReplicas(gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) {
-	if gateway.Spec.HPA != nil && gateway.Spec.HPA.Enabled {
+// setDeploymentReplicas sets the replica count: zero while the Gateway is
+// parked, nil to leave it to the HPA, else spec.replicas.
+func (r *GatewayReconciler) setDeploymentReplicas(gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment, parked bool) {
+	replicas := int32(1)
+	switch {
+	case parked:
+		replicas = 0
+	case gateway.Spec.HPA != nil && gateway.Spec.HPA.Enabled:
 		deployment.Spec.Replicas = nil
-	} else {
-		replicas := int32(1)
-		if gateway.Spec.Replicas != nil {
-			replicas = *gateway.Spec.Replicas
-		}
-		deployment.Spec.Replicas = &replicas
+		return
+	case gateway.Spec.Replicas != nil:
+		replicas = *gateway.Spec.Replicas
 	}
+	deployment.Spec.Replicas = &replicas
+}
+
+// replicaCount renders a Deployment's replica count for a log line.
+func replicaCount(replicas *int32) string {
+	if replicas == nil {
+		return "nil"
+	}
+	return strconv.Itoa(int(*replicas))
+}
+
+// gatewayParked reports whether every Orchestrator referencing the Gateway with
+// spec.gateway.ref is suspended, which keeps the Gateway's pod from running
+// while the workspace idles. A Gateway no Orchestrator references is never
+// parked, so its spec.replicas and HPA keep deciding on their own.
+func (r *GatewayReconciler) gatewayParked(ctx context.Context, gateway *corev1alpha1.Gateway) (bool, error) {
+	var orchestrators corev1alpha1.OrchestratorList
+	if err := r.List(ctx, &orchestrators, client.InNamespace(gateway.Namespace)); err != nil {
+		return false, fmt.Errorf("listing the Orchestrators in %s: %w", gateway.Namespace, err)
+	}
+
+	referencing := 0
+	for i := range orchestrators.Items {
+		orch := &orchestrators.Items[i]
+		if orch.Spec.Gateway == nil || orch.Spec.Gateway.Ref != gateway.Name {
+			continue
+		}
+		if !wantsSuspended(&orch.Spec) {
+			return false, nil
+		}
+		referencing++
+	}
+
+	return referencing > 0, nil
 }
 
 // createOrUpdateDeployment handles deployment creation and updates
-func (r *GatewayReconciler) createOrUpdateDeployment(ctx context.Context, gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+func (r *GatewayReconciler) createOrUpdateDeployment(ctx context.Context, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	logger := log.FromContext(ctx)
 
 	found := &appsv1.Deployment{}
@@ -895,11 +939,11 @@ func (r *GatewayReconciler) createOrUpdateDeployment(ctx context.Context, gatewa
 		return nil, err
 	}
 
-	return r.updateDeploymentIfNeeded(ctx, gateway, deployment, found)
+	return r.updateDeploymentIfNeeded(ctx, deployment, found)
 }
 
 // updateDeploymentIfNeeded updates deployment if changes are detected
-func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gateway *corev1alpha1.Gateway, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
+func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, desired, found *appsv1.Deployment) (*appsv1.Deployment, error) {
 	logger := log.FromContext(ctx)
 
 	for retries := 0; retries < 3; retries++ {
@@ -911,28 +955,16 @@ func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, gatewa
 		needsUpdate := false
 		var changes []string
 
-		if gateway.Spec.HPA == nil || !gateway.Spec.HPA.Enabled {
-			desiredReplicas := int32(1)
-			if gateway.Spec.Replicas != nil {
-				desiredReplicas = *gateway.Spec.Replicas
-			}
-
-			if latestDeployment.Spec.Replicas == nil || *latestDeployment.Spec.Replicas != desiredReplicas {
-				latestDeployment.Spec.Replicas = &desiredReplicas
+		if desired.Spec.Replicas != nil {
+			if latestDeployment.Spec.Replicas == nil || *latestDeployment.Spec.Replicas != *desired.Spec.Replicas {
+				changes = append(changes, fmt.Sprintf("replicas: %s -> %d",
+					replicaCount(latestDeployment.Spec.Replicas), *desired.Spec.Replicas))
+				latestDeployment.Spec.Replicas = desired.Spec.Replicas
 				needsUpdate = true
-				changes = append(changes, fmt.Sprintf("replicas: %v -> %v",
-					func() interface{} {
-						if latestDeployment.Spec.Replicas == nil {
-							return "nil"
-						}
-						return *latestDeployment.Spec.Replicas
-					}(), desiredReplicas))
 			}
-		} else {
-			if latestDeployment.Spec.Replicas != nil {
-				logger.V(1).Info("HPA is enabled, not modifying replicas field",
-					"current", *latestDeployment.Spec.Replicas)
-			}
+		} else if latestDeployment.Spec.Replicas != nil {
+			logger.V(1).Info("HPA is enabled, not modifying replicas field",
+				"current", *latestDeployment.Spec.Replicas)
 		}
 
 		desiredTemplate := desired.Spec.Template.DeepCopy()
@@ -1500,6 +1532,17 @@ func routedResourceURL(gateway *corev1alpha1.Gateway, path string) string {
 	return scheme + "://" + host + path
 }
 
+// gatewayServiceURL is the in-cluster address of the Gateway's Service, the one
+// an Orchestrator's daemon calls.
+func gatewayServiceURL(gateway *corev1alpha1.Gateway) string {
+	scheme := "http"
+	if serverTLSEnabled(gateway) {
+		scheme = "https"
+	}
+	return fmt.Sprintf("%s://%s.%s.svc.cluster.local:%d",
+		scheme, gateway.Name, gateway.Namespace, gatewayServicePort(gateway))
+}
+
 // gatewayServicePort returns the port the upstream HTTPRoute backend
 // targets on the gateway Service.
 func gatewayServicePort(gateway *corev1alpha1.Gateway) int32 {
@@ -1550,14 +1593,13 @@ func isAdvancedRoutingMode(gateway *corev1alpha1.Gateway) bool {
 		len(gateway.Spec.GatewayAPI.Gateway.ParentRefs) > 0
 }
 
-// reconcileHPA handles HPA creation, update, or deletion based on Gateway spec
-func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment) error {
+// reconcileHPA handles HPA creation, update, or deletion based on Gateway spec.
+// A parked Gateway has no HPA, which would otherwise scale its parked
+// Deployment straight back up - it gets one again when it is unparked.
+func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alpha1.Gateway, deployment *appsv1.Deployment, parked bool) error {
 	logger := log.FromContext(ctx)
 
-	var hpaEnabled bool
-	if gateway.Spec.HPA != nil {
-		hpaEnabled = gateway.Spec.HPA.Enabled
-	}
+	hpaEnabled := gateway.Spec.HPA != nil && gateway.Spec.HPA.Enabled && !parked
 	logger.V(1).Info("Starting HPA reconciliation", "gateway", gateway.Name, "hpaEnabled", hpaEnabled)
 
 	hpaName := fmt.Sprintf("%s-hpa", gateway.Name)
@@ -1567,8 +1609,8 @@ func (r *GatewayReconciler) reconcileHPA(ctx context.Context, gateway *corev1alp
 
 	logger.V(1).Info("HPA existence check", "hpaName", hpaName, "hpaExists", hpaExists, "getError", err)
 
-	if gateway.Spec.HPA == nil || !gateway.Spec.HPA.Enabled {
-		logger.V(1).Info("HPA is disabled or not configured", "hpaConfigured", gateway.Spec.HPA != nil)
+	if !hpaEnabled {
+		logger.V(1).Info("HPA is disabled or not configured", "hpaConfigured", gateway.Spec.HPA != nil, "parked", parked)
 		if !hpaExists {
 			return nil
 		}
@@ -1857,6 +1899,10 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1alpha1.Agent{},
 			handler.EnqueueRequestsFromMapFunc(r.agentToGatewayRequests),
+		).
+		Watches(
+			&corev1alpha1.Orchestrator{},
+			handler.EnqueueRequestsFromMapFunc(orchestratorToGatewayRequests),
 		).
 		Watches(
 			&corev1.Namespace{},
@@ -2155,6 +2201,19 @@ func (r *GatewayReconciler) gatewaysSelecting(
 		})
 	}
 	return requests
+}
+
+// orchestratorToGatewayRequests maps an Orchestrator event to the Gateway its
+// spec.gateway.ref names, so suspending or resuming the daemon scales that
+// Gateway with it.
+func orchestratorToGatewayRequests(_ context.Context, obj client.Object) []ctrl.Request {
+	orch, ok := obj.(*corev1alpha1.Orchestrator)
+	if !ok || orch.Spec.Gateway == nil || orch.Spec.Gateway.Ref == "" {
+		return nil
+	}
+	return []ctrl.Request{{
+		NamespacedName: types.NamespacedName{Name: orch.Spec.Gateway.Ref, Namespace: orch.Namespace},
+	}}
 }
 
 // mcpToGatewayRequests maps an MCP event to the set of Gateway reconcile requests

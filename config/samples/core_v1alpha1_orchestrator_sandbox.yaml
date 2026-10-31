@@ -19,6 +19,6 @@ spec:
       tls:
         secretName: daemon-binding-tls
   gateway:
-    url: http://inference-gateway:8080
+    ref: inference-gateway
   agent:
     model: deepseek/deepseek-v4-pro
