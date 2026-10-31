@@ -56,7 +56,7 @@ plugins:
         - CHANGELOG.md
         - manifests/crds.yaml
         - manifests/install.yaml
-      releasedLabels: ["released"]
+      releasedLabels: ["<%= nextRelease.channel === 'rc' ? 'rc' : 'released' %>"]
       releaseNameTemplate: "🚀 Version <%= nextRelease.version %>"
       releaseBodyTemplate: |
         ## What's Changed
