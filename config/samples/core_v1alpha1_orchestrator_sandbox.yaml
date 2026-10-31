@@ -19,9 +19,6 @@ spec:
       tls:
         secretName: daemon-binding-tls
   gateway:
-    # The Gateway in this namespace: addressed on its own Service port, and run
-    # with zero replicas while this Orchestrator and every other one referencing
-    # it is suspended.
     ref: inference-gateway
   agent:
     model: deepseek/deepseek-v4-pro
