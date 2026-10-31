@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.29.0](https://github.com/inference-gateway/operator/compare/v0.28.1...v0.29.0) (2026-10-31)
+
+### ✨ Features
+
+* **orchestrator:** link a Gateway and park it while suspended ([#307](https://github.com/inference-gateway/operator/issues/307)) ([b03c9bd](https://github.com/inference-gateway/operator/commit/b03c9bd1d92e19d8f3cf7a3ba8e18c7fa2fdc890))
+
+### 🐛 Bug Fixes
+
+* **gateway:** default spec.server and name the service port in status.url ([#306](https://github.com/inference-gateway/operator/issues/306)) ([d7b1792](https://github.com/inference-gateway/operator/commit/d7b1792b98f9baae9a25ad1439abb74a03dca671))
+
 ## [0.28.1](https://github.com/inference-gateway/operator/compare/v0.28.0...v0.28.1) (2026-10-31)
 
 ### 🐛 Bug Fixes
