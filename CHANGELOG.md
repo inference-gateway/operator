@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.32.0](https://github.com/inference-gateway/operator/compare/v0.31.0...v0.32.0) (2026-11-01)
+
+### ✨ Features
+
+* **pod:** add sidecar containers and volumes to spec.pod ([#317](https://github.com/inference-gateway/operator/issues/317)) ([5f2f658](https://github.com/inference-gateway/operator/commit/5f2f65838ecf31b997d913a6989b0e9c5b049393))
+
 ## [0.31.0](https://github.com/inference-gateway/operator/compare/v0.30.0...v0.31.0) (2026-11-01)
 
 ### ✨ Features
