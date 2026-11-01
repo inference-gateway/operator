@@ -333,7 +333,7 @@ tasks:
   install:
     desc: Install CRDs into the K8s cluster specified in ~/.kube/config
     cmds:
-      - "{{.KUSTOMIZE}} build config/crd | {{.KUBECTL}} apply -f -"
+      - "{{.KUSTOMIZE}} build config/crd | {{.KUBECTL}} apply --server-side --force-conflicts -f -"
 
   uninstall:
     desc: Uninstall CRDs from the K8s cluster specified in ~/.kube/config
@@ -346,7 +346,7 @@ tasks:
       - docker-build
     cmds:
       - k3d image import {{.IMG}} -c dev
-      - "{{.KUSTOMIZE}} build config/environments/dev | {{.KUBECTL}} apply -f -"
+      - "{{.KUSTOMIZE}} build config/environments/dev | {{.KUBECTL}} apply --server-side --force-conflicts -f -"
 
   undeploy:
     desc: Undeploy controller from the K8s cluster specified in ~/.kube/config
@@ -412,4 +412,4 @@ tasks:
       - sed 's/inference-gateway-system/{{.NAMESPACE}}/g' manifests/install.yaml > manifests/{{.NAMESPACE}}/install.yaml
       - cp manifests/crds.yaml manifests/{{.NAMESPACE}}/crds.yaml
       - echo "✅ Manifests generated in manifests/{{.NAMESPACE}}/"
-      - echo "🚀 Deploy with kubectl apply -f manifests/{{.NAMESPACE}}/install.yaml"
+      - echo "🚀 Deploy with kubectl apply --server-side -f manifests/{{.NAMESPACE}}/install.yaml"
