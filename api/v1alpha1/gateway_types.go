@@ -53,6 +53,10 @@ type GatewaySpec struct {
 	// +kubebuilder:default={}
 	Server *ServerSpec `json:"server,omitempty"`
 
+	// Client configures the outbound HTTP client the gateway uses to reach providers
+	// +optional
+	Client *ClientSpec `json:"client,omitempty"`
+
 	// Authentication configuration
 	// +optional
 	Auth *AuthSpec `json:"auth,omitempty"`
@@ -391,6 +395,38 @@ type TLSConfig struct {
 	CertificateRef *corev1.SecretKeySelector `json:"certificateRef,omitempty"`
 
 	// Reference to a secret containing the TLS private key
+	// +optional
+	KeyRef *corev1.SecretKeySelector `json:"keyRef,omitempty"`
+
+	// ClientCARef references a secret key holding a PEM CA bundle. When set the
+	// gateway requires and verifies a client certificate signed by that bundle
+	// (SERVER_TLS_CLIENT_CA_PATH), and the health probes switch to tcpSocket
+	// because the kubelet cannot present a client certificate.
+	// +optional
+	ClientCARef *corev1.SecretKeySelector `json:"clientCARef,omitempty"`
+}
+
+// ClientSpec configures the gateway's outbound calls to providers.
+type ClientSpec struct {
+	// TLS configuration for outbound provider connections
+	// +optional
+	TLS *ClientTLSConfig `json:"tls,omitempty"`
+}
+
+// ClientTLSConfig configures the TLS material the gateway uses when calling
+// providers - a private CA to trust, and a client certificate for provider mTLS.
+type ClientTLSConfig struct {
+	// CARef references a secret key holding a PEM CA bundle trusted on top of the
+	// system roots when calling providers (CLIENT_TLS_CA_PATH)
+	// +optional
+	CARef *corev1.SecretKeySelector `json:"caRef,omitempty"`
+
+	// CertificateRef references a secret key holding the client certificate the
+	// gateway presents to providers requiring mTLS (CLIENT_TLS_CERT_PATH)
+	// +optional
+	CertificateRef *corev1.SecretKeySelector `json:"certificateRef,omitempty"`
+
+	// KeyRef references a secret key holding the client private key (CLIENT_TLS_KEY_PATH)
 	// +optional
 	KeyRef *corev1.SecretKeySelector `json:"keyRef,omitempty"`
 }

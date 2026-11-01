@@ -1589,6 +1589,74 @@ var _ = Describe("Gateway server and telemetry configuration", func() {
 			Expect(e.Name).NotTo(HavePrefix("SERVER_TLS_"))
 		}
 	})
+
+	It("mounts clientCARef, sets SERVER_TLS_CLIENT_CA_PATH and probes over TCP", func() {
+		gw := gatewayWith(corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{
+				Port: 8443,
+				TLS: &corev1alpha1.TLSConfig{
+					Enabled: true,
+					ClientCARef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "gateway-server-tls"},
+						Key:                  "ca.crt",
+					},
+				},
+			},
+		})
+		container := containerOf(gw)
+
+		Expect(container.Env).To(ContainElement(corev1.EnvVar{
+			Name:  "SERVER_TLS_CLIENT_CA_PATH",
+			Value: "/app/tls/client-ca/ca.crt",
+		}))
+		Expect(volumeOf(gw, "tls-client-ca").Secret.SecretName).To(Equal("gateway-server-tls"))
+		Expect(container.VolumeMounts).To(ContainElement(corev1.VolumeMount{
+			Name:      "tls-client-ca",
+			MountPath: "/app/tls/client-ca",
+			ReadOnly:  true,
+		}))
+		Expect(container.LivenessProbe.HTTPGet).To(BeNil())
+		Expect(container.LivenessProbe.TCPSocket.Port.IntValue()).To(Equal(8443))
+		Expect(container.ReadinessProbe.TCPSocket.Port.IntValue()).To(Equal(8443))
+	})
+
+	It("mounts spec.client.tls and points the CLIENT_TLS_* env vars at it", func() {
+		gw := gatewayWith(corev1alpha1.GatewaySpec{
+			Client: &corev1alpha1.ClientSpec{
+				TLS: &corev1alpha1.ClientTLSConfig{
+					CARef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "provider-ca"},
+						Key:                  "ca.crt",
+					},
+					CertificateRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "gateway-client-tls"},
+						Key:                  "tls.crt",
+					},
+					KeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "gateway-client-tls"},
+						Key:                  "tls.key",
+					},
+				},
+			},
+		})
+		container := containerOf(gw)
+
+		Expect(container.Env).To(ContainElements(
+			corev1.EnvVar{Name: "CLIENT_TLS_CA_PATH", Value: "/app/tls/client/ca/ca.crt"},
+			corev1.EnvVar{Name: "CLIENT_TLS_CERT_PATH", Value: "/app/tls/client/cert/tls.crt"},
+			corev1.EnvVar{Name: "CLIENT_TLS_KEY_PATH", Value: "/app/tls/client/key/tls.key"},
+		))
+		Expect(volumeOf(gw, "client-tls-ca").Secret.SecretName).To(Equal("provider-ca"))
+		Expect(volumeOf(gw, "client-tls-cert").Secret.Items).To(Equal([]corev1.KeyToPath{{Key: "tls.crt", Path: "tls.crt"}}))
+		Expect(volumeOf(gw, "client-tls-key").Secret.SecretName).To(Equal("gateway-client-tls"))
+		Expect(container.LivenessProbe.HTTPGet.Scheme).To(Equal(corev1.URISchemeHTTP))
+	})
+
+	It("emits no CLIENT_TLS_ env vars when spec.client.tls is unset", func() {
+		for _, e := range containerOf(gatewayWith(corev1alpha1.GatewaySpec{})).Env {
+			Expect(e.Name).NotTo(HavePrefix("CLIENT_TLS_"))
+		}
+	})
 })
 
 var _ = Describe("Gateway providers summary", func() {

@@ -369,6 +369,14 @@ const (
 	// keyRef are mounted; SERVER_TLS_CERT_PATH/SERVER_TLS_KEY_PATH point into them.
 	tlsCertMountDir = "/app/tls/cert"
 	tlsKeyMountDir  = "/app/tls/key"
+	// tlsClientCAMountDir is where spec.server.tls.clientCARef is mounted, the CA
+	// bundle the gateway verifies inbound client certificates against.
+	tlsClientCAMountDir = "/app/tls/client-ca"
+	// clientTLS*MountDir are where spec.client.tls is mounted, the material the
+	// gateway uses when calling providers.
+	clientTLSCAMountDir   = "/app/tls/client/ca"
+	clientTLSCertMountDir = "/app/tls/client/cert"
+	clientTLSKeyMountDir  = "/app/tls/client/key"
 
 	defaultTLSSecretName = "inference-gateway-tls"
 	defaultServerPort    = int32(8080)
@@ -421,22 +429,35 @@ func serverPortName(gateway *corev1alpha1.Gateway) string {
 	return "http"
 }
 
+// serverMTLSEnabled reports whether the gateway requires a client certificate
+// from inbound callers.
+func serverMTLSEnabled(gateway *corev1alpha1.Gateway) bool {
+	return serverTLSEnabled(gateway) && gateway.Spec.Server.TLS.ClientCARef != nil
+}
+
 // healthProbe probes /health on the server port, over the scheme the gateway
 // actually serves there - the kubelet gets HTTP 400 if it speaks plain HTTP to a
-// TLS listener.
+// TLS listener. Under mutual TLS it falls back to a TCP probe, since the kubelet
+// has no client certificate to complete the handshake with.
 func healthProbe(gateway *corev1alpha1.Gateway) *corev1.Probe {
-	scheme := corev1.URISchemeHTTP
-	if serverTLSEnabled(gateway) {
-		scheme = corev1.URISchemeHTTPS
-	}
-	return &corev1.Probe{
-		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Path:   "/health",
-				Port:   intstr.FromInt(int(gatewayServerPort(gateway))),
-				Scheme: scheme,
-			},
+	port := intstr.FromInt(int(gatewayServerPort(gateway)))
+
+	handler := corev1.ProbeHandler{
+		HTTPGet: &corev1.HTTPGetAction{
+			Path:   "/health",
+			Port:   port,
+			Scheme: corev1.URISchemeHTTP,
 		},
+	}
+	switch {
+	case serverMTLSEnabled(gateway):
+		handler = corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: port}}
+	case serverTLSEnabled(gateway):
+		handler.HTTPGet.Scheme = corev1.URISchemeHTTPS
+	}
+
+	return &corev1.Probe{
+		ProbeHandler:        handler,
 		InitialDelaySeconds: 5,
 		PeriodSeconds:       10,
 	}
@@ -455,40 +476,112 @@ func tlsFilePaths(tls *corev1alpha1.TLSConfig) (certPath string, keyPath string)
 	return certPath, keyPath
 }
 
-// tlsVolumes builds the Secret volumes and mounts backing spec.server.tls, falling
-// back to the conventional inference-gateway-tls Secret for any unset reference.
-func tlsVolumes(tls *corev1alpha1.TLSConfig) ([]corev1.Volume, []corev1.VolumeMount) {
+// secretKeyRefMount is one Secret key projected read-only into its own directory.
+type secretKeyRefMount struct {
+	volumeName string
+	mountDir   string
+	ref        *corev1.SecretKeySelector
+}
+
+// secretKeyVolumes projects every non-nil reference, keeping each key under its
+// own mount so references to different Secrets can coexist.
+func secretKeyVolumes(refs []secretKeyRefMount) ([]corev1.Volume, []corev1.VolumeMount) {
 	var volumes []corev1.Volume
 	var mounts []corev1.VolumeMount
 
-	add := func(name, mountDir, secretName string, items []corev1.KeyToPath) {
+	for _, r := range refs {
+		if r.ref == nil {
+			continue
+		}
 		volumes = append(volumes, corev1.Volume{
-			Name: name,
+			Name: r.volumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: secretName,
-					Items:      items,
+					SecretName: r.ref.Name,
+					Items:      []corev1.KeyToPath{{Key: r.ref.Key, Path: r.ref.Key}},
 				},
 			},
 		})
 		mounts = append(mounts, corev1.VolumeMount{
-			Name:      name,
-			MountPath: mountDir,
+			Name:      r.volumeName,
+			MountPath: r.mountDir,
 			ReadOnly:  true,
 		})
 	}
 
+	return volumes, mounts
+}
+
+// tlsVolumes builds the Secret volumes and mounts backing spec.server.tls, falling
+// back to the conventional inference-gateway-tls Secret for any unset keypair reference.
+func tlsVolumes(tls *corev1alpha1.TLSConfig) ([]corev1.Volume, []corev1.VolumeMount) {
+	var volumes []corev1.Volume
+	var mounts []corev1.VolumeMount
+
 	if tls.CertificateRef == nil || tls.KeyRef == nil {
-		add(defaultTLSSecretName, tlsMountDir, defaultTLSSecretName, nil)
-	}
-	if ref := tls.CertificateRef; ref != nil {
-		add("tls-cert", tlsCertMountDir, ref.Name, []corev1.KeyToPath{{Key: ref.Key, Path: ref.Key}})
-	}
-	if ref := tls.KeyRef; ref != nil {
-		add("tls-key", tlsKeyMountDir, ref.Name, []corev1.KeyToPath{{Key: ref.Key, Path: ref.Key}})
+		volumes = append(volumes, corev1.Volume{
+			Name: defaultTLSSecretName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{SecretName: defaultTLSSecretName},
+			},
+		})
+		mounts = append(mounts, corev1.VolumeMount{
+			Name:      defaultTLSSecretName,
+			MountPath: tlsMountDir,
+			ReadOnly:  true,
+		})
 	}
 
-	return volumes, mounts
+	refVolumes, refMounts := secretKeyVolumes([]secretKeyRefMount{
+		{"tls-cert", tlsCertMountDir, tls.CertificateRef},
+		{"tls-key", tlsKeyMountDir, tls.KeyRef},
+		{"tls-client-ca", tlsClientCAMountDir, tls.ClientCARef},
+	})
+
+	return append(volumes, refVolumes...), append(mounts, refMounts...)
+}
+
+// clientTLSConfig returns spec.client.tls, or nil when outbound TLS material is unset.
+func clientTLSConfig(gateway *corev1alpha1.Gateway) *corev1alpha1.ClientTLSConfig {
+	if gateway.Spec.Client == nil {
+		return nil
+	}
+	return gateway.Spec.Client.TLS
+}
+
+// clientTLSEnv points the gateway's outbound client at the mounted spec.client.tls material.
+func clientTLSEnv(gateway *corev1alpha1.Gateway) []corev1.EnvVar {
+	tls := clientTLSConfig(gateway)
+	if tls == nil {
+		return nil
+	}
+
+	var envVars []corev1.EnvVar
+	for _, e := range []struct {
+		name     string
+		mountDir string
+		ref      *corev1.SecretKeySelector
+	}{
+		{"CLIENT_TLS_CA_PATH", clientTLSCAMountDir, tls.CARef},
+		{"CLIENT_TLS_CERT_PATH", clientTLSCertMountDir, tls.CertificateRef},
+		{"CLIENT_TLS_KEY_PATH", clientTLSKeyMountDir, tls.KeyRef},
+	} {
+		if e.ref == nil {
+			continue
+		}
+		envVars = append(envVars, corev1.EnvVar{Name: e.name, Value: path.Join(e.mountDir, e.ref.Key)})
+	}
+
+	return envVars
+}
+
+// clientTLSVolumes builds the Secret volumes and mounts backing spec.client.tls.
+func clientTLSVolumes(tls *corev1alpha1.ClientTLSConfig) ([]corev1.Volume, []corev1.VolumeMount) {
+	return secretKeyVolumes([]secretKeyRefMount{
+		{"client-tls-ca", clientTLSCAMountDir, tls.CARef},
+		{"client-tls-cert", clientTLSCertMountDir, tls.CertificateRef},
+		{"client-tls-key", clientTLSKeyMountDir, tls.KeyRef},
+	})
 }
 
 // guardrailsFailModeEnv maps the CRD failMode values onto the values the
@@ -528,6 +621,12 @@ func (r *GatewayReconciler) buildDeployment(ctx context.Context, gateway *corev1
 		tlsVols, tlsMounts := tlsVolumes(gateway.Spec.Server.TLS)
 		volumes = append(volumes, tlsVols...)
 		volumeMounts = append(volumeMounts, tlsMounts...)
+	}
+
+	if clientTLS := clientTLSConfig(gateway); clientTLS != nil {
+		clientVols, clientMounts := clientTLSVolumes(clientTLS)
+		volumes = append(volumes, clientVols...)
+		volumeMounts = append(volumeMounts, clientMounts...)
 	}
 
 	if gateway.Spec.Auth != nil && gateway.Spec.Auth.Enabled &&
@@ -698,7 +797,15 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 			corev1.EnvVar{Name: "SERVER_TLS_CERT_PATH", Value: certPath},
 			corev1.EnvVar{Name: "SERVER_TLS_KEY_PATH", Value: keyPath},
 		)
+		if ref := gateway.Spec.Server.TLS.ClientCARef; ref != nil {
+			envVars = append(envVars, corev1.EnvVar{
+				Name:  "SERVER_TLS_CLIENT_CA_PATH",
+				Value: path.Join(tlsClientCAMountDir, ref.Key),
+			})
+		}
 	}
+
+	envVars = append(envVars, clientTLSEnv(gateway)...)
 
 	tel := gateway.Spec.Telemetry
 	if tel != nil && tel.Enabled && tel.Traces != nil && tel.Traces.Exporter != nil && tel.Traces.Exporter.OTLP != nil {
