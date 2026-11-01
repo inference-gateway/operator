@@ -1659,6 +1659,73 @@ var _ = Describe("Gateway server and telemetry configuration", func() {
 	})
 })
 
+var _ = Describe("Gateway mutual TLS validation", func() {
+	ctx := context.Background()
+
+	secretRef := func(name, key string) *corev1.SecretKeySelector {
+		return &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: name},
+			Key:                  key,
+		}
+	}
+
+	create := func(name string, spec corev1alpha1.GatewaySpec) error {
+		return k8sClient.Create(ctx, &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec:       spec,
+		})
+	}
+
+	It("rejects a server client CA without server TLS enabled", func() {
+		err := create("mtls-no-server-tls", corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{
+				TLS: &corev1alpha1.TLSConfig{ClientCARef: secretRef("gateway-server-tls", "ca.crt")},
+			},
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.server.tls.clientCARef needs spec.server.tls.enabled: true"))
+	})
+
+	It("accepts a server client CA alongside server TLS", func() {
+		Expect(create("mtls-server-tls", corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{
+				TLS: &corev1alpha1.TLSConfig{
+					Enabled:     true,
+					ClientCARef: secretRef("gateway-server-tls", "ca.crt"),
+				},
+			},
+		})).To(Succeed())
+	})
+
+	It("rejects an outbound client certificate without its key", func() {
+		err := create("mtls-cert-no-key", corev1alpha1.GatewaySpec{
+			Client: &corev1alpha1.ClientSpec{
+				TLS: &corev1alpha1.ClientTLSConfig{CertificateRef: secretRef("gateway-client-tls", "tls.crt")},
+			},
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.client.tls needs certificateRef and keyRef together"))
+	})
+
+	It("rejects an outbound client key without its certificate", func() {
+		err := create("mtls-key-no-cert", corev1alpha1.GatewaySpec{
+			Client: &corev1alpha1.ClientSpec{
+				TLS: &corev1alpha1.ClientTLSConfig{KeyRef: secretRef("gateway-client-tls", "tls.key")},
+			},
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.client.tls needs certificateRef and keyRef together"))
+	})
+
+	It("accepts an outbound CA bundle on its own", func() {
+		Expect(create("mtls-client-ca-only", corev1alpha1.GatewaySpec{
+			Client: &corev1alpha1.ClientSpec{
+				TLS: &corev1alpha1.ClientTLSConfig{CARef: secretRef("provider-ca", "ca.crt")},
+			},
+		})).To(Succeed())
+	})
+})
+
 var _ = Describe("Gateway providers summary", func() {
 	ctx := context.Background()
 
