@@ -209,6 +209,38 @@ spec:
 
 The operator's own `app: <name>` pod label always wins over `spec.pod.labels`, so Deployment selectors and Services keep working. Changing or removing a `spec.pod` field rolls the Deployment.
 
+When there is no injector to do it - a VPN or proxy sidecar such as Tailscale against a Headscale control plane - `spec.pod.containers`, `spec.pod.initContainers` and `spec.pod.volumes` put the sidecar in the pod spec itself:
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway
+spec:
+  pod:
+    containers:
+      - name: tailscale
+        image: tailscale/tailscale:v1.104.4
+        env:
+          - name: TS_AUTHKEY
+            valueFrom:
+              secretKeyRef:
+                name: tailnet-key-gateway
+                key: authkey
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: tailnet-ca
+            mountPath: /etc/tailnet-ca
+            readOnly: true
+    volumes:
+      - name: tailnet-ca
+        configMap:
+          name: tailnet-ca
+```
+
+`containers` are appended after the operator's own container, which stays first and untouched, and `initContainers` run before it - or alongside it with `restartPolicy: Always` for a native sidecar. A container, init container or volume whose name collides with one the operator owns (`inference-gateway`, `agent`, `mcp`, the TLS and ConfigMap volumes it mounts) fails reconciliation with an error naming the field and the name.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -233,12 +265,14 @@ The operator's own `app: <name>` pod label always wins over `spec.pod.labels`, s
 
 The Inference Gateway Operator supports multiple installation methods. Choose the one that best fits your deployment strategy:
 
+> **Apply server-side.** `spec.pod.containers` embeds the Kubernetes container and volume schemas, so each CRD is larger than the 256 KB a client-side `kubectl apply` can keep in its `last-applied-configuration` annotation. Use `kubectl apply --server-side` (add `--force-conflicts` when upgrading a release installed client-side), and `ServerSideApply=true` in ArgoCD - Flux applies server-side already.
+
 ### Method 1: One-Command Installation (Recommended)
 
 Install the operator and CRDs in one command using the latest release:
 
 ```bash
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 ```
 
 This command will:
@@ -254,7 +288,7 @@ For production environments, pin to a specific version:
 
 ```bash
 # Install version v0.26.0 (replace with desired version)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
 ```
 
 ### Method 3: GitOps/ArgoCD-Friendly Installation
@@ -283,6 +317,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
 ```
 
 At a release tag, `manifests/install.yaml` references that release's operator image, so pinning `targetRevision` pins the operator version as well. On `main` the manifest tracks the most recent release.
@@ -298,10 +333,10 @@ For scenarios where you need separate control over the CRD lifecycle (for exampl
 
 ```bash
 # Step 1: Install (or upgrade) the CRDs on their own
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
 
 # Step 2: Install the operator (install.yaml is idempotent and keeps the CRDs in sync)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 ```
 
 ### Method 5: Custom Namespace Installation
@@ -314,7 +349,7 @@ By default, the operator deploys to the `inference-gateway-system` namespace. To
 # Download and modify the install.yaml
 curl -L https://github.com/inference-gateway/operator/releases/latest/download/install.yaml | \
   sed 's/inference-gateway-system/my-custom-namespace/g' | \
-  kubectl apply -f -
+  kubectl apply --server-side -f -
 ```
 
 #### Option B: Using the development workflow
@@ -328,7 +363,7 @@ cd operator
 task manifests-for-namespace NAMESPACE=my-custom-namespace
 
 # Deploy the generated manifests
-kubectl apply -f manifests/my-custom-namespace/install.yaml
+kubectl apply --server-side -f manifests/my-custom-namespace/install.yaml
 ```
 
 #### Option C: GitOps with custom namespace
@@ -369,6 +404,7 @@ spec:
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
 ```
 
 ### Method 6: Development Installation
@@ -706,10 +742,10 @@ To upgrade the operator to a newer version:
 
 ```bash
 # Upgrade to latest version
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 
 # Or upgrade to specific version (v0.26.0 or later)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
 ```
 
 The operator Deployment uses the `Recreate` strategy, so an upgrade terminates the running operator
@@ -1152,7 +1188,7 @@ mirror them.
 - **One-command installation (Recommended)**: No! CRDs are included automatically:
 
   ```bash
-  kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+  kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
   ```
 
 - **GitOps/ArgoCD installations**: No! Use the `manifests/` directory which includes CRDs:
@@ -1167,12 +1203,12 @@ mirror them.
 
   ```bash
   curl -L https://github.com/inference-gateway/operator/releases/latest/download/install.yaml | \
-    sed 's/inference-gateway-system/my-namespace/g' | kubectl apply -f -
+    sed 's/inference-gateway-system/my-namespace/g' | kubectl apply --server-side -f -
   ```
 
 - **Advanced scenarios**: You can install CRDs separately for more control:
   ```bash
-  kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
+  kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
   ```
 
 ### What architectures are supported?
@@ -1207,7 +1243,7 @@ kubectl get gateways --all-namespaces
 ```bash
 curl -L https://github.com/inference-gateway/operator/releases/latest/download/install.yaml | \
   sed 's/inference-gateway-system/my-namespace/g' | \
-  kubectl apply -f -
+  kubectl apply --server-side -f -
 ```
 
 **Development Method:**
@@ -1215,7 +1251,7 @@ curl -L https://github.com/inference-gateway/operator/releases/latest/download/i
 ```bash
 # Generate manifests for custom namespace
 task manifests-for-namespace NAMESPACE=my-namespace
-kubectl apply -f manifests/my-namespace/install.yaml
+kubectl apply --server-side -f manifests/my-namespace/install.yaml
 ```
 
 **GitOps Method:** Use Kustomize patches in your ArgoCD Application or Flux Kustomization.
@@ -1226,10 +1262,10 @@ Simply reapply the installation with a newer version:
 
 ```bash
 # Upgrade to latest
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 
 # Or upgrade to specific version (v0.26.0 or later)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
 ```
 
 The operator Deployment uses the `Recreate` strategy, so the old operator pod is terminated before

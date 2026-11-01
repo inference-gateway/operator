@@ -87,7 +87,7 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, nil
 	}
 
-	_, err := r.reconcileDeployment(ctx, &agent)
+	err := r.reconcileDeployment(ctx, &agent)
 	if err != nil {
 		if apierrors.IsConflict(err) {
 			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
@@ -316,14 +316,19 @@ func getAgentCard(httpClient *http.Client, url string) (*corev1alpha1.Card, erro
 }
 
 // reconcileDeployment ensures the Deployment exists with the correct configuration
-func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *corev1alpha1.Agent) (*appsv1.Deployment, error) {
+func (r *AgentReconciler) reconcileDeployment(ctx context.Context, agent *corev1alpha1.Agent) error {
 	deployment := r.buildAgentDeployment(agent)
 
-	if err := controllerutil.SetControllerReference(agent, deployment, r.Scheme); err != nil {
-		return nil, err
+	if err := corev1alpha1.ValidatePodTemplateNames(&deployment.Spec.Template); err != nil {
+		return err
 	}
 
-	return r.createOrUpdateDeployment(ctx, deployment)
+	if err := controllerutil.SetControllerReference(agent, deployment, r.Scheme); err != nil {
+		return err
+	}
+
+	_, err := r.createOrUpdateDeployment(ctx, deployment)
+	return err
 }
 
 // buildAgentDeployment returns a Deployment for the given Agent resource with comprehensive configuration.

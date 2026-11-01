@@ -248,6 +248,10 @@ func (r *MCPReconciler) reconcileDeployment(ctx context.Context, mcp *corev1alph
 		return nil, fmt.Errorf("failed to build deployment for MCP %s/%s", mcp.Namespace, mcp.Name)
 	}
 
+	if err := corev1alpha1.ValidatePodTemplateNames(&deployment.Spec.Template); err != nil {
+		return nil, err
+	}
+
 	if err := controllerutil.SetControllerReference(mcp, deployment, r.Scheme); err != nil {
 		return nil, err
 	}
