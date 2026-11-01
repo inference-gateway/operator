@@ -384,6 +384,7 @@ type ServerTimeouts struct {
 }
 
 // TLSConfig contains TLS certificate configuration
+// +kubebuilder:validation:XValidation:rule="!has(self.clientCARef) || (has(self.enabled) && self.enabled)",message="spec.server.tls.clientCARef needs spec.server.tls.enabled: true"
 type TLSConfig struct {
 	// Enable TLS
 	// +optional
@@ -415,6 +416,7 @@ type ClientSpec struct {
 
 // ClientTLSConfig configures the TLS material the gateway uses when calling
 // providers - a private CA to trust, and a client certificate for provider mTLS.
+// +kubebuilder:validation:XValidation:rule="has(self.certificateRef) == has(self.keyRef)",message="spec.client.tls needs certificateRef and keyRef together"
 type ClientTLSConfig struct {
 	// CARef references a secret key holding a PEM CA bundle trusted on top of the
 	// system roots when calling providers (CLIENT_TLS_CA_PATH)

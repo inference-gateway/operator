@@ -366,6 +366,9 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                     type: object
+                    x-kubernetes-validations:
+                    - message: spec.client.tls needs certificateRef and keyRef together
+                      rule: has(self.certificateRef) == has(self.keyRef)
                 type: object
               environment:
                 default: production
@@ -2850,6 +2853,10 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                     type: object
+                    x-kubernetes-validations:
+                    - message: 'spec.server.tls.clientCARef needs spec.server.tls.enabled:
+                        true'
+                      rule: '!has(self.clientCARef) || (has(self.enabled) && self.enabled)'
                 type: object
               service:
                 description: Service configuration
