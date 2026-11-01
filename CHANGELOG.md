@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.31.0](https://github.com/inference-gateway/operator/compare/v0.30.0...v0.31.0) (2026-11-01)
+
+### ✨ Features
+
+* **gateway:** express mutual TLS in both directions ([#313](https://github.com/inference-gateway/operator/issues/313)) ([3cd4b24](https://github.com/inference-gateway/operator/commit/3cd4b2473dbcde41403219b9bd6a8febf174c3ab)), closes [#311](https://github.com/inference-gateway/operator/issues/311)
+* **gateway:** validate mutual TLS field combinations ([#315](https://github.com/inference-gateway/operator/issues/315)) ([d43a7ea](https://github.com/inference-gateway/operator/commit/d43a7ea1b64309af2959503816dbc368a54ed323))
+
+### 🐛 Bug Fixes
+
+* **gateway:** probe over HTTPS when spec.server.tls is on ([#312](https://github.com/inference-gateway/operator/issues/312)) ([2e3400c](https://github.com/inference-gateway/operator/commit/2e3400c44501ae219eace2c28f9caefc071cdf86))
+
 ## [0.30.0](https://github.com/inference-gateway/operator/compare/v0.29.0...v0.30.0) (2026-10-31)
 
 ### ✨ Features
