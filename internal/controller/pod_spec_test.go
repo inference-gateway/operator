@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"strconv"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -51,6 +52,27 @@ var _ = Describe("spec.pod customization", func() {
 				}},
 			},
 		},
+		Containers: []corev1.Container{{
+			Name:  "tailscale",
+			Image: "tailscale/tailscale:v1.104.4",
+			VolumeMounts: []corev1.VolumeMount{{
+				Name:      "tailnet-ca",
+				MountPath: "/etc/tailnet-ca",
+				ReadOnly:  true,
+			}},
+		}},
+		InitContainers: []corev1.Container{{
+			Name:  "sysctler",
+			Image: "busybox:1.37",
+		}},
+		Volumes: []corev1.Volume{{
+			Name: "tailnet-ca",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "tailnet-ca"},
+				},
+			},
+		}},
 	}
 
 	gatewayTemplate := func(pod *corev1alpha1.PodSpec) corev1.PodTemplateSpec {
@@ -80,6 +102,7 @@ var _ = Describe("spec.pod customization", func() {
 
 	DescribeTable("applies spec.pod to the pod template",
 		func(build func(*corev1alpha1.PodSpec) corev1.PodTemplateSpec) {
+			base := build(nil)
 			template := build(podSpec)
 
 			Expect(template.Labels).To(HaveKeyWithValue("sidecar.example.com/inject", "true"))
@@ -88,6 +111,11 @@ var _ = Describe("spec.pod customization", func() {
 			Expect(template.Spec.NodeSelector).To(Equal(podSpec.NodeSelector))
 			Expect(template.Spec.Tolerations).To(Equal(podSpec.Tolerations))
 			Expect(template.Spec.Affinity).To(Equal(podSpec.Affinity))
+			Expect(template.Spec.Containers).To(HaveLen(len(base.Spec.Containers) + 1))
+			Expect(template.Spec.Containers[0]).To(Equal(base.Spec.Containers[0]))
+			Expect(template.Spec.Containers[1]).To(Equal(podSpec.Containers[0]))
+			Expect(template.Spec.InitContainers).To(Equal(podSpec.InitContainers))
+			Expect(template.Spec.Volumes).To(ContainElement(podSpec.Volumes[0]))
 		},
 		Entry("Gateway", gatewayTemplate),
 		Entry("Agent", agentTemplate),
@@ -103,9 +131,71 @@ var _ = Describe("spec.pod customization", func() {
 			Expect(template.Spec.NodeSelector).To(BeNil())
 			Expect(template.Spec.Tolerations).To(BeNil())
 			Expect(template.Spec.Affinity).To(BeNil())
+			Expect(template.Spec.Containers).To(HaveLen(1))
+			Expect(template.Spec.InitContainers).To(BeEmpty())
+			Expect(template.Spec.Volumes).To(BeEmpty())
 		},
 		Entry("Gateway", gatewayTemplate),
 		Entry("Agent", agentTemplate),
 		Entry("MCP", mcpTemplate),
+	)
+
+	gatewayReconcile := func(pod *corev1alpha1.PodSpec) error {
+		gw := &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "workload", Namespace: "default"},
+			Spec: corev1alpha1.GatewaySpec{
+				Pod:        pod,
+				Guardrails: &corev1alpha1.GuardrailsSpec{Enabled: true, ConfigMapRef: &corev1.LocalObjectReference{Name: "policies"}},
+			},
+		}
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(gw), Scheme: gatewayTestScheme}
+		_, err := r.reconcileDeployment(ctx, gw, false)
+		return err
+	}
+
+	agentReconcile := func(pod *corev1alpha1.PodSpec) error {
+		agent := &corev1alpha1.Agent{
+			ObjectMeta: metav1.ObjectMeta{Name: "workload", Namespace: "default"},
+			Spec:       corev1alpha1.AgentSpec{Image: "agent:latest", Pod: pod},
+		}
+		r := &AgentReconciler{Client: testutil.NewFakeClient(agent), Scheme: testutil.Scheme()}
+		return r.reconcileDeployment(ctx, agent)
+	}
+
+	mcpReconcile := func(pod *corev1alpha1.PodSpec) error {
+		mcp := &corev1alpha1.MCP{
+			ObjectMeta: metav1.ObjectMeta{Name: "workload", Namespace: "default"},
+			Spec: corev1alpha1.MCPSpec{
+				Image: "node:lts",
+				Pod:   pod,
+				Server: &corev1alpha1.MCPServerSpec{
+					TLS: &corev1alpha1.MCPTLSConfig{Enabled: true, SecretName: "mcp-tls"},
+				},
+			},
+		}
+		r := &MCPReconciler{Client: testutil.NewFakeClient(mcp), Scheme: testutil.Scheme()}
+		_, err := r.reconcileDeployment(ctx, mcp)
+		return err
+	}
+
+	DescribeTable("rejects spec.pod names the operator already owns",
+		func(reconcile func(*corev1alpha1.PodSpec) error, containerName, volumeName string) {
+			Expect(reconcile(&corev1alpha1.PodSpec{
+				Containers: []corev1.Container{{Name: containerName, Image: "sidecar:latest"}},
+			})).To(MatchError(ContainSubstring("spec.pod.containers: " + strconv.Quote(containerName))))
+
+			if volumeName != "" {
+				Expect(reconcile(&corev1alpha1.PodSpec{
+					Volumes: []corev1.Volume{{Name: volumeName}},
+				})).To(MatchError(ContainSubstring("spec.pod.volumes: " + strconv.Quote(volumeName))))
+			}
+
+			Expect(reconcile(&corev1alpha1.PodSpec{
+				Containers: []corev1.Container{{Name: "tailscale", Image: "tailscale/tailscale:v1.104.4"}},
+			})).To(Succeed())
+		},
+		Entry("Gateway", gatewayReconcile, "inference-gateway", "guardrails-policies"),
+		Entry("Agent", agentReconcile, "agent", ""),
+		Entry("MCP", mcpReconcile, mcpContainerName, "mcp-tls"+tlsVolumeSuffix),
 	)
 })

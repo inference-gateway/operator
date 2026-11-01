@@ -603,6 +603,10 @@ func guardrailsFailModeEnv(failMode string) string {
 func (r *GatewayReconciler) reconcileDeployment(ctx context.Context, gateway *corev1alpha1.Gateway, parked bool) (*appsv1.Deployment, error) {
 	deployment := r.buildDeployment(ctx, gateway, parked)
 
+	if err := corev1alpha1.ValidatePodTemplateNames(&deployment.Spec.Template); err != nil {
+		return nil, err
+	}
+
 	if err := controllerutil.SetControllerReference(gateway, deployment, r.Scheme); err != nil {
 		return nil, err
 	}

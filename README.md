@@ -209,6 +209,38 @@ spec:
 
 The operator's own `app: <name>` pod label always wins over `spec.pod.labels`, so Deployment selectors and Services keep working. Changing or removing a `spec.pod` field rolls the Deployment.
 
+When there is no injector to do it - a VPN or proxy sidecar such as Tailscale against a Headscale control plane - `spec.pod.containers`, `spec.pod.initContainers` and `spec.pod.volumes` put the sidecar in the pod spec itself:
+
+```yaml
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway
+spec:
+  pod:
+    containers:
+      - name: tailscale
+        image: tailscale/tailscale:v1.104.4
+        env:
+          - name: TS_AUTHKEY
+            valueFrom:
+              secretKeyRef:
+                name: tailnet-key-gateway
+                key: authkey
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: tailnet-ca
+            mountPath: /etc/tailnet-ca
+            readOnly: true
+    volumes:
+      - name: tailnet-ca
+        configMap:
+          name: tailnet-ca
+```
+
+`containers` are appended after the operator's own container, which stays first and untouched, and `initContainers` run before it - or alongside it with `restartPolicy: Always` for a native sidecar. A container, init container or volume whose name collides with one the operator owns (`inference-gateway`, `agent`, `mcp`, the TLS and ConfigMap volumes it mounts) fails reconciliation with an error naming the field and the name.
+
 ## 🚀 Quick Start
 
 ### Prerequisites

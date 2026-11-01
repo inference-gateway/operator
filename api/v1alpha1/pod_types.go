@@ -17,11 +17,15 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"errors"
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
 // PodSpec shapes the pods a workload controller creates, for sidecar injection
-// (pod labels/annotations) and scheduling (node selector, tolerations, affinity).
+// (pod labels/annotations, extra containers and volumes) and scheduling
+// (node selector, tolerations, affinity).
 type PodSpec struct {
 	// Labels are added to the pod template, for example to opt into a sidecar
 	// injector. Operator-owned labels such as app take precedence.
@@ -44,6 +48,22 @@ type PodSpec struct {
 	// Affinity constrains or spreads the pods across nodes.
 	// +optional
 	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+
+	// Containers are sidecars appended after the operator's own container, for
+	// VPNs or proxies that ship no injector. A name that collides with an
+	// operator-owned container is rejected.
+	// +optional
+	Containers []corev1.Container `json:"containers,omitempty"`
+
+	// InitContainers run before the operator's container, or alongside it when
+	// they set restartPolicy: Always (native sidecars).
+	// +optional
+	InitContainers []corev1.Container `json:"initContainers,omitempty"`
+
+	// Volumes are added to the pod so the extra containers can mount them. A
+	// name that collides with an operator-owned volume is rejected.
+	// +optional
+	Volumes []corev1.Volume `json:"volumes,omitempty"`
 }
 
 // ApplyTo merges the user-supplied pod customization into a pod template built
@@ -59,6 +79,47 @@ func (p *PodSpec) ApplyTo(template *corev1.PodTemplateSpec) {
 	template.Spec.NodeSelector = p.NodeSelector
 	template.Spec.Tolerations = p.Tolerations
 	template.Spec.Affinity = p.Affinity
+	template.Spec.Containers = append(template.Spec.Containers, p.Containers...)
+	template.Spec.InitContainers = append(template.Spec.InitContainers, p.InitContainers...)
+	template.Spec.Volumes = append(template.Spec.Volumes, p.Volumes...)
+}
+
+// ValidatePodTemplateNames rejects duplicate container, init container and
+// volume names in a pod template built by a controller. Only spec.pod can
+// introduce one, by reusing a name the operator already owns.
+func ValidatePodTemplateNames(template *corev1.PodTemplateSpec) error {
+	return errors.Join(
+		firstDuplicate("spec.pod.containers", containerNames(template.Spec.Containers)),
+		firstDuplicate("spec.pod.initContainers", containerNames(template.Spec.InitContainers)),
+		firstDuplicate("spec.pod.volumes", volumeNames(template.Spec.Volumes)),
+	)
+}
+
+func containerNames(containers []corev1.Container) []string {
+	names := make([]string, 0, len(containers))
+	for _, c := range containers {
+		names = append(names, c.Name)
+	}
+	return names
+}
+
+func volumeNames(volumes []corev1.Volume) []string {
+	names := make([]string, 0, len(volumes))
+	for _, v := range volumes {
+		names = append(names, v.Name)
+	}
+	return names
+}
+
+func firstDuplicate(field string, names []string) error {
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		if _, duplicate := seen[name]; duplicate {
+			return fmt.Errorf("%s: %q is already used by the operator", field, name)
+		}
+		seen[name] = struct{}{}
+	}
+	return nil
 }
 
 func mergeWithoutOverriding(base, authoritative map[string]string) map[string]string {
