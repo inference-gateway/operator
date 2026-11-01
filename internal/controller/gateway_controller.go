@@ -413,6 +413,35 @@ func serverTLSEnabled(gateway *corev1alpha1.Gateway) bool {
 	return gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled
 }
 
+// serverPortName is the container port name for the gateway's server port.
+func serverPortName(gateway *corev1alpha1.Gateway) string {
+	if serverTLSEnabled(gateway) {
+		return "https"
+	}
+	return "http"
+}
+
+// healthProbe probes /health on the server port, over the scheme the gateway
+// actually serves there - the kubelet gets HTTP 400 if it speaks plain HTTP to a
+// TLS listener.
+func healthProbe(gateway *corev1alpha1.Gateway) *corev1.Probe {
+	scheme := corev1.URISchemeHTTP
+	if serverTLSEnabled(gateway) {
+		scheme = corev1.URISchemeHTTPS
+	}
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path:   "/health",
+				Port:   intstr.FromInt(int(gatewayServerPort(gateway))),
+				Scheme: scheme,
+			},
+		},
+		InitialDelaySeconds: 5,
+		PeriodSeconds:       10,
+	}
+}
+
 // tlsFilePaths resolves the in-container certificate and key paths the gateway reads.
 func tlsFilePaths(tls *corev1alpha1.TLSConfig) (certPath string, keyPath string) {
 	certPath = path.Join(tlsMountDir, "tls.crt")
@@ -846,32 +875,14 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 	}
 
 	return corev1.Container{
-		Name:         "inference-gateway",
-		Image:        image,
-		Ports:        containerPorts,
-		Env:          append(envVars, providerEnvVars...),
-		VolumeMounts: volumeMounts,
-		Resources:    resources,
-		LivenessProbe: &corev1.Probe{
-			ProbeHandler: corev1.ProbeHandler{
-				HTTPGet: &corev1.HTTPGetAction{
-					Path: "/health",
-					Port: intstr.FromInt(int(port)),
-				},
-			},
-			InitialDelaySeconds: 5,
-			PeriodSeconds:       10,
-		},
-		ReadinessProbe: &corev1.Probe{
-			ProbeHandler: corev1.ProbeHandler{
-				HTTPGet: &corev1.HTTPGetAction{
-					Path: "/health",
-					Port: intstr.FromInt(int(port)),
-				},
-			},
-			InitialDelaySeconds: 5,
-			PeriodSeconds:       10,
-		},
+		Name:           "inference-gateway",
+		Image:          image,
+		Ports:          containerPorts,
+		Env:            append(envVars, providerEnvVars...),
+		VolumeMounts:   volumeMounts,
+		Resources:      resources,
+		LivenessProbe:  healthProbe(gateway),
+		ReadinessProbe: healthProbe(gateway),
 	}
 }
 
@@ -1020,23 +1031,14 @@ func (r *GatewayReconciler) updateDeploymentIfNeeded(ctx context.Context, desire
 func desiredService(ctx context.Context, gateway *corev1alpha1.Gateway) *corev1.Service {
 	logger := log.FromContext(ctx)
 
-	var mainPort int32
-	if gateway.Spec.Service != nil && gateway.Spec.Service.Port > 0 {
-		mainPort = gateway.Spec.Service.Port
-	} else if gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0 {
-		mainPort = gateway.Spec.Server.Port
-	} else if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled {
-		mainPort = 8443
-	} else {
-		mainPort = 8080
-	}
+	mainPort := gatewayServicePort(gateway)
 
 	servicePorts := []corev1.ServicePort{
 		{
 			Port:       mainPort,
-			TargetPort: intstr.FromInt(int(mainPort)),
+			TargetPort: intstr.FromString(serverPortName(gateway)),
 			Protocol:   corev1.ProtocolTCP,
-			Name:       "http",
+			Name:       serverPortName(gateway),
 		},
 	}
 
@@ -1048,16 +1050,6 @@ func desiredService(ctx context.Context, gateway *corev1alpha1.Gateway) *corev1.
 			TargetPort: intstr.FromInt(int(metricsPort)),
 			Protocol:   corev1.ProtocolTCP,
 			Name:       "metrics",
-		})
-	}
-
-	if gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled && mainPort != 8443 {
-		logger.V(1).Info("Adding HTTPS port to Service", "port", 8443)
-		servicePorts = append(servicePorts, corev1.ServicePort{
-			Port:       8443,
-			TargetPort: intstr.FromInt(8443),
-			Protocol:   corev1.ProtocolTCP,
-			Name:       "https",
 		})
 	}
 
@@ -1547,17 +1539,10 @@ func gatewayServiceURL(gateway *corev1alpha1.Gateway) string {
 // gatewayServicePort returns the port the upstream HTTPRoute backend
 // targets on the gateway Service.
 func gatewayServicePort(gateway *corev1alpha1.Gateway) int32 {
-	switch {
-	case gateway.Spec.Service != nil && gateway.Spec.Service.Port > 0:
+	if gateway.Spec.Service != nil && gateway.Spec.Service.Port > 0 {
 		return gateway.Spec.Service.Port
-	case gateway.Spec.Server != nil && gateway.Spec.Server.Port > 0:
-		return gateway.Spec.Server.Port
-	case (gateway.Spec.Server != nil && gateway.Spec.Server.TLS != nil && gateway.Spec.Server.TLS.Enabled) ||
-		tlsEnabled(gateway):
-		return 8443
-	default:
-		return 8080
 	}
+	return gatewayServerPort(gateway)
 }
 
 // schemeDefaultPort is the port a URL scheme implies when none is named.
@@ -1735,15 +1720,8 @@ func (r *GatewayReconciler) buildContainerPorts(gateway *corev1alpha1.Gateway) [
 	ports := []corev1.ContainerPort{
 		{
 			ContainerPort: gatewayServerPort(gateway),
-			Name:          "http",
+			Name:          serverPortName(gateway),
 		},
-	}
-
-	if serverTLSEnabled(gateway) {
-		ports = append(ports, corev1.ContainerPort{
-			ContainerPort: 8443,
-			Name:          "https",
-		})
 	}
 
 	if metricsEnabled(gateway) {

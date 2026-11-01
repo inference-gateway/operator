@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
+	intstr "k8s.io/apimachinery/pkg/util/intstr"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	reconcile "sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -1508,6 +1509,35 @@ var _ = Describe("Gateway server and telemetry configuration", func() {
 		container := containerOf(gw)
 		Expect(container.Env).To(ContainElement(corev1.EnvVar{Name: "TELEMETRY_METRICS_PORT", Value: "9464"}))
 		Expect(container.Ports).To(ContainElement(corev1.ContainerPort{ContainerPort: 9464, Name: "metrics"}))
+	})
+
+	It("probes over HTTPS on the single server port when TLS is enabled", func() {
+		container := containerOf(gatewayWith(corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{Port: 8443, TLS: &corev1alpha1.TLSConfig{Enabled: true}},
+		}))
+
+		Expect(container.Ports).To(Equal([]corev1.ContainerPort{{ContainerPort: 8443, Name: "https"}}))
+		Expect(container.LivenessProbe.HTTPGet.Scheme).To(Equal(corev1.URISchemeHTTPS))
+		Expect(container.ReadinessProbe.HTTPGet.Scheme).To(Equal(corev1.URISchemeHTTPS))
+		Expect(container.ReadinessProbe.HTTPGet.Port.IntValue()).To(Equal(8443))
+	})
+
+	It("keeps the probes on HTTP and exposes no 8443 port when TLS is off", func() {
+		container := containerOf(gatewayWith(corev1alpha1.GatewaySpec{}))
+
+		Expect(container.Ports).To(Equal([]corev1.ContainerPort{{ContainerPort: 8080, Name: "http"}}))
+		Expect(container.LivenessProbe.HTTPGet.Scheme).To(Equal(corev1.URISchemeHTTP))
+	})
+
+	It("serves the Service on the server port under TLS, with no phantom 8443 port", func() {
+		svc := desiredService(ctx, gatewayWith(corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{TLS: &corev1alpha1.TLSConfig{Enabled: true}},
+		}))
+
+		Expect(svc.Spec.Ports).To(HaveLen(1))
+		Expect(svc.Spec.Ports[0].Port).To(Equal(int32(8080)))
+		Expect(svc.Spec.Ports[0].Name).To(Equal("https"))
+		Expect(svc.Spec.Ports[0].TargetPort).To(Equal(intstr.FromString("https")))
 	})
 
 	It("points the TLS path env vars at the conventional Secret mount by default", func() {
