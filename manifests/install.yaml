@@ -22898,6 +22898,20 @@ spec:
                         maximum: 65535
                         minimum: 1024
                         type: integer
+                      service:
+                        description: |-
+                          Service adds metadata to the <name>-binding Service for other controllers
+                          to act on, for example a VPN operator or external-dns.
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          labels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
                       tls:
                         description: DaemonBindingTLSSpec is the certificate the binding
                           serves.

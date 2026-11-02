@@ -216,6 +216,20 @@ type DaemonBindingSpec struct {
 	TokenSecretRef *corev1.SecretKeySelector `json:"tokenSecretRef,omitempty"`
 
 	TLS DaemonBindingTLSSpec `json:"tls"`
+
+	// Service adds metadata to the <name>-binding Service for other controllers
+	// to act on, for example a VPN operator or external-dns.
+	// +optional
+	Service *DaemonBindingServiceSpec `json:"service,omitempty"`
+}
+
+// DaemonBindingServiceSpec is metadata copied verbatim onto the binding Service.
+type DaemonBindingServiceSpec struct {
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // DaemonBindingTLSSpec is the certificate the binding serves.
