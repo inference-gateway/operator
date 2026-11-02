@@ -616,6 +616,11 @@ binding listens on every interface, so it always serves TLS from
 a client certificate, or both, and the API rejects a binding with neither. The
 controller adds a `<name>-binding` Service on the binding port (default `52789`)
 and holds the pod back from Ready until the binding listens.
+`spec.daemon.binding.service.annotations` and `.labels` are copied verbatim onto
+that Service for other controllers to act on (a VPN operator such as Tailscale
+with `tailscale.com/expose: "true"`, external-dns, a service mesh). The operator
+ships no such keys itself, and metadata those controllers add to the Service
+survives a reconcile.
 
 ```bash
 # 1. The certificate must name the host clients dial: daemon-binding.orchestrators.svc

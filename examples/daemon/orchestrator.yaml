@@ -12,6 +12,13 @@ spec:
         key: token
       tls:
         secretName: daemon-binding-tls
+      # Optional: metadata copied verbatim onto the daemon-binding Service for
+      # other controllers, for example a VPN operator or external-dns.
+      # service:
+      #   annotations:
+      #     tailscale.com/expose: "true"
+      #   labels:
+      #     tier: edge
   gateway:
     url: http://inference-gateway.inference-gateway.svc.cluster.local:8080
   agent:

@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"reflect"
 	"slices"
@@ -953,33 +954,41 @@ func (r *OrchestratorReconciler) reconcileReceiverService(ctx context.Context, o
 		}
 		port = &corev1.ServicePort{Name: "otlp-http", Protocol: corev1.ProtocolTCP, Port: receiverPort, TargetPort: intstr.FromInt32(receiverPort)}
 	}
-	return r.reconcilePortService(ctx, orch, orch.Name+"-receiver", port)
+	return r.reconcilePortService(ctx, orch, orch.Name+"-receiver", port, corev1alpha1.DaemonBindingServiceSpec{})
 }
 
 // reconcileBindingService creates or removes the <name>-binding Service that
 // devices and other daemons reach the AG-UI binding through.
 func (r *OrchestratorReconciler) reconcileBindingService(ctx context.Context, orch *corev1alpha1.Orchestrator) error {
 	var port *corev1.ServicePort
+	var meta *corev1alpha1.DaemonBindingServiceSpec
 	if binding := daemonBinding(&orch.Spec); binding != nil {
 		listenPort := bindingPort(binding)
 		port = &corev1.ServicePort{Name: bindingPortName, Protocol: corev1.ProtocolTCP, Port: listenPort, TargetPort: intstr.FromInt32(listenPort)}
+		meta = binding.Service
 	}
-	return r.reconcilePortService(ctx, orch, orch.Name+"-binding", port)
+	if meta == nil {
+		meta = &corev1alpha1.DaemonBindingServiceSpec{}
+	}
+	return r.reconcilePortService(ctx, orch, orch.Name+"-binding", port, *meta)
 }
 
 // reconcilePortService keeps the Service svcName exposing port on the
 // Orchestrator's pod, and deletes it when port is nil. The Service uses the
 // same labels as the Deployment so the selector stays in sync with the controller.
-func (r *OrchestratorReconciler) reconcilePortService(ctx context.Context, orch *corev1alpha1.Orchestrator, svcName string, port *corev1.ServicePort) error {
+// Labels and annotations from meta are copied as given and other keys left alone.
+func (r *OrchestratorReconciler) reconcilePortService(ctx context.Context, orch *corev1alpha1.Orchestrator, svcName string, port *corev1.ServicePort, meta corev1alpha1.DaemonBindingServiceSpec) error {
 	logger := log.FromContext(ctx)
 
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      svcName,
-			Namespace: orch.Namespace,
-			Labels:    map[string]string{"app": orch.Name},
+			Name:        svcName,
+			Namespace:   orch.Namespace,
+			Labels:      map[string]string{"app": orch.Name},
+			Annotations: meta.Annotations,
 		},
 	}
+	maps.Copy(svc.Labels, meta.Labels)
 	if port != nil {
 		svc.Spec = corev1.ServiceSpec{
 			Selector: map[string]string{"app": orch.Name},
@@ -1008,13 +1017,32 @@ func (r *OrchestratorReconciler) reconcilePortService(ctx context.Context, orch 
 		return r.Delete(ctx, found)
 	}
 
-	if !reflect.DeepEqual(found.Spec, svc.Spec) {
+	specChanged := !reflect.DeepEqual(found.Spec, svc.Spec)
+	labelsChanged := mergeMissing(&found.Labels, svc.Labels)
+	annotationsChanged := mergeMissing(&found.Annotations, svc.Annotations)
+	if specChanged || labelsChanged || annotationsChanged {
 		found.Spec = svc.Spec
 		logger.Info("updating service", "Service.Name", svcName)
 		return r.Update(ctx, found)
 	}
 
 	return nil
+}
+
+// mergeMissing sets every key of want in dst and reports whether dst changed.
+func mergeMissing(dst *map[string]string, want map[string]string) bool {
+	changed := false
+	for key, value := range want {
+		if current, ok := (*dst)[key]; ok && current == value {
+			continue
+		}
+		if *dst == nil {
+			*dst = map[string]string{}
+		}
+		(*dst)[key] = value
+		changed = true
+	}
+	return changed
 }
 
 // createOrUpdateOrchestratorDeployment creates the Deployment if missing, otherwise reconciles drift.

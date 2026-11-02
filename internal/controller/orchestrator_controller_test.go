@@ -756,6 +756,39 @@ var _ = Describe("Orchestrator running the daemon without Telegram", func() {
 		Expect(svc.Spec.Ports[0].TargetPort.IntVal).To(Equal(int32(52789)))
 	})
 
+	It("copies binding.service annotations and labels onto the Service and keeps foreign keys", func() {
+		create("annotated-binding", corev1alpha1.OrchestratorSpec{
+			Image: "img",
+			Daemon: &corev1alpha1.OrchestratorDaemonSpec{Binding: &corev1alpha1.DaemonBindingSpec{
+				TokenSecretRef: tokenRef,
+				TLS:            corev1alpha1.DaemonBindingTLSSpec{SecretName: "binding-tls"},
+				Service: &corev1alpha1.DaemonBindingServiceSpec{
+					Annotations: map[string]string{"tailscale.com/expose": "true"},
+					Labels:      map[string]string{"tier": "edge"},
+				},
+			}},
+		})
+		reconcile("annotated-binding")
+
+		key := types.NamespacedName{Name: "annotated-binding-binding", Namespace: "default"}
+		svc := &corev1.Service{}
+		Expect(k8sClient.Get(ctx, key, svc)).To(Succeed())
+		Expect(svc.Annotations).To(Equal(map[string]string{"tailscale.com/expose": "true"}))
+		Expect(svc.Labels).To(Equal(map[string]string{"app": "annotated-binding", "tier": "edge"}))
+
+		svc.Annotations["other.io/managed"] = "yes"
+		Expect(k8sClient.Update(ctx, svc)).To(Succeed())
+
+		orch := &corev1alpha1.Orchestrator{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "annotated-binding", Namespace: "default"}, orch)).To(Succeed())
+		orch.Spec.Daemon.Binding.Service.Annotations["tailscale.com/expose"] = "false"
+		Expect(k8sClient.Update(ctx, orch)).To(Succeed())
+		reconcile("annotated-binding")
+
+		Expect(k8sClient.Get(ctx, key, svc)).To(Succeed())
+		Expect(svc.Annotations).To(Equal(map[string]string{"tailscale.com/expose": "false", "other.io/managed": "yes"}))
+	})
+
 	It("rejects a binding that authenticates no client", func() {
 		orch := &corev1alpha1.Orchestrator{
 			ObjectMeta: metav1.ObjectMeta{Name: "open-binding", Namespace: "default"},
