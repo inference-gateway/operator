@@ -470,11 +470,28 @@ type mcpYAMLDocument struct {
 	Servers []mcpYAMLServer `json:"servers"`
 }
 
-// mcpYAMLServer is one server of the CLI's mcp.yaml, which skips a server
-// whose enabled is unset.
+// mcpYAMLServer is one server of the CLI's mcp.yaml under the CLI's keys. The
+// CLI skips a server whose enabled is unset.
 type mcpYAMLServer struct {
-	corev1alpha1.OrchestratorMCPServer
-	Enabled bool `json:"enabled"`
+	Name         string            `json:"name"`
+	Enabled      bool              `json:"enabled"`
+	URL          string            `json:"url"`
+	Headers      map[string]string `json:"headers,omitempty"`
+	IncludeTools []string          `json:"include_tools,omitempty"`
+	ExcludeTools []string          `json:"exclude_tools,omitempty"`
+	Timeout      int32             `json:"timeout,omitempty"`
+}
+
+func newMCPYAMLServer(server corev1alpha1.OrchestratorMCPServer) mcpYAMLServer {
+	return mcpYAMLServer{
+		Name:         server.Name,
+		Enabled:      true,
+		URL:          server.URL,
+		Headers:      server.Headers,
+		IncludeTools: server.IncludeTools,
+		ExcludeTools: server.ExcludeTools,
+		Timeout:      server.TimeoutSeconds,
+	}
 }
 
 // buildMCPsYAML renders the pod's mcp.yaml: the servers in spec order, then the
@@ -483,12 +500,11 @@ type mcpYAMLServer struct {
 func buildMCPsYAML(spec corev1alpha1.OrchestratorMCPSpec, discoveredMCPs []corev1alpha1.MCP) (string, error) {
 	doc := mcpYAMLDocument{Enabled: true, Servers: []mcpYAMLServer{}}
 	for _, server := range spec.Servers {
-		doc.Servers = append(doc.Servers, mcpYAMLServer{OrchestratorMCPServer: server, Enabled: true})
+		doc.Servers = append(doc.Servers, newMCPYAMLServer(server))
 	}
 	sorted := slices.SortedFunc(slices.Values(discoveredMCPs), func(a, b corev1alpha1.MCP) int { return strings.Compare(a.Name, b.Name) })
 	for _, mcp := range sorted {
-		server := corev1alpha1.OrchestratorMCPServer{Name: mcp.Name, URL: mcpURL(&mcp)}
-		doc.Servers = append(doc.Servers, mcpYAMLServer{OrchestratorMCPServer: server, Enabled: true})
+		doc.Servers = append(doc.Servers, newMCPYAMLServer(corev1alpha1.OrchestratorMCPServer{Name: mcp.Name, URL: mcpURL(&mcp)}))
 	}
 	rendered, err := yaml.Marshal(doc)
 	if err != nil {

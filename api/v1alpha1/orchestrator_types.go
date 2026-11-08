@@ -363,6 +363,21 @@ type OrchestratorMCPServer struct {
 	// Headers are sent with every request to the server.
 	// +optional
 	Headers map[string]string `json:"headers,omitempty"`
+
+	// IncludeTools limits the pod to these tools of the server, named as the
+	// server lists them. When set, ExcludeTools is ignored.
+	// +optional
+	IncludeTools []string `json:"includeTools,omitempty"`
+
+	// ExcludeTools hides these tools of the server from the pod.
+	// +optional
+	ExcludeTools []string `json:"excludeTools,omitempty"`
+
+	// TimeoutSeconds bounds one request to the server. Unset, the pod's default
+	// applies.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	TimeoutSeconds int32 `json:"timeoutSeconds,omitempty"`
 }
 
 // OrchestratorStatus defines the observed state of Orchestrator.
