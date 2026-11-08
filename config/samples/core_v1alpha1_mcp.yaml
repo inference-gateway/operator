@@ -15,5 +15,6 @@ spec:
     timeout: "30s"
     tls:
       enabled: false
+      secretName: mcp-sample-tls
   hpa:
     enabled: false

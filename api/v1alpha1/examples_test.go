@@ -27,23 +27,28 @@ import (
 	yaml "sigs.k8s.io/yaml"
 )
 
-// TestExamplesUseKnownFields strict-decodes every CR under examples/ into its
-// API type. The CRD schemas do not preserve unknown fields, so a manifest that
-// references a removed or renamed field (e.g. spec.ingress, or spec.routing
-// used for Gateway API exposure) is rejected by kubectl's field validation.
-// This catches that drift without a cluster.
+// TestExamplesUseKnownFields strict-decodes every CR under examples/ and
+// config/samples/ into its API type. The CRD schemas do not preserve unknown
+// fields, so a manifest that references a removed or renamed field is rejected
+// by kubectl's field validation. This catches that drift without a cluster.
 func TestExamplesUseKnownFields(t *testing.T) {
 	byKind := map[string]func() runtime.Object{
 		"Gateway":      func() runtime.Object { return &Gateway{} },
 		"Agent":        func() runtime.Object { return &Agent{} },
 		"MCP":          func() runtime.Object { return &MCP{} },
 		"Orchestrator": func() runtime.Object { return &Orchestrator{} },
+		"GPU":          func() runtime.Object { return &GPU{} },
 	}
 
-	manifests, err := filepath.Glob("../../examples/*/*.yaml")
+	examples, err := filepath.Glob("../../examples/*/*.yaml")
 	if err != nil {
 		t.Fatalf("glob examples: %v", err)
 	}
+	samples, err := filepath.Glob("../../config/samples/*.yaml")
+	if err != nil {
+		t.Fatalf("glob samples: %v", err)
+	}
+	manifests := append(examples, samples...)
 	if len(manifests) == 0 {
 		t.Fatal("no example manifests found")
 	}
