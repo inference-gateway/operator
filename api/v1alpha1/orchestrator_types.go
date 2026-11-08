@@ -156,6 +156,41 @@ const (
 	SandboxSuspended SandboxOperatingMode = "Suspended"
 )
 
+// OrchestratorConditionReady is the condition type that reports whether the
+// daemon runs. Its reason is one of the Reason constants, which tells a client
+// whether to keep waiting or fail fast.
+const OrchestratorConditionReady = "Ready"
+
+const (
+	// ReasonDeploymentAvailable reports Ready=True for the Deployment runtime.
+	ReasonDeploymentAvailable = "DeploymentAvailable"
+	// ReasonDeploymentNotAvailable reports the Deployment has no available
+	// replica yet. It clears on its own once the pod starts.
+	ReasonDeploymentNotAvailable = "DeploymentNotAvailable"
+	// ReasonSandboxReady reports Ready=True for the Sandbox runtime.
+	ReasonSandboxReady = "SandboxReady"
+	// ReasonSandboxNotReady reports the Sandbox's pod does not run yet. It clears
+	// on its own unless the Sandbox's own reason, such as an image pull error,
+	// needs a fix to the spec or the cluster.
+	ReasonSandboxNotReady = "SandboxNotReady"
+	// ReasonSandboxSuspended reports spec.sandbox.operatingMode is Suspended. It
+	// needs a spec change to Running.
+	ReasonSandboxSuspended = "SandboxSuspended"
+	// ReasonInvalidSpec reports a spec that gives the daemon nothing to run. It
+	// needs a spec change.
+	ReasonInvalidSpec = "InvalidSpec"
+	// ReasonSandboxCRDMissing reports runtime Sandbox on a cluster without
+	// agent-sandbox. It needs agent-sandbox installed and the operator restarted.
+	ReasonSandboxCRDMissing = "SandboxCRDMissing"
+	// ReasonGatewayNotFound reports spec.gateway.ref names no readable Gateway.
+	// The controller retries, so it clears once that Gateway exists.
+	ReasonGatewayNotFound = "GatewayNotFound"
+)
+
+// AgentsDoneMessage is the termination message a pod daemon leaves once every
+// agent on it is done, which starts spec.sandbox.retention.
+const AgentsDoneMessage = "agents-done=true"
+
 // OrchestratorSandboxSpec configures the Sandbox the daemon runs in. Its
 // volumes hold the daemon's workspace (/workspace) and its state
 // (~/.infer/projects), and outlive a suspension. The pod has no Kubernetes API
