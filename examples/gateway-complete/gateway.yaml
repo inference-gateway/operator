@@ -153,22 +153,20 @@ spec:
       tlsHandshake: "5s"
       responseHeader: "5s"
       request: "10s"
+    # The gateway polls every server with tools/list and reconnects one that
+    # stops answering.
+    healthCheck:
+      enabled: true
+      interval: "30s"
+      timeout: "5s"
     # Static servers are merged (union, deduped by URL) with any MCP CRs discovered
     # via serviceDiscovery. Static entries are best for externally-hosted MCPs that
     # don't have a corresponding MCP CR in the cluster.
     servers:
       - name: filesystem-server
         url: "http://mcp-filesystem.mcp.svc.cluster.local:8080"
-        healthCheck:
-          enabled: true
-          path: "/health"
-          interval: "30s"
       - name: git-server
         url: "http://mcp-git.mcp.svc.cluster.local:8080"
-        healthCheck:
-          enabled: true
-          path: "/health"
-          interval: "30s"
     # serviceDiscovery picks up MCP CRs labeled `mcp-group: group1` in the `mcp`
     # namespace. They are appended to MCP_SERVERS on the gateway pod as
     # `<metadata.name>=<url>`, deduped on URL and sorted for determinism.

@@ -8336,6 +8336,25 @@ spec:
                       and HTTPRoutes in front of the gateway must forward MCP-Protocol-Version,
                       Mcp-Method and Mcp-Name unchanged or the endpoint fails with 400/-32020.
                     type: boolean
+                  healthCheck:
+                    description: |-
+                      HealthCheck tunes how the gateway polls every MCP server with tools/list
+                      and reconnects one that stops answering. Emitted as MCP_POLLING_*. Left
+                      unset, the gateway polls every 30s with a 5s timeout.
+                    properties:
+                      enabled:
+                        default: true
+                        description: Enable health polling (MCP_POLLING_ENABLED)
+                        type: boolean
+                      interval:
+                        description: Interval between polls (MCP_POLLING_INTERVAL),
+                          such as "30s"
+                        type: string
+                      timeout:
+                        description: Timeout for one poll (MCP_POLLING_TIMEOUT), such
+                          as "5s"
+                        type: string
+                    type: object
                   resourceUrl:
                     description: |-
                       ResourceURL pins the canonical public /mcp URL the gateway advertises as
@@ -8353,22 +8372,6 @@ spec:
                     items:
                       description: MCPServer contains MCP server configuration
                       properties:
-                        healthCheck:
-                          description: Health check configuration
-                          properties:
-                            enabled:
-                              default: true
-                              description: Enable health checks
-                              type: boolean
-                            interval:
-                              default: 30s
-                              description: Health check interval
-                              type: string
-                            path:
-                              default: /health
-                              description: Health check path
-                              type: string
-                          type: object
                         name:
                           description: |-
                             Server name. Rendered as the server's alias in MCP_SERVERS ("<name>=<url>"), so
