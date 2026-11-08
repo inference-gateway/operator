@@ -1,9 +1,9 @@
 ---
 # Single-instance standalone MCP server example.
 #
-# This deploys `mcp-memory-server` - a minimal Go MCP built with the same
-# `metoro-io/mcp-golang` library that the Inference Gateway uses on its client
-# side. The image is built locally (no public registry is involved); build &
+# This deploys `mcp-memory-server` - a minimal Go MCP built on the official MCP
+# Go SDK, serving MCP 2026-07-28 statelessly as the Inference Gateway expects.
+# The image is built locally (no public registry is involved); build &
 # import it into your k3d cluster first:
 #
 #   cd mcp-memory-server

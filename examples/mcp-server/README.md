@@ -2,7 +2,7 @@
 
 Deploy a standalone **MCP memory server** - a minimal Go MCP that exposes a small in-process key/value store over Streamable HTTP. Once running, register its in-cluster URL under a Gateway's `spec.mcp.servers` so the Inference Gateway can proxy tool calls to it.
 
-The MCP server itself lives in [`mcp-memory-server/`](mcp-memory-server/) and is built with [`metoro-io/mcp-golang`](https://github.com/metoro-io/mcp-golang) - the same library the Inference Gateway uses on its client side, eliminating any cross-implementation capability mismatches.
+The MCP server itself lives in [`mcp-memory-server/`](mcp-memory-server/) and is built on the official [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk). It serves MCP `2026-07-28` statelessly, the revision the Inference Gateway speaks.
 
 > **Why a local image instead of a public registry?** This project does **not** maintain a registry of "trusted" MCP servers - that's not a sustainable long-term solution. The recommended path is to build your own MCP image, push it to your cluster (or to a registry you trust), and reference it from an `MCP` resource. This example shows exactly that flow against a local k3d cluster.
 
@@ -41,13 +41,16 @@ The MCP server itself lives in [`mcp-memory-server/`](mcp-memory-server/) and is
    kubectl get pods -n mcp
    ```
 
-4. (Optional) Sanity-check the Streamable HTTP endpoint from inside the cluster - a `tools/list` JSON-RPC call should return all four tools (`memory_set`, `memory_get`, `memory_delete`, `memory_list`):
+4. (Optional) Sanity-check the Streamable HTTP endpoint from inside the cluster - a `tools/list` call should return all four tools (`memory_set`, `memory_get`, `memory_delete`, `memory_list`). MCP `2026-07-28` has no `initialize` handshake, so each request carries the protocol version in its headers and `_meta`:
 
    ```bash
    kubectl run -it --rm curl --image=curlimages/curl --restart=Never -- \
      curl -s -X POST http://mcp-memory-server-service.mcp.svc.cluster.local:8080/mcp \
        -H 'Content-Type: application/json' \
-       -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+       -H 'Accept: application/json, text/event-stream' \
+       -H 'MCP-Protocol-Version: 2026-07-28' \
+       -H 'Mcp-Method: tools/list' \
+       -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"1.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}'
    ```
 
 5. Register the MCP server with a Gateway by adding it to `spec.mcp.servers`:
