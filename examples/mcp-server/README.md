@@ -58,14 +58,15 @@ The MCP server itself lives in [`mcp-memory-server/`](mcp-memory-server/) and is
    ```yaml
    mcp:
      enabled: true
+     healthCheck:
+       interval: "30s"
+       timeout: "5s"
      servers:
        - name: memory-server
          url: "http://mcp-memory-server-service.mcp.svc.cluster.local:8080/mcp"
-         healthCheck:
-           enabled: true
-           path: "/health"
-           interval: "30s"
    ```
+
+   `healthCheck` sets how often the gateway polls each server with `tools/list` and reconnects one that stops answering.
 
    See the [`gateway-complete`](../gateway-complete/) example for a full Gateway configuration that includes MCP server references, and the [`orchestrator`](../orchestrator/) example for a deployment that uses `mcp.serviceDiscovery` to pick up MCP CRs by label automatically.
 

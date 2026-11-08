@@ -489,6 +489,12 @@ type MCPServersSpec struct {
 	// +optional
 	Timeouts *MCPTimeouts `json:"timeouts,omitempty"`
 
+	// HealthCheck tunes how the gateway polls every MCP server with tools/list
+	// and reconnects one that stops answering. Emitted as MCP_POLLING_*. Left
+	// unset, the gateway polls every 30s with a 5s timeout.
+	// +optional
+	HealthCheck *MCPHealthCheck `json:"healthCheck,omitempty"`
+
 	// MCP servers configuration. Static entries are unioned with any servers
 	// discovered via ServiceDiscovery when both are configured, and rendered into
 	// MCP_SERVERS as "<name>=<url>".
@@ -608,6 +614,22 @@ type A2ATimeouts struct {
 }
 
 // MCPTimeouts contains timeout configurations for MCP
+// MCPHealthCheck configures the gateway's MCP server health polling.
+type MCPHealthCheck struct {
+	// Enable health polling (MCP_POLLING_ENABLED)
+	// +optional
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Interval between polls (MCP_POLLING_INTERVAL), such as "30s"
+	// +optional
+	Interval string `json:"interval,omitempty"`
+
+	// Timeout for one poll (MCP_POLLING_TIMEOUT), such as "5s"
+	// +optional
+	Timeout string `json:"timeout,omitempty"`
+}
+
 type MCPTimeouts struct {
 	// Client timeout
 	// +optional
@@ -648,28 +670,6 @@ type MCPServer struct {
 	// Server URL
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
-
-	// Health check configuration
-	// +optional
-	HealthCheck *HealthCheck `json:"healthCheck,omitempty"`
-}
-
-// HealthCheck contains health check configuration
-type HealthCheck struct {
-	// Enable health checks
-	// +optional
-	// +kubebuilder:default=true
-	Enabled bool `json:"enabled,omitempty"`
-
-	// Health check path
-	// +optional
-	// +kubebuilder:default="/health"
-	Path string `json:"path,omitempty"`
-
-	// Health check interval
-	// +optional
-	// +kubebuilder:default="30s"
-	Interval string `json:"interval,omitempty"`
 }
 
 // ResourceRequirements contains resource requirements for the gateway

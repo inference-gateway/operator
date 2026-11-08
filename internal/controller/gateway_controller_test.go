@@ -1318,6 +1318,19 @@ var _ = Describe("Gateway MCP tool mode", func() {
 	It("omits MCP_TOOL_MODE when MCP is disabled", func() {
 		Expect(findEnvVar(buildEnv(nil), "MCP_TOOL_MODE")).To(BeNil())
 	})
+
+	It("emits spec.mcp.healthCheck as MCP_POLLING_*", func() {
+		env := buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true, HealthCheck: &corev1alpha1.MCPHealthCheck{Enabled: false, Interval: "10s", Timeout: "2s"}})
+		Expect(env).To(ContainElements(
+			corev1.EnvVar{Name: "MCP_POLLING_ENABLED", Value: "false"},
+			corev1.EnvVar{Name: "MCP_POLLING_INTERVAL", Value: "10s"},
+			corev1.EnvVar{Name: "MCP_POLLING_TIMEOUT", Value: "2s"},
+		))
+	})
+
+	It("leaves the gateway's polling defaults when healthCheck is unset", func() {
+		Expect(findEnvVar(buildEnv(&corev1alpha1.MCPServersSpec{Enabled: true}), "MCP_POLLING_ENABLED")).To(BeNil())
+	})
 })
 
 var _ = Describe("Gateway MCP resource URL", func() {

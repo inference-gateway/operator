@@ -922,6 +922,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		if url := mcpResourceURL(gateway); url != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "MCP_RESOURCE_URL", Value: url})
 		}
+		envVars = append(envVars, mcpHealthCheckEnvVars(gateway.Spec.MCP.HealthCheck)...)
 	}
 
 	if gateway.Spec.A2A != nil && gateway.Spec.A2A.Enabled {
@@ -1593,6 +1594,22 @@ func defaultHTTPRouteRules(gateway *corev1alpha1.Gateway) []gwapiv1.HTTPRouteRul
 			},
 		},
 	}
+}
+
+// mcpHealthCheckEnvVars maps spec.mcp.healthCheck onto the gateway's
+// MCP_POLLING_* variables. Whatever is unset keeps the gateway's default.
+func mcpHealthCheckEnvVars(hc *corev1alpha1.MCPHealthCheck) []corev1.EnvVar {
+	if hc == nil {
+		return nil
+	}
+	envVars := []corev1.EnvVar{{Name: "MCP_POLLING_ENABLED", Value: strconv.FormatBool(hc.Enabled)}}
+	if hc.Interval != "" {
+		envVars = append(envVars, corev1.EnvVar{Name: "MCP_POLLING_INTERVAL", Value: hc.Interval})
+	}
+	if hc.Timeout != "" {
+		envVars = append(envVars, corev1.EnvVar{Name: "MCP_POLLING_TIMEOUT", Value: hc.Timeout})
+	}
+	return envVars
 }
 
 // mcpResourceURL returns the canonical public /mcp URL advertised as the RFC 9728
