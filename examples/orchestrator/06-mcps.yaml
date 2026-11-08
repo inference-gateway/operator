@@ -44,3 +44,17 @@ spec:
   server:
     port: 8080
     path: "/mcp"
+---
+# A third instance with no group label, so discovery skips it. The
+# Orchestrator reaches it by URL instead (spec.mcp.servers in
+# 05-orchestrator.yaml), with an x-api-key header read from a Secret.
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: MCP
+metadata:
+  name: mcp-time-direct
+  namespace: mcp
+spec:
+  image: mcp-server-time:dev
+  server:
+    port: 8080
+    path: "/mcp"

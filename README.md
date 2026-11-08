@@ -1080,7 +1080,7 @@ spec:
     model: deepseek/deepseek-v4-pro
   mcp:
     enabled: true
-    servers: [] # static URLs, optional
+    servers: [] # {name, url, headers} entries, optional
     serviceDiscovery:
       enabled: true
       namespace: mcp
@@ -1107,6 +1107,31 @@ spec:
     # Defaults to "/mcp"; override if your server listens elsewhere.
     path: "/mcp"
 ```
+
+**MCP servers by URL** - `spec.mcp.servers` lists servers the pod reaches by URL, each with a `name`,
+a `url` and optional `headers`, as a `Gateway`'s do. They are written into the pod's `mcp.yaml` with or
+without discovery. Header values are written as given, so a `${VAR}` stays a reference the infer CLI in
+the pod expands from its environment. Fill it from a Secret through `spec.env`, and never put a secret
+value in a header:
+
+```yaml
+spec:
+  env:
+    - name: MCP_EXAMPLE_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: mcp-example-credentials
+          key: MCP_EXAMPLE_API_KEY
+  mcp:
+    enabled: true
+    servers:
+      - name: example
+        url: https://mcp.example.com/mcp
+        headers:
+          x-api-key: ${MCP_EXAMPLE_API_KEY}
+```
+
+The pod's infer image must be v0.248.0 or newer, which reads `url` and `headers`.
 
 Visibility:
 

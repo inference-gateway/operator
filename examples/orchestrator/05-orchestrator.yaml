@@ -19,6 +19,13 @@ spec:
       value: "redis.orchestrator.svc.cluster.local"
     - name: INFER_STORAGE_REDIS_PORT
       value: "6379"
+    # The key the time-direct MCP server's header references, read from a
+    # Secret so it never sits in this Orchestrator or the pod's mcp.yaml.
+    - name: MCP_TIME_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: mcp-time-credentials
+          key: MCP_TIME_API_KEY
   channels:
     maxWorkers: 5
     imageRetention: 5
@@ -57,8 +64,14 @@ spec:
           agent-group: group1
   mcp:
     enabled: true
-    # Static MCP servers list (kept for parity with a2a.agents).
-    servers: []
+    # Servers the pod reaches by URL under their own name. Header values reach
+    # the pod's mcp.yaml as written, so ${MCP_TIME_API_KEY} stays a reference
+    # the CLI expands from the env var above.
+    servers:
+      - name: time-direct
+        url: http://mcp-time-direct-service.mcp.svc.cluster.local:8080/mcp
+        headers:
+          x-api-key: ${MCP_TIME_API_KEY}
     # serviceDiscovery picks up MCP CRs labeled `mcp-group: group1` in the `mcp`
     # namespace and writes them into ~/.infer/mcp.yaml inside the orchestrator
     # pod. The pod is rolled when the discovered set changes.
