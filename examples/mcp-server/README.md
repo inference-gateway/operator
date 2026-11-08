@@ -41,7 +41,7 @@ The MCP server itself lives in [`mcp-memory-server/`](mcp-memory-server/) and is
    kubectl get pods -n mcp
    ```
 
-4. (Optional) Sanity-check the Streamable HTTP endpoint from inside the cluster - a `tools/list` call should return all four tools (`memory_set`, `memory_get`, `memory_delete`, `memory_list`). MCP `2026-07-28` has no `initialize` handshake, so each request carries the protocol version in its headers and `_meta`:
+4. (Optional) Sanity-check the Streamable HTTP endpoint from inside the cluster - a `tools/list` call should return all four tools (`memory_set`, `memory_get`, `memory_delete`, `memory_list`). Each request carries the protocol version in its headers and `_meta`:
 
    ```bash
    kubectl run -it --rm curl --image=curlimages/curl --restart=Never -- \
