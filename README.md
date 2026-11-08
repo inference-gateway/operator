@@ -1108,6 +1108,33 @@ spec:
     path: "/mcp"
 ```
 
+**Hosted MCP servers** - `spec.mcp.hostedServers` gives the orchestrator pod a server by URL under a
+name of its own, with the headers it authenticates by. The operator writes them into the pod's
+`mcp.yaml` with or without discovery, as soon as `spec.mcp.enabled` is true and a static or hosted
+server is listed. Header values are written exactly as given, so a `${VAR}` stays a reference the
+infer CLI in the pod expands from its environment. Fill that variable from a Secret through
+`spec.env`, and never put a secret value in a header:
+
+```yaml
+spec:
+  env:
+    - name: MCP_EXAMPLE_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: mcp-example-credentials
+          key: MCP_EXAMPLE_API_KEY
+  mcp:
+    enabled: true
+    hostedServers:
+      - name: example
+        url: https://mcp.example.com/mcp
+        headers:
+          x-api-key: ${MCP_EXAMPLE_API_KEY}
+```
+
+Each entry carries `url` and `headers`, which the CLI reads since v0.248.0, and the split
+`scheme`/`host`/`port`/`path` older CLIs connect by. Names must be unique within the list.
+
 Visibility:
 
 ```bash

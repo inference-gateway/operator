@@ -292,12 +292,11 @@ type OrchestratorA2ASpec struct {
 	ServiceDiscovery OrchestratorServiceDiscoverySpec `json:"serviceDiscovery,omitempty"`
 }
 
-// OrchestratorMCPSpec configures Model Context Protocol integration. When
-// ServiceDiscovery is enabled, the controller discovers MCP CRs matching the
-// selector and writes them into mcp.yaml mounted at ~/.infer/mcp.yaml inside
-// the orchestrator pod. The pod is rolled when the discovered set changes
-// (a content hash is stamped on the pod template) because Kubernetes does not
-// propagate live updates to ConfigMap volumes mounted with subPath.
+// OrchestratorMCPSpec configures Model Context Protocol integration. The
+// controller writes the static and hosted servers, and the MCP CRs discovery
+// finds, into the mcp.yaml mounted at ~/.infer/mcp.yaml in the pod. A content
+// hash on the pod template rolls the pod when it changes, since Kubernetes
+// does not propagate updates to a ConfigMap mounted with subPath.
 type OrchestratorMCPSpec struct {
 	Enabled bool `json:"enabled"`
 
@@ -307,9 +306,34 @@ type OrchestratorMCPSpec struct {
 	// +optional
 	Servers []string `json:"servers,omitempty"`
 
+	// HostedServers are MCP servers reached by URL under a name of their own,
+	// such as hosted ones that authenticate by header.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	HostedServers []OrchestratorHostedMCPServer `json:"hostedServers,omitempty"`
+
 	// ServiceDiscovery configures automatic discovery of MCP CRs by label selector.
 	// +optional
 	ServiceDiscovery OrchestratorServiceDiscoverySpec `json:"serviceDiscovery,omitempty"`
+}
+
+// OrchestratorHostedMCPServer is one MCP server the pod reaches by URL. Its
+// header values reach the pod's mcp.yaml as given, so a ${VAR} stays a
+// reference the CLI expands from the pod's environment, such as a variable
+// spec.env fills from a Secret. Never put a secret value in a header here.
+type OrchestratorHostedMCPServer struct {
+	// Name is the server's alias, which namespaces its tools in the pod.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// URL is the server's endpoint, such as https://mcp.example.com/mcp.
+	// +kubebuilder:validation:MinLength=1
+	URL string `json:"url"`
+
+	// Headers are sent with every request to the server.
+	// +optional
+	Headers map[string]string `json:"headers,omitempty"`
 }
 
 // OrchestratorStatus defines the observed state of Orchestrator.

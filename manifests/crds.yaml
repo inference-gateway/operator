@@ -23163,6 +23163,40 @@ spec:
                 properties:
                   enabled:
                     type: boolean
+                  hostedServers:
+                    description: |-
+                      HostedServers are MCP servers reached by URL under a name of their own,
+                      such as hosted ones that authenticate by header.
+                    items:
+                      description: |-
+                        OrchestratorHostedMCPServer is one MCP server the pod reaches by URL. Its
+                        header values reach the pod's mcp.yaml as given, so a ${VAR} stays a
+                        reference the CLI expands from the pod's environment, such as a variable
+                        spec.env fills from a Secret. Never put a secret value in a header here.
+                      properties:
+                        headers:
+                          additionalProperties:
+                            type: string
+                          description: Headers are sent with every request to the
+                            server.
+                          type: object
+                        name:
+                          description: Name is the server's alias, which namespaces
+                            its tools in the pod.
+                          minLength: 1
+                          type: string
+                        url:
+                          description: URL is the server's endpoint, such as https://mcp.example.com/mcp.
+                          minLength: 1
+                          type: string
+                      required:
+                      - name
+                      - url
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
                   servers:
                     description: |-
                       Servers is a static list of MCP server URLs, kept for parity with
