@@ -30,6 +30,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
+	yaml "sigs.k8s.io/yaml"
 
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 	testutil "github.com/inference-gateway/operator/internal/controller/testutil"
@@ -561,6 +562,122 @@ var _ = Describe("buildOrchestratorDeployment with service discovery", func() {
 		Expect(hash1).NotTo(BeEmpty())
 		Expect(hash2).NotTo(BeEmpty())
 		Expect(hash1).NotTo(Equal(hash2))
+	})
+})
+
+// cliMCPConfig is mcp.yaml as the CLI declares it. A strict decode fails on a
+// key the CLI does not know.
+type cliMCPConfig struct {
+	Enabled bool           `json:"enabled"`
+	Servers []cliMCPServer `json:"servers"`
+}
+
+type cliMCPServer struct {
+	Name    string            `json:"name"`
+	Enabled bool              `json:"enabled"`
+	URL     string            `json:"url"`
+	Headers map[string]string `json:"headers"`
+}
+
+func parseCLIMCPConfig(rendered string) cliMCPConfig {
+	var cfg cliMCPConfig
+	ExpectWithOffset(1, yaml.UnmarshalStrict([]byte(rendered), &cfg)).To(Succeed())
+	return cfg
+}
+
+func renderMCPs(spec corev1alpha1.OrchestratorMCPSpec, discovered []corev1alpha1.MCP) cliMCPConfig {
+	rendered, err := buildMCPsYAML(spec, discovered)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+	return parseCLIMCPConfig(rendered)
+}
+
+var _ = Describe("buildMCPsYAML", func() {
+	It("enables MCP with no servers when it lists none and discovers none", func() {
+		cfg := renderMCPs(corev1alpha1.OrchestratorMCPSpec{}, nil)
+		Expect(cfg.Enabled).To(BeTrue())
+		Expect(cfg.Servers).To(BeEmpty())
+	})
+
+	It("writes each server with its headers exactly as given, also one that looks like YAML", func() {
+		injected := "${KEY}\n  - name: injected\n    url: http://evil.example/mcp"
+		headers := map[string]string{"Authorization": "Bearer ${MAILBOX_TOKEN}", "x-injected": injected}
+		cfg := renderMCPs(corev1alpha1.OrchestratorMCPSpec{Servers: []corev1alpha1.OrchestratorMCPServer{
+			{Name: "mailbox", URL: "https://mcp.example.com/mcp", Headers: headers},
+			{Name: "time", URL: "http://time:3000/mcp"},
+		}}, nil)
+		Expect(cfg.Servers).To(Equal([]cliMCPServer{
+			{Name: "mailbox", Enabled: true, URL: "https://mcp.example.com/mcp", Headers: headers},
+			{Name: "time", Enabled: true, URL: "http://time:3000/mcp"},
+		}))
+	})
+
+	It("writes the servers in spec order, then the discovered MCPs by name with their URLs", func() {
+		cfg := renderMCPs(corev1alpha1.OrchestratorMCPSpec{Servers: []corev1alpha1.OrchestratorMCPServer{
+			{Name: "zulu", URL: "https://zulu.example.com/mcp"},
+		}}, []corev1alpha1.MCP{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "with-status", Namespace: "mcp"},
+				Status:     corev1alpha1.MCPStatus{URL: "https://override.example/mcp"},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "tls-mcp", Namespace: "mcp"},
+				Spec: corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{
+					Port: 3000,
+					TLS:  &corev1alpha1.MCPTLSConfig{Enabled: true, SecretName: "x"},
+				}},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "no-status", Namespace: "mcp"},
+				Spec:       corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{Port: 3000}},
+			},
+		})
+		Expect(cfg.Servers).To(Equal([]cliMCPServer{
+			{Name: "zulu", Enabled: true, URL: "https://zulu.example.com/mcp"},
+			{Name: "no-status", Enabled: true, URL: "http://no-status-service.mcp.svc.cluster.local:3000/mcp"},
+			{Name: "tls-mcp", Enabled: true, URL: "https://tls-mcp-service.mcp.svc.cluster.local:3000/mcp"},
+			{Name: "with-status", Enabled: true, URL: "https://override.example/mcp"},
+		}))
+	})
+})
+
+var _ = Describe("Orchestrator with MCP servers and no discovery", func() {
+	ctx := context.Background()
+
+	It("renders and mounts mcp.yaml from its servers alone", func() {
+		orch := &corev1alpha1.Orchestrator{
+			ObjectMeta: metav1.ObjectMeta{Name: "server-mcps", Namespace: "default"},
+			Spec: corev1alpha1.OrchestratorSpec{
+				Image: "img",
+				Tools: corev1alpha1.OrchestratorToolsSpec{Schedule: true},
+				MCP: corev1alpha1.OrchestratorMCPSpec{
+					Enabled: true,
+					Servers: []corev1alpha1.OrchestratorMCPServer{{
+						Name:    "mailbox",
+						URL:     "https://mcp.example.com/mcp",
+						Headers: map[string]string{"x-api-key": "${MAILBOX_API_KEY}"},
+					}},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, orch)).To(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, orch))).To(Succeed()) })
+
+		reconciler := &OrchestratorReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+		_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: "server-mcps", Namespace: "default"}})
+		Expect(err).NotTo(HaveOccurred())
+
+		cm := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "server-mcps-mcps", Namespace: "default"}, cm)).To(Succeed())
+		Expect(parseCLIMCPConfig(cm.Data["mcp.yaml"]).Servers).To(Equal([]cliMCPServer{{
+			Name: "mailbox", Enabled: true, URL: "https://mcp.example.com/mcp", Headers: map[string]string{"x-api-key": "${MAILBOX_API_KEY}"},
+		}}))
+
+		template := buildOrchestratorPodTemplate(orch, "", cm.Data["mcp.yaml"])
+		Expect(template.Spec.Containers[0].VolumeMounts).To(ContainElement(SatisfyAll(
+			HaveField("Name", "mcps-config"),
+			HaveField("MountPath", "/home/infer/.infer/mcp.yaml"),
+		)))
+		Expect(template.Annotations).To(HaveKey("inference-gateway.com/mcps-config-hash"))
 	})
 })
 

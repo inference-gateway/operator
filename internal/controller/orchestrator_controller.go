@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/url"
 	"reflect"
 	"slices"
 	"sort"
@@ -364,11 +363,10 @@ func buildAgentsYAML(staticAgents []string, discoveredAgents []corev1alpha1.Agen
 	return sb.String()
 }
 
-// reconcileMCPsConfigMap writes the pod's mcp.yaml, its static and hosted servers
-// and the MCP CRs discovery finds, to a ConfigMap the Orchestrator owns. It returns
-// the sorted discovered URLs and the rendered mcp.yaml, whose hash on the pod
-// template rolls the pod when it changes, since a ConfigMap mounted with subPath
-// never updates in place.
+// reconcileMCPsConfigMap writes the pod's mcp.yaml, its servers and the MCP CRs
+// discovery finds, to a ConfigMap the Orchestrator owns. It returns the sorted
+// discovered URLs and the rendered mcp.yaml, whose hash on the pod template rolls
+// the pod when it changes, since a ConfigMap mounted with subPath never updates.
 func (r *OrchestratorReconciler) reconcileMCPsConfigMap(ctx context.Context, orch *corev1alpha1.Orchestrator) ([]string, string, error) {
 	logger := log.FromContext(ctx)
 
@@ -376,13 +374,9 @@ func (r *OrchestratorReconciler) reconcileMCPsConfigMap(ctx context.Context, orc
 		return nil, "", nil
 	}
 
-	var discoveredMCPs []corev1alpha1.MCP
-	if orch.Spec.MCP.ServiceDiscovery.Enabled {
-		discovered, err := r.discoverMCPs(ctx, orch)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to discover mcps: %w", err)
-		}
-		discoveredMCPs = discovered
+	discoveredMCPs, err := r.discoverMCPs(ctx, orch)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to discover mcps: %w", err)
 	}
 
 	discoveredURLs := make([]string, 0, len(discoveredMCPs))
@@ -435,8 +429,12 @@ func (r *OrchestratorReconciler) reconcileMCPsConfigMap(ctx context.Context, orc
 	return discoveredURLs, mcpYAML, nil
 }
 
-// discoverMCPs lists MCP CRs in the configured namespace filtered by the label selector.
+// discoverMCPs lists MCP CRs in the configured namespace filtered by the label
+// selector, none while discovery is off.
 func (r *OrchestratorReconciler) discoverMCPs(ctx context.Context, orch *corev1alpha1.Orchestrator) ([]corev1alpha1.MCP, error) {
+	if !orch.Spec.MCP.ServiceDiscovery.Enabled {
+		return nil, nil
+	}
 	ns := orch.Spec.MCP.ServiceDiscovery.Namespace
 	if ns == "" {
 		ns = orch.Namespace
@@ -461,9 +459,9 @@ func (r *OrchestratorReconciler) discoverMCPs(ctx context.Context, orch *corev1a
 }
 
 // rendersMCPs reports whether the operator writes the pod's mcp.yaml: MCP is on
-// and the Orchestrator lists a static or hosted server, or discovers MCP CRs.
+// and the Orchestrator lists a server or discovers MCP CRs.
 func rendersMCPs(mcp corev1alpha1.OrchestratorMCPSpec) bool {
-	return mcp.Enabled && (mcp.ServiceDiscovery.Enabled || len(mcp.Servers) > 0 || len(mcp.HostedServers) > 0)
+	return mcp.Enabled && (mcp.ServiceDiscovery.Enabled || len(mcp.Servers) > 0)
 }
 
 // mcpYAMLDocument is the CLI's mcp.yaml as the pod reads it.
@@ -472,75 +470,31 @@ type mcpYAMLDocument struct {
 	Servers []mcpYAMLServer `json:"servers"`
 }
 
-// mcpYAMLServer is one server of the CLI's mcp.yaml. It carries url and headers,
-// which the CLI reads since v0.248.0, and the split scheme/host/port/path that
-// older CLIs connect by.
+// mcpYAMLServer is one server of the CLI's mcp.yaml, which skips a server
+// whose enabled is unset.
 type mcpYAMLServer struct {
-	Name    string            `json:"name"`
-	Enabled bool              `json:"enabled"`
-	URL     string            `json:"url"`
-	Scheme  string            `json:"scheme"`
-	Host    string            `json:"host"`
-	Port    int               `json:"port"`
-	Path    string            `json:"path"`
-	Headers map[string]string `json:"headers,omitempty"`
+	corev1alpha1.OrchestratorMCPServer
+	Enabled bool `json:"enabled"`
 }
 
-func mcpServerEntry(name, rawURL string, headers map[string]string) mcpYAMLServer {
-	scheme, host, port, path := splitMCPURL(rawURL)
-	return mcpYAMLServer{Name: name, Enabled: true, URL: rawURL, Scheme: scheme, Host: host, Port: port, Path: path, Headers: headers}
-}
-
-// buildMCPsYAML renders the pod's mcp.yaml: the static servers, the hosted ones in
-// spec order, then the discovered MCPs sorted by name. A YAML encoder writes it,
-// so a header value stays one string whatever it holds.
+// buildMCPsYAML renders the pod's mcp.yaml: the servers in spec order, then the
+// discovered MCPs sorted by name. A YAML encoder writes it, so a header value
+// stays one string whatever it holds.
 func buildMCPsYAML(spec corev1alpha1.OrchestratorMCPSpec, discoveredMCPs []corev1alpha1.MCP) (string, error) {
 	doc := mcpYAMLDocument{Enabled: true, Servers: []mcpYAMLServer{}}
-	for i, raw := range spec.Servers {
-		doc.Servers = append(doc.Servers, mcpServerEntry(fmt.Sprintf("static-mcp-%d", i), raw, nil))
-	}
-	for _, server := range spec.HostedServers {
-		doc.Servers = append(doc.Servers, mcpServerEntry(server.Name, server.URL, server.Headers))
+	for _, server := range spec.Servers {
+		doc.Servers = append(doc.Servers, mcpYAMLServer{OrchestratorMCPServer: server, Enabled: true})
 	}
 	sorted := slices.SortedFunc(slices.Values(discoveredMCPs), func(a, b corev1alpha1.MCP) int { return strings.Compare(a.Name, b.Name) })
 	for _, mcp := range sorted {
-		doc.Servers = append(doc.Servers, mcpServerEntry(mcp.Name, mcpURL(&mcp), nil))
+		server := corev1alpha1.OrchestratorMCPServer{Name: mcp.Name, URL: mcpURL(&mcp)}
+		doc.Servers = append(doc.Servers, mcpYAMLServer{OrchestratorMCPServer: server, Enabled: true})
 	}
 	rendered, err := yaml.Marshal(doc)
 	if err != nil {
 		return "", fmt.Errorf("rendering mcp.yaml: %w", err)
 	}
 	return string(rendered), nil
-}
-
-// splitMCPURL parses an MCP server URL into the fields the CLI's MCPServerEntry expects.
-// Falls back to sensible defaults on parse failure or missing components so the resulting
-// entry is still well-formed YAML.
-func splitMCPURL(raw string) (scheme, host string, port int, path string) {
-	scheme, host, port, path = "http", "localhost", 8080, "/mcp"
-	u, err := url.Parse(raw)
-	if err != nil {
-		return
-	}
-	if u.Scheme != "" {
-		scheme = u.Scheme
-	}
-	if u.Hostname() != "" {
-		host = u.Hostname()
-	}
-	if p := u.Port(); p != "" {
-		if n, err := strconv.Atoi(p); err == nil {
-			port = n
-		}
-	} else if u.Scheme == "https" {
-		port = 443
-	} else if u.Scheme == "http" {
-		port = 80
-	}
-	if u.Path != "" {
-		path = u.Path
-	}
-	return
 }
 
 // mcpURL returns the URL for an MCP CR. It prefers Status.URL (already TLS- and

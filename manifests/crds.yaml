@@ -23163,16 +23163,16 @@ spec:
                 properties:
                   enabled:
                     type: boolean
-                  hostedServers:
+                  servers:
                     description: |-
-                      HostedServers are MCP servers reached by URL under a name of their own,
-                      such as hosted ones that authenticate by header.
+                      Servers are MCP servers the pod reaches by URL, such as hosted ones that
+                      authenticate by header or ones with no MCP CR in the cluster.
                     items:
                       description: |-
-                        OrchestratorHostedMCPServer is one MCP server the pod reaches by URL. Its
-                        header values reach the pod's mcp.yaml as given, so a ${VAR} stays a
-                        reference the CLI expands from the pod's environment, such as a variable
-                        spec.env fills from a Secret. Never put a secret value in a header here.
+                        OrchestratorMCPServer is one MCP server the pod reaches by URL. Its header
+                        values reach the pod's mcp.yaml as given, so a ${VAR} stays a reference the
+                        CLI expands from the pod's environment, such as a variable spec.env fills
+                        from a Secret. Never put a secret value in a header here.
                       properties:
                         headers:
                           additionalProperties:
@@ -23197,14 +23197,6 @@ spec:
                     x-kubernetes-list-map-keys:
                     - name
                     x-kubernetes-list-type: map
-                  servers:
-                    description: |-
-                      Servers is a static list of MCP server URLs, kept for parity with
-                      A2A.Agents. Useful for referencing externally-hosted MCPs that have no
-                      MCP CR in the cluster.
-                    items:
-                      type: string
-                    type: array
                   serviceDiscovery:
                     description: ServiceDiscovery configures automatic discovery of
                       MCP CRs by label selector.
