@@ -13,7 +13,5 @@ spec:
     command: ["/usr/local/bin/mcp-server"]
     args: ["--port", "8080"]
     timeout: "30s"
-    tls:
-      enabled: false
   hpa:
     enabled: false
