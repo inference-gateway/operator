@@ -130,16 +130,16 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if !daemonHasWork(&orch.Spec) {
 		logger.Info("rejecting Orchestrator with invalid spec", "reason", nothingToRunMessage)
-		return ctrl.Result{}, r.patchStatusNotReady(ctx, &orch, "InvalidSpec", nothingToRunMessage)
+		return ctrl.Result{}, r.patchStatusNotReady(ctx, &orch, corev1alpha1.ReasonInvalidSpec, nothingToRunMessage)
 	}
 
 	if runsInSandbox(&orch.Spec) && !r.SandboxAvailable {
-		return ctrl.Result{}, r.patchStatusNotReady(ctx, &orch, "SandboxCRDMissing", sandboxCRDMissingMessage)
+		return ctrl.Result{}, r.patchStatusNotReady(ctx, &orch, corev1alpha1.ReasonSandboxCRDMissing, sandboxCRDMissingMessage)
 	}
 
 	if err := r.resolveGatewayRef(ctx, &orch); err != nil {
 		logger.Error(err, "failed to resolve spec.gateway.ref")
-		if statusErr := r.patchStatusNotReady(ctx, &orch, "GatewayNotFound", err.Error()); statusErr != nil {
+		if statusErr := r.patchStatusNotReady(ctx, &orch, corev1alpha1.ReasonGatewayNotFound, err.Error()); statusErr != nil {
 			return ctrl.Result{}, statusErr
 		}
 		return ctrl.Result{}, err
@@ -218,9 +218,9 @@ func (r *OrchestratorReconciler) reconcileWorkload(ctx context.Context, orch *co
 // deploymentState reports the Deployment runtime ready once a replica is available.
 func deploymentState(deployment *appsv1.Deployment) workloadState {
 	if deployment.Status.AvailableReplicas >= 1 {
-		return workloadState{ready: true, reason: "DeploymentAvailable", message: "orchestrator deployment is available"}
+		return workloadState{ready: true, reason: corev1alpha1.ReasonDeploymentAvailable, message: "orchestrator deployment is available"}
 	}
-	return workloadState{reason: "DeploymentNotAvailable", message: "orchestrator deployment has no available replicas yet"}
+	return workloadState{reason: corev1alpha1.ReasonDeploymentNotAvailable, message: "orchestrator deployment has no available replicas yet"}
 }
 
 // reconcileAgentsConfigMap discovers Agent CRs matching the service discovery selector,
@@ -864,7 +864,7 @@ func (r *OrchestratorReconciler) patchStatusNotReady(ctx context.Context, orch *
 	orch.Status.PodName = ""
 	orch.Status.ObservedGeneration = orch.Generation
 	setCondition(&orch.Status.Conditions, metav1.Condition{
-		Type:               "Ready",
+		Type:               corev1alpha1.OrchestratorConditionReady,
 		Status:             metav1.ConditionFalse,
 		Reason:             reason,
 		Message:            message,
@@ -1125,7 +1125,7 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *corev1a
 		readyStatus = metav1.ConditionTrue
 	}
 	setCondition(&orch.Status.Conditions, metav1.Condition{
-		Type:               "Ready",
+		Type:               corev1alpha1.OrchestratorConditionReady,
 		Status:             readyStatus,
 		Reason:             workload.reason,
 		Message:            workload.message,

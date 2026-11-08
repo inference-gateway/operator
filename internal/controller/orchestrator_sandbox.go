@@ -61,10 +61,6 @@ const (
 	agentsDoneAnnotation      = "inference-gateway.com/agents-done"
 )
 
-// agentsDoneMessage is the termination message an idle daemon leaves when
-// every agent was done, which starts spec.sandbox.retention.
-const agentsDoneMessage = "agents-done=true"
-
 // The Sandbox's volumes and where the daemon finds them.
 const (
 	sandboxWorkspaceVolume    = "workspace"
@@ -313,7 +309,7 @@ func (r *OrchestratorReconciler) daemonReportedAgentsDone(ctx context.Context, s
 	}
 	for _, status := range pod.Status.ContainerStatuses {
 		if status.Name == orchestratorContainerName && status.State.Terminated != nil {
-			return strings.TrimSpace(status.State.Terminated.Message) == agentsDoneMessage, nil
+			return strings.TrimSpace(status.State.Terminated.Message) == corev1alpha1.AgentsDoneMessage, nil
 		}
 	}
 	return false, nil
@@ -410,13 +406,13 @@ func sandboxState(sandbox *unstructured.Unstructured) workloadState {
 	status, reason, message := sandboxCondition(sandbox, sandboxConditionReady)
 	switch {
 	case status == string(metav1.ConditionTrue):
-		return workloadState{ready: true, reason: "SandboxReady", message: "the daemon's sandbox is ready", podName: sandboxPodName(sandbox)}
+		return workloadState{ready: true, reason: corev1alpha1.ReasonSandboxReady, message: "the daemon's sandbox is ready", podName: sandboxPodName(sandbox)}
 	case mode == string(corev1alpha1.SandboxSuspended):
-		return workloadState{reason: "SandboxSuspended", message: "the daemon's sandbox is suspended, set spec.sandbox.operatingMode to Running to resume it"}
+		return workloadState{reason: corev1alpha1.ReasonSandboxSuspended, message: "the daemon's sandbox is suspended, set spec.sandbox.operatingMode to Running to resume it"}
 	case reason != "":
-		return workloadState{reason: "SandboxNotReady", message: fmt.Sprintf("the daemon's sandbox is not ready: %s: %s", reason, message)}
+		return workloadState{reason: corev1alpha1.ReasonSandboxNotReady, message: fmt.Sprintf("the daemon's sandbox is not ready: %s: %s", reason, message)}
 	default:
-		return workloadState{reason: "SandboxNotReady", message: "the daemon's sandbox is not ready yet"}
+		return workloadState{reason: corev1alpha1.ReasonSandboxNotReady, message: "the daemon's sandbox is not ready yet"}
 	}
 }
 
