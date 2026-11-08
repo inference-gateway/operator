@@ -1,8 +1,7 @@
 ---
-# Two instances of `mcp-server-time` - a minimal MCP server written in Go using
-# the same `metoro-io/mcp-golang` library that the inference-gateway uses on
-# its client side. This eliminates any cross-implementation capability
-# mismatches and gives us a known-good end-to-end test of MCP discovery.
+# Two instances of `mcp-server-time` - a minimal MCP server written in Go on the
+# official MCP Go SDK. It serves MCP 2026-07-28 statelessly, the revision the
+# Inference Gateway and the infer CLI speak, so both connect to it.
 #
 # Build & import (one-time) before applying this file:
 #   cd mcp-server-time

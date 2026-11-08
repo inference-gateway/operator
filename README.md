@@ -1142,7 +1142,7 @@ kubectl get orchestrator  # MCPS column shows the discovered count
 ```
 
 For a runnable end-to-end demo (Gateway + Orchestrator + two discovered MCP
-servers built with `metoro-io/mcp-golang`), see
+servers built on the official MCP Go SDK), see
 [`examples/orchestrator/`](examples/orchestrator/).
 
 #### Complete Configuration

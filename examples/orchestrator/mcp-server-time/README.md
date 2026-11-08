@@ -1,6 +1,6 @@
 # mcp-server-time
 
-A minimal MCP server written in Go using [`metoro-io/mcp-golang`](https://github.com/metoro-io/mcp-golang) - the same library the inference-gateway uses on its client side. Built for end-to-end testing of MCP service discovery in this operator without cross-implementation capability mismatches.
+A minimal MCP server written in Go on the official [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk). It serves MCP `2026-07-28` statelessly, the revision the Inference Gateway and the infer CLI speak. Built for end-to-end testing of MCP service discovery in this operator.
 
 Exposes two tools over Streamable HTTP at `POST /mcp` + `GET /mcp`:
 

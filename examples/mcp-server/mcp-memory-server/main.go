@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"sort"
+	"strings"
 	"sync"
+	"time"
 
-	mcp "github.com/metoro-io/mcp-golang"
-	mcphttp "github.com/metoro-io/mcp-golang/transport/http"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // store is a minimal thread-safe in-memory key/value store. Process-local on
@@ -58,98 +61,64 @@ func (s *store) keys() []string {
 }
 
 type MemorySetArgs struct {
-	Key   string `json:"key" jsonschema:"required,description=Key to store the value under."`
-	Value string `json:"value" jsonschema:"required,description=String value to associate with the key."`
+	Key   string `json:"key" jsonschema:"Key to store the value under."`
+	Value string `json:"value" jsonschema:"String value to associate with the key."`
 }
 
-type MemoryGetArgs struct {
-	Key string `json:"key" jsonschema:"required,description=Key to look up."`
+type MemoryKeyArgs struct {
+	Key string `json:"key" jsonschema:"Key to look up or remove."`
 }
-
-type MemoryDeleteArgs struct {
-	Key string `json:"key" jsonschema:"required,description=Key to remove."`
-}
-
-type MemoryListArgs struct{}
 
 func main() {
 	port := flag.Int("port", 8080, "port to listen on")
 	path := flag.String("path", "/mcp", "HTTP endpoint path")
 	flag.Parse()
 
-	transport := mcphttp.NewHTTPTransport(*path)
-	transport.WithAddr(fmt.Sprintf(":%d", *port))
-
-	server := mcp.NewServer(transport)
 	kv := newStore()
+	server := mcp.NewServer(&mcp.Implementation{Name: "mcp-memory-server", Version: "1.0.0"}, nil)
 
-	if err := server.RegisterTool(
-		"memory_set",
-		"Store a string value under the given key.",
-		func(args MemorySetArgs) (*mcp.ToolResponse, error) {
-			if args.Key == "" {
-				return mcp.NewToolResponse(mcp.NewTextContent("key is required")), nil
-			}
+	mcp.AddTool(server, &mcp.Tool{Name: "memory_set", Description: "Store a string value under the given key."},
+		func(_ context.Context, _ *mcp.CallToolRequest, args MemorySetArgs) (*mcp.CallToolResult, any, error) {
 			kv.set(args.Key, args.Value)
-			return mcp.NewToolResponse(mcp.NewTextContent(fmt.Sprintf("stored %q", args.Key))), nil
-		},
-	); err != nil {
-		log.Fatalf("register memory_set: %v", err)
-	}
+			return text("stored %q", args.Key)
+		})
 
-	if err := server.RegisterTool(
-		"memory_get",
-		"Retrieve the value previously stored under a key.",
-		func(args MemoryGetArgs) (*mcp.ToolResponse, error) {
-			if args.Key == "" {
-				return mcp.NewToolResponse(mcp.NewTextContent("key is required")), nil
-			}
+	mcp.AddTool(server, &mcp.Tool{Name: "memory_get", Description: "Retrieve the value previously stored under a key."},
+		func(_ context.Context, _ *mcp.CallToolRequest, args MemoryKeyArgs) (*mcp.CallToolResult, any, error) {
 			v, ok := kv.get(args.Key)
 			if !ok {
-				return mcp.NewToolResponse(mcp.NewTextContent(fmt.Sprintf("key %q not found", args.Key))), nil
+				return text("key %q not found", args.Key)
 			}
-			return mcp.NewToolResponse(mcp.NewTextContent(v)), nil
-		},
-	); err != nil {
-		log.Fatalf("register memory_get: %v", err)
-	}
+			return text("%s", v)
+		})
 
-	if err := server.RegisterTool(
-		"memory_delete",
-		"Remove a key from the store.",
-		func(args MemoryDeleteArgs) (*mcp.ToolResponse, error) {
-			if args.Key == "" {
-				return mcp.NewToolResponse(mcp.NewTextContent("key is required")), nil
-			}
+	mcp.AddTool(server, &mcp.Tool{Name: "memory_delete", Description: "Remove a key from the store."},
+		func(_ context.Context, _ *mcp.CallToolRequest, args MemoryKeyArgs) (*mcp.CallToolResult, any, error) {
 			if !kv.delete(args.Key) {
-				return mcp.NewToolResponse(mcp.NewTextContent(fmt.Sprintf("key %q not found", args.Key))), nil
+				return text("key %q not found", args.Key)
 			}
-			return mcp.NewToolResponse(mcp.NewTextContent(fmt.Sprintf("deleted %q", args.Key))), nil
-		},
-	); err != nil {
-		log.Fatalf("register memory_delete: %v", err)
-	}
+			return text("deleted %q", args.Key)
+		})
 
-	if err := server.RegisterTool(
-		"memory_list",
-		"List all keys currently in the store (sorted).",
-		func(_ MemoryListArgs) (*mcp.ToolResponse, error) {
+	mcp.AddTool(server, &mcp.Tool{Name: "memory_list", Description: "List all keys currently in the store (sorted)."},
+		func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 			keys := kv.keys()
 			if len(keys) == 0 {
-				return mcp.NewToolResponse(mcp.NewTextContent("(empty)")), nil
+				return text("(empty)")
 			}
-			out := ""
-			for _, k := range keys {
-				out += k + "\n"
-			}
-			return mcp.NewToolResponse(mcp.NewTextContent(out)), nil
-		},
-	); err != nil {
-		log.Fatalf("register memory_list: %v", err)
-	}
+			return text("%s\n", strings.Join(keys, "\n"))
+		})
+
+	mux := http.NewServeMux()
+	mux.Handle(*path, mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true}))
 
 	log.Printf("mcp-memory-server listening on :%d%s", *port, *path)
-	if err := server.Serve(); err != nil {
+	srv := &http.Server{Addr: fmt.Sprintf(":%d", *port), Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
+}
+
+func text(format string, args ...any) (*mcp.CallToolResult, any, error) {
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf(format, args...)}}}, nil, nil
 }

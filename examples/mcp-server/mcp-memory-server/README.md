@@ -1,6 +1,6 @@
 # mcp-memory-server
 
-A minimal MCP server written in Go using [`metoro-io/mcp-golang`](https://github.com/metoro-io/mcp-golang) - the same library the Inference Gateway uses on its client side. It exposes a small in-process key/value store over Streamable HTTP at `POST /mcp` + `GET /mcp`:
+A minimal MCP server written in Go on the official [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk). It serves MCP `2026-07-28` statelessly, the revision the Inference Gateway speaks, and exposes a small in-process key/value store over Streamable HTTP at `POST /mcp` + `GET /mcp`:
 
 | tool            | description                                              |
 | --------------- | -------------------------------------------------------- |
