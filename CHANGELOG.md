@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.33.0](https://github.com/inference-gateway/operator/compare/v0.32.0...v0.33.0) (2026-11-08)
+
+### ✨ Features
+
+* **gateway:** tune MCP health polling with spec.mcp.healthCheck ([#328](https://github.com/inference-gateway/operator/issues/328)) ([ff0867c](https://github.com/inference-gateway/operator/commit/ff0867c42b60c944a3f7d20781d75aabaf06b343))
+* **orchestrator:** give spec.mcp.servers names and headers in the pod's mcp.yaml ([#324](https://github.com/inference-gateway/operator/issues/324)) ([56f4ff8](https://github.com/inference-gateway/operator/commit/56f4ff8abb14a772c508272e4c2618ba658a1c9c)), closes [#321](https://github.com/inference-gateway/operator/issues/321)
+* **orchestrator:** pass through binding Service annotations and labels ([#320](https://github.com/inference-gateway/operator/issues/320)) ([d543db8](https://github.com/inference-gateway/operator/commit/d543db83eb72ad16939106d4e7a704568245240f))
+
+### ♻️ Improvements
+
+* **orchestrator:** export the status contract from api/v1alpha1 ([#330](https://github.com/inference-gateway/operator/issues/330)) ([4b5d854](https://github.com/inference-gateway/operator/commit/4b5d85402a6e50881ecf8851fdfbbf477a97d110))
+
+### 🐛 Bug Fixes
+
+* **examples:** serve the example MCP servers over stateless MCP 2026-07-28 ([#325](https://github.com/inference-gateway/operator/issues/325)) ([6d34978](https://github.com/inference-gateway/operator/commit/6d3497825af7c888368f6b663da6071944e8f1d7)), closes [#323](https://github.com/inference-gateway/operator/issues/323)
+* **samples:** make the Gateway and MCP samples pass CRD validation ([#329](https://github.com/inference-gateway/operator/issues/329)) ([e2e5d2a](https://github.com/inference-gateway/operator/commit/e2e5d2af119696f6ffe6929c8a306e4e1854e1fe))
+
+### 👷 CI
+
+* **deps:** bump the gomod group with 4 updates ([#319](https://github.com/inference-gateway/operator/issues/319)) ([67f1bde](https://github.com/inference-gateway/operator/commit/67f1bdec5c9b11d82b27a5fde5ac124faf2ae6e8))
+
 ## [0.32.0](https://github.com/inference-gateway/operator/compare/v0.31.0...v0.32.0) (2026-11-01)
 
 ### ✨ Features
