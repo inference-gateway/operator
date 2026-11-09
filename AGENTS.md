@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Kubernetes operator for Inference Gateway, built with controller-runtime and kubebuilder conventions. Go 1.26+.
+Kubernetes operator for Inference Gateway, built with controller-runtime and kubebuilder conventions. Go 1.27+.
 
 ## Commands
 
