@@ -172,6 +172,51 @@ var _ = Describe("Orchestrator with runtime: Sandbox", func() {
 		Expect(apierrors.IsNotFound(k8sClient.Get(ctx, key("sandboxed"), &appsv1.Deployment{}))).To(BeTrue())
 	})
 
+	It("boots a pod with user-data as root in a user namespace, with the script in cloud-init's seed directory", func() {
+		spec := sandboxSpec(nil)
+		spec.UserData = &corev1alpha1.UserDataSpec{SecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "computer-tls"}, Key: "userdata",
+		}}
+		create("computer", nil, spec)
+		reconcile("computer")
+
+		podSpec, _, _ := unstructured.NestedMap(getSandbox("computer").Object, "spec", "podTemplate", "spec")
+		Expect(podSpec).To(HaveKeyWithValue("hostUsers", false))
+		Expect(podSpec["securityContext"]).To(SatisfyAll(
+			HaveKeyWithValue("runAsNonRoot", false),
+			HaveKeyWithValue("runAsUser", int64(0)),
+			HaveKeyWithValue("seccompProfile", HaveKeyWithValue("type", "RuntimeDefault")),
+		))
+		volumes, _, _ := unstructured.NestedSlice(podSpec, "volumes")
+		Expect(volumes).To(ContainElement(SatisfyAll(
+			HaveKeyWithValue("name", "user-data"),
+			HaveKeyWithValue("secret", SatisfyAll(
+				HaveKeyWithValue("secretName", "computer-tls"),
+				HaveKeyWithValue("defaultMode", int64(0o400)),
+				HaveKeyWithValue("items", ConsistOf(SatisfyAll(
+					HaveKeyWithValue("key", "userdata"),
+					HaveKeyWithValue("path", "user-data"),
+				))),
+			)),
+		)))
+
+		containers, _, _ := unstructured.NestedSlice(podSpec, "containers")
+		container := containers[0].(map[string]any)
+		Expect(container["securityContext"]).To(SatisfyAll(
+			HaveKeyWithValue("allowPrivilegeEscalation", false),
+			HaveKeyWithValue("capabilities", SatisfyAll(
+				HaveKeyWithValue("drop", ConsistOf("ALL")),
+				HaveKeyWithValue("add", ConsistOf("CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "SETUID", "SETGID")),
+			)),
+		))
+		mounts, _, _ := unstructured.NestedSlice(container, "volumeMounts")
+		Expect(mounts).To(ContainElement(SatisfyAll(
+			HaveKeyWithValue("name", "user-data"),
+			HaveKeyWithValue("mountPath", "/var/lib/cloud/seed/nocloud"),
+			HaveKeyWithValue("readOnly", true),
+		)))
+	})
+
 	It("sizes both volumes from spec.sandbox.storage, which is fixed afterwards", func() {
 		storage := resource.MustParse("2Gi")
 		create("sized", nil, sandboxSpec(&corev1alpha1.OrchestratorSandboxSpec{Storage: &storage}))
@@ -346,6 +391,17 @@ var _ = Describe("Orchestrator with runtime: Sandbox", func() {
 		err := k8sClient.Create(ctx, &corev1alpha1.Orchestrator{ObjectMeta: metav1.ObjectMeta{Name: "misplaced", Namespace: "default"}, Spec: spec})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("spec.sandbox needs spec.runtime: Sandbox"))
+	})
+
+	It("rejects spec.userData without runtime: Sandbox, which has no user namespace to boot it in", func() {
+		spec := sandboxSpec(nil)
+		spec.Runtime = corev1alpha1.RuntimeDeployment
+		spec.UserData = &corev1alpha1.UserDataSpec{SecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "computer-tls"}, Key: "userdata",
+		}}
+		err := k8sClient.Create(ctx, &corev1alpha1.Orchestrator{ObjectMeta: metav1.ObjectMeta{Name: "deployment-user-data", Namespace: "default"}, Spec: spec})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.userData needs spec.runtime: Sandbox"))
 	})
 })
 

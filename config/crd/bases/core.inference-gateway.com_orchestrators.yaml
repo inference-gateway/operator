@@ -894,12 +894,49 @@ spec:
                 required:
                 - enabled
                 type: object
+              userData:
+                description: |-
+                  UserData is a cloud-init user-data script the computer runs as root when
+                  it boots, before the daemon starts, the way a cloud VM runs it. The pod
+                  gets a user namespace, so its root is never root on the node.
+                properties:
+                  secretRef:
+                    description: |-
+                      SecretRef selects the Secret key holding the user-data, by convention
+                      the key "userdata".
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                required:
+                - secretRef
+                type: object
             required:
             - image
             type: object
             x-kubernetes-validations:
             - message: 'spec.sandbox needs spec.runtime: Sandbox'
               rule: '!has(self.sandbox) || self.runtime == ''Sandbox'''
+            - message: 'spec.userData needs spec.runtime: Sandbox'
+              rule: '!has(self.userData) || self.runtime == ''Sandbox'''
           status:
             description: OrchestratorStatus defines the observed state of Orchestrator.
             properties:
