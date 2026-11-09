@@ -1,6 +1,6 @@
 module github.com/inference-gateway/operator/examples/orchestrator/mcp-server-time
 
-go 1.26.8
+go 1.27.3
 
 require github.com/modelcontextprotocol/go-sdk v1.8.0
 

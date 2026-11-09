@@ -1,8 +1,8 @@
 module github.com/inference-gateway/operator
 
-go 1.26.8
+go 1.27.3
 
-godebug default=go1.26.8
+godebug default=go1.27.3
 
 require (
 	github.com/onsi/ginkgo/v2 v2.33.1
