@@ -30,6 +30,7 @@ import (
 // daemon, as a Recreate Deployment or an agent-sandbox Sandbox, because one
 // daemon owns its channels and sessions.
 // +kubebuilder:validation:XValidation:rule="!has(self.sandbox) || self.runtime == 'Sandbox'",message="spec.sandbox needs spec.runtime: Sandbox"
+// +kubebuilder:validation:XValidation:rule="!has(self.userData) || self.runtime == 'Sandbox'",message="spec.userData needs spec.runtime: Sandbox"
 type OrchestratorSpec struct {
 	Image string `json:"image"`
 
@@ -44,6 +45,12 @@ type OrchestratorSpec struct {
 	// Sandbox configures the Sandbox the daemon runs in with runtime: Sandbox.
 	// +optional
 	Sandbox *OrchestratorSandboxSpec `json:"sandbox,omitempty"`
+
+	// UserData is a cloud-init user-data script the computer runs as root when
+	// it boots, before the daemon starts, the way a cloud VM runs it. The pod
+	// gets a user namespace, so its root is never root on the node.
+	// +optional
+	UserData *UserDataSpec `json:"userData,omitempty"`
 
 	// Channels configures the chat channels the daemon listens on.
 	// +optional
@@ -223,6 +230,14 @@ type OrchestratorSandboxSpec struct {
 	// the isolation agent-sandbox recommends for untrusted, LLM-driven code.
 	// +optional
 	RuntimeClassName *string `json:"runtimeClassName,omitempty"`
+}
+
+// UserDataSpec selects cloud-init user-data from a Secret, the shape KubeVirt's
+// cloudInitNoCloud volume takes, so a VM runtime can hand it over unchanged.
+type UserDataSpec struct {
+	// SecretRef selects the Secret key holding the user-data, by convention
+	// the key "userdata".
+	SecretRef corev1.SecretKeySelector `json:"secretRef"`
 }
 
 // OrchestratorDaemonSpec mirrors the CLI's daemon config for what the daemon

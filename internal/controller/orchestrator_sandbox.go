@@ -71,6 +71,20 @@ const (
 	daemonUID                 = int64(1000)
 )
 
+// Where a computer finds its cloud-init user-data, as cloud-init's NoCloud
+// datasource does, and the root the pod boots as to run it.
+const (
+	userDataVolumeName = "user-data"
+	userDataSeedDir    = "/var/lib/cloud/seed/nocloud"
+	userDataFileName   = "user-data"
+	rootUID            = int64(0)
+	rootReadOnlyMode   = int32(0o400)
+)
+
+// userDataCapabilities are what a user-data script needs to install packages
+// and what the image needs to drop to the daemon's user afterwards.
+var userDataCapabilities = []corev1.Capability{"CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "SETUID", "SETGID"}
+
 const sandboxCRDMissingMessage = "runtime: Sandbox needs agent-sandbox (agents.x-k8s.io/v1beta1) in the cluster: " +
 	"install it from https://github.com/kubernetes-sigs/agent-sandbox/releases and restart the operator"
 
@@ -336,7 +350,8 @@ func sandboxShutdownTime(spec *corev1alpha1.OrchestratorSandboxSpec, annotations
 
 // sandboxPodTemplate adapts the daemon's pod to its Sandbox: the Orchestrator's
 // labels, the workspace and state volumes, no Kubernetes API access, a non-root
-// user without capabilities, and a restart policy that lets an idle daemon finish.
+// user without capabilities unless it boots with user-data, and a restart policy
+// that lets an idle daemon finish.
 func sandboxPodTemplate(orch *corev1alpha1.Orchestrator, template corev1.PodTemplateSpec) corev1.PodTemplateSpec {
 	template = *template.DeepCopy()
 	labels := maps.Clone(orch.Labels)
@@ -369,7 +384,40 @@ func sandboxPodTemplate(orch *corev1alpha1.Orchestrator, template corev1.PodTemp
 		corev1.VolumeMount{Name: sandboxWorkspaceVolume, MountPath: sandboxWorkspaceMountPath},
 		corev1.VolumeMount{Name: sandboxStateVolume, MountPath: sandboxStateMountPath},
 	)
+	if orch.Spec.UserData != nil {
+		bootWithUserData(spec, orch.Spec.UserData)
+	}
 	return template
+}
+
+// bootWithUserData lets the pod boot as root in a user namespace of its own,
+// the way a cloud VM runs cloud-init user-data before its workload. The image
+// runs the script and then drops to the daemon's user. Root in the pod maps to
+// an unprivileged user on the node, and only the capabilities apt needs remain.
+func bootWithUserData(spec *corev1.PodSpec, userData *corev1alpha1.UserDataSpec) {
+	spec.HostUsers = ptr.To(false)
+	spec.SecurityContext.RunAsNonRoot = ptr.To(false)
+	spec.SecurityContext.RunAsUser = ptr.To(rootUID)
+	spec.SecurityContext.RunAsGroup = ptr.To(rootUID)
+	spec.Volumes = append(spec.Volumes, userDataVolume(userData))
+
+	container := &spec.Containers[0]
+	container.SecurityContext.Capabilities.Add = userDataCapabilities
+	container.VolumeMounts = append(container.VolumeMounts,
+		corev1.VolumeMount{Name: userDataVolumeName, MountPath: userDataSeedDir, ReadOnly: true})
+}
+
+// userDataVolume projects the user-data Secret key into cloud-init's NoCloud
+// seed directory, readable by root only, since user-data often holds secrets.
+func userDataVolume(userData *corev1alpha1.UserDataSpec) corev1.Volume {
+	return corev1.Volume{
+		Name: userDataVolumeName,
+		VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
+			SecretName:  userData.SecretRef.Name,
+			Items:       []corev1.KeyToPath{{Key: userData.SecretRef.Key, Path: userDataFileName}},
+			DefaultMode: ptr.To(rootReadOnlyMode),
+		}},
+	}
 }
 
 // sandboxPodTemplateObject renders the pod template the way the Sandbox CRD

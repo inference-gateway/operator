@@ -741,6 +741,34 @@ spec:
               - 169.254.0.0/16
 ```
 
+#### Boot a computer with user-data
+
+`spec.userData` hands the pod a [cloud-init](https://cloudinit.readthedocs.io/)
+user-data script that runs as root when it boots, before the daemon starts, the
+way a cloud VM runs it - for example to install a browser on a computer-use image.
+The Secret key is mounted read-only for root at cloud-init's NoCloud seed path,
+`/var/lib/cloud/seed/nocloud/user-data`. The image runs it and then drops to the
+daemon's user, as `ghcr.io/inference-gateway/computer` does.
+
+```yaml
+spec:
+  image: ghcr.io/inference-gateway/computer:latest
+  runtime: Sandbox
+  userData:
+    secretRef:
+      name: computer-user-data
+      key: userdata
+```
+
+The pod then boots as root in a
+[user namespace](https://kubernetes.io/docs/concepts/workloads/pods/user-namespaces/)
+(`hostUsers: false`), so its root maps to an unprivileged user on the node and keeps
+only the capabilities a package install needs (`CHOWN`, `DAC_OVERRIDE`, `FOWNER`,
+`FSETID`, `SETUID`, `SETGID`), still without privilege escalation. Nodes need
+Kubernetes 1.36 or newer with containerd 2.0+ or CRI-O 1.25+ and Linux 6.3+. The
+`secretRef` has the shape of KubeVirt's `cloudInitNoCloud` volume, which reads the
+key `userdata`, so the same Secret boots a VM unchanged.
+
 ## 🔄 Upgrade
 
 To upgrade the operator to a newer version:
