@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.34.1](https://github.com/inference-gateway/operator/compare/v0.34.0...v0.34.1) (2026-11-09)
+
+### ♻️ Improvements
+
+* bump go toolchain to 1.27.3 ([#336](https://github.com/inference-gateway/operator/issues/336)) ([5736c20](https://github.com/inference-gateway/operator/commit/5736c20c2e8047cebde7f10eabae314fb014c244))
+
+### 👷 CI
+
+* **deps:** bump rancher/k3s ([#333](https://github.com/inference-gateway/operator/issues/333)) ([5f2fe36](https://github.com/inference-gateway/operator/commit/5f2fe36cafca62e8006bac843caeacc835b63545))
+* **deps:** bump the github-actions group with 2 updates ([#334](https://github.com/inference-gateway/operator/issues/334)) ([ea2eb29](https://github.com/inference-gateway/operator/commit/ea2eb29d0324b5eec6aaebf707f08e419bbe3b48))
+* **deps:** bump the gomod group with 2 updates ([#335](https://github.com/inference-gateway/operator/issues/335)) ([96a8875](https://github.com/inference-gateway/operator/commit/96a88756cc8e77f8da9abab9a4599e060473ddb5))
+
 ## [0.34.0](https://github.com/inference-gateway/operator/compare/v0.33.0...v0.34.0) (2026-11-09)
 
 ### ✨ Features
