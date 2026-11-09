@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.34.0](https://github.com/inference-gateway/operator/compare/v0.33.0...v0.34.0) (2026-11-09)
+
+### ✨ Features
+
+* **orchestrator:** give spec.mcp.servers tool filters and a timeout ([#332](https://github.com/inference-gateway/operator/issues/332)) ([9fd2f47](https://github.com/inference-gateway/operator/commit/9fd2f47083bf04d1aaeab82c7021f42e9ecbabd9))
+
 ## [0.33.0](https://github.com/inference-gateway/operator/compare/v0.32.0...v0.33.0) (2026-11-08)
 
 ### ✨ Features
