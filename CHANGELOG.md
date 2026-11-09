@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.35.0](https://github.com/inference-gateway/operator/compare/v0.34.1...v0.35.0) (2026-11-09)
+
+### ✨ Features
+
+* **orchestrator:** boot sandboxes with cloud-init user-data ([#337](https://github.com/inference-gateway/operator/issues/337)) ([7f32025](https://github.com/inference-gateway/operator/commit/7f32025a6d7bbf1ace6f4312ab8198136ad90df7))
+
 ## [0.34.1](https://github.com/inference-gateway/operator/compare/v0.34.0...v0.34.1) (2026-11-09)
 
 ### ♻️ Improvements
