@@ -573,10 +573,13 @@ type cliMCPConfig struct {
 }
 
 type cliMCPServer struct {
-	Name    string            `json:"name"`
-	Enabled bool              `json:"enabled"`
-	URL     string            `json:"url"`
-	Headers map[string]string `json:"headers"`
+	Name         string            `json:"name"`
+	Enabled      bool              `json:"enabled"`
+	URL          string            `json:"url"`
+	Headers      map[string]string `json:"headers"`
+	IncludeTools []string          `json:"include_tools"`
+	ExcludeTools []string          `json:"exclude_tools"`
+	Timeout      int32             `json:"timeout"`
 }
 
 func parseCLIMCPConfig(rendered string) cliMCPConfig {
@@ -608,6 +611,15 @@ var _ = Describe("buildMCPsYAML", func() {
 		Expect(cfg.Servers).To(Equal([]cliMCPServer{
 			{Name: "mailbox", Enabled: true, URL: "https://mcp.example.com/mcp", Headers: headers},
 			{Name: "time", Enabled: true, URL: "http://time:3000/mcp"},
+		}))
+	})
+
+	It("writes a server's tool filters and timeout under the CLI's keys", func() {
+		cfg := renderMCPs(corev1alpha1.OrchestratorMCPSpec{Servers: []corev1alpha1.OrchestratorMCPServer{
+			{Name: "time", URL: "http://time:3000/mcp", IncludeTools: []string{"get_time"}, ExcludeTools: []string{"convert_time"}, TimeoutSeconds: 10},
+		}}, nil)
+		Expect(cfg.Servers).To(Equal([]cliMCPServer{
+			{Name: "time", Enabled: true, URL: "http://time:3000/mcp", IncludeTools: []string{"get_time"}, ExcludeTools: []string{"convert_time"}, Timeout: 10},
 		}))
 	})
 

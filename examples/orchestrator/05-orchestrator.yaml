@@ -72,6 +72,11 @@ spec:
         url: http://mcp-time-direct-service.mcp.svc.cluster.local:8080/mcp
         headers:
           x-api-key: ${MCP_TIME_API_KEY}
+        # The pod gets only get_time from this server. includeTools wins over
+        # excludeTools, and timeoutSeconds bounds each request to it.
+        includeTools:
+          - get_time
+        timeoutSeconds: 10
     # serviceDiscovery picks up MCP CRs labeled `mcp-group: group1` in the `mcp`
     # namespace and writes them into ~/.infer/mcp.yaml inside the orchestrator
     # pod. The pod is rolled when the discovered set changes.

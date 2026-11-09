@@ -1080,7 +1080,7 @@ spec:
     model: deepseek/deepseek-v4-pro
   mcp:
     enabled: true
-    servers: [] # {name, url, headers} entries, optional
+    servers: [] # {name, url, headers, includeTools, excludeTools, timeoutSeconds} entries, optional
     serviceDiscovery:
       enabled: true
       namespace: mcp
@@ -1129,6 +1129,20 @@ spec:
         url: https://mcp.example.com/mcp
         headers:
           x-api-key: ${MCP_EXAMPLE_API_KEY}
+```
+
+A server can also narrow and bound what the pod gets from it. `includeTools` limits the pod to the
+listed tools, named as the server lists them, and `excludeTools` hides the listed ones. When both are
+set, `includeTools` wins. `timeoutSeconds` bounds one request to the server, and unset the pod's default
+applies:
+
+```yaml
+    servers:
+      - name: example
+        url: https://mcp.example.com/mcp
+        includeTools:
+          - search
+        timeoutSeconds: 10
 ```
 
 The pod's infer image must be v0.248.0 or newer, which reads `url` and `headers`.

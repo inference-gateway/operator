@@ -536,17 +536,37 @@ spec:
                         CLI expands from the pod's environment, such as a variable spec.env fills
                         from a Secret. Never put a secret value in a header here.
                       properties:
+                        excludeTools:
+                          description: ExcludeTools hides these tools of the server
+                            from the pod.
+                          items:
+                            type: string
+                          type: array
                         headers:
                           additionalProperties:
                             type: string
                           description: Headers are sent with every request to the
                             server.
                           type: object
+                        includeTools:
+                          description: |-
+                            IncludeTools limits the pod to these tools of the server, named as the
+                            server lists them. When set, ExcludeTools is ignored.
+                          items:
+                            type: string
+                          type: array
                         name:
                           description: Name is the server's alias, which namespaces
                             its tools in the pod.
                           minLength: 1
                           type: string
+                        timeoutSeconds:
+                          description: |-
+                            TimeoutSeconds bounds one request to the server. Unset, the pod's default
+                            applies.
+                          format: int32
+                          minimum: 1
+                          type: integer
                         url:
                           description: URL is the server's endpoint, such as https://mcp.example.com/mcp.
                           minLength: 1
