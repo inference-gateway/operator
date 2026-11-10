@@ -11,6 +11,11 @@ spec:
   sandbox:
     storage: 5Gi
     retention: 24h
+    volumes:
+      - name: footage
+        claimName: raw-footage
+        mountPath: /mnt/footage
+        readOnly: true
   daemon:
     binding:
       tokenSecretRef:
