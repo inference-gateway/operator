@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.36.0](https://github.com/inference-gateway/operator/compare/v0.35.0...v0.36.0) (2026-11-10)
+
+### ✨ Features
+
+* **orchestrator:** mount existing claims into a sandbox ([#340](https://github.com/inference-gateway/operator/issues/340)) ([d449297](https://github.com/inference-gateway/operator/commit/d4492977ee448bbc89e34efa1e9de1a7b0db73bb)), closes [#339](https://github.com/inference-gateway/operator/issues/339)
+
+### 🔧 Miscellaneous
+
+* **deps:** bump claude-code 2.1.308 -> 2.1.318 ([#338](https://github.com/inference-gateway/operator/issues/338)) ([9501dcd](https://github.com/inference-gateway/operator/commit/9501dcd21cc873032bb9a7dba16db8a7768637a3))
+
 ## [0.35.0](https://github.com/inference-gateway/operator/compare/v0.34.1...v0.35.0) (2026-11-09)
 
 ### ✨ Features
