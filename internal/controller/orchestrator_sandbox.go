@@ -47,6 +47,7 @@ import (
 const (
 	sandboxPodNameAnnotation  = "agents.x-k8s.io/pod-name"
 	sandboxConditionReady     = "Ready"
+	sandboxConditionScheduled = "PodScheduled"
 	sandboxConditionSuspended = "Suspended"
 	sandboxConditionFinished  = "Finished"
 	sandboxReasonPodSucceeded = "PodSucceeded"
@@ -62,6 +63,10 @@ const (
 )
 
 // The Sandbox's volumes and where the daemon finds them.
+// sandboxClaimVolumePrefix names the pod volume of a spec.sandbox.volumes
+// entry, so it never collides with a volume the operator owns.
+const sandboxClaimVolumePrefix = "claim-"
+
 const (
 	sandboxWorkspaceVolume    = "workspace"
 	sandboxWorkspaceMountPath = "/workspace"
@@ -384,10 +389,36 @@ func sandboxPodTemplate(orch *corev1alpha1.Orchestrator, template corev1.PodTemp
 		corev1.VolumeMount{Name: sandboxWorkspaceVolume, MountPath: sandboxWorkspaceMountPath},
 		corev1.VolumeMount{Name: sandboxStateVolume, MountPath: sandboxStateMountPath},
 	)
+	if orch.Spec.Sandbox != nil {
+		mountClaims(spec, orch.Spec.Sandbox.Volumes)
+	}
 	if orch.Spec.UserData != nil {
 		bootWithUserData(spec, orch.Spec.UserData)
 	}
 	return template
+}
+
+// mountClaims mounts each existing claim into the daemon's container. A pod
+// with one changes a volume's ownership only when its root mismatches, so a
+// large shared volume is not walked on every boot.
+func mountClaims(spec *corev1.PodSpec, volumes []corev1alpha1.SandboxVolume) {
+	if len(volumes) == 0 {
+		return
+	}
+	spec.SecurityContext.FSGroupChangePolicy = ptr.To(corev1.FSGroupChangeOnRootMismatch)
+	container := &spec.Containers[0]
+	for _, volume := range volumes {
+		name := sandboxClaimVolumePrefix + volume.Name
+		spec.Volumes = append(spec.Volumes, corev1.Volume{
+			Name: name,
+			VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: volume.ClaimName,
+				ReadOnly:  volume.ReadOnly,
+			}},
+		})
+		container.VolumeMounts = append(container.VolumeMounts,
+			corev1.VolumeMount{Name: name, MountPath: volume.MountPath, ReadOnly: volume.ReadOnly})
+	}
 }
 
 // bootWithUserData lets the pod boot as root in a user namespace of its own,
@@ -448,15 +479,19 @@ func anyMap(values map[string]string) map[string]any {
 }
 
 // sandboxState reports the Sandbox's readiness, and the pod it runs once
-// ready. A Sandbox that is not ready passes on why, such as an image pull error.
+// ready. A Sandbox that is not ready passes on why, such as an image pull error
+// or a pod that cannot be scheduled because a claim it mounts is missing.
 func sandboxState(sandbox *unstructured.Unstructured) workloadState {
 	mode, _, _ := unstructured.NestedString(sandbox.Object, "spec", "operatingMode")
 	status, reason, message := sandboxCondition(sandbox, sandboxConditionReady)
+	scheduled, unscheduledReason, unscheduledMessage := sandboxCondition(sandbox, sandboxConditionScheduled)
 	switch {
 	case status == string(metav1.ConditionTrue):
 		return workloadState{ready: true, reason: corev1alpha1.ReasonSandboxReady, message: "the daemon's sandbox is ready", podName: sandboxPodName(sandbox)}
 	case mode == string(corev1alpha1.SandboxSuspended):
 		return workloadState{reason: corev1alpha1.ReasonSandboxSuspended, message: "the daemon's sandbox is suspended, set spec.sandbox.operatingMode to Running to resume it"}
+	case scheduled == string(metav1.ConditionFalse):
+		return workloadState{reason: corev1alpha1.ReasonSandboxNotReady, message: fmt.Sprintf("the daemon's sandbox pod is not scheduled: %s: %s", unscheduledReason, unscheduledMessage)}
 	case reason != "":
 		return workloadState{reason: corev1alpha1.ReasonSandboxNotReady, message: fmt.Sprintf("the daemon's sandbox is not ready: %s: %s", reason, message)}
 	default:

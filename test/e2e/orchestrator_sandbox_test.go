@@ -35,6 +35,7 @@ const idleExitCLIImage = "ghcr.io/inference-gateway/cli:0.239.0-rc.9"
 var _ = Describe("Orchestrator with runtime: Sandbox", Ordered, func() {
 	const (
 		orchestratorName = "e2e-sandboxed-orchestrator"
+		sharedClaim      = "e2e-shared-content"
 		sandboxTimeout   = 5 * time.Minute
 		sandboxInterval  = 3 * time.Second
 	)
@@ -86,11 +87,28 @@ var _ = Describe("Orchestrator with runtime: Sandbox", Ordered, func() {
 	AfterAll(func() {
 		_, _ = kubectl("delete", "orchestrator", orchestratorName, "-n", testNamespace, "--ignore-not-found=true")
 		_, _ = kubectl("delete", "secret", orchestratorName+"-tls", orchestratorName+"-token", "-n", testNamespace, "--ignore-not-found=true")
+		_, _ = kubectl("delete", "persistentvolumeclaim", sharedClaim, "-n", testNamespace, "--ignore-not-found=true")
 	})
 
 	It("runs the daemon in a Sandbox that suspends, resumes and expires", func() {
-		By("creating an Orchestrator with runtime: Sandbox")
+		By("creating a claim the Sandbox does not own")
 		_, err := utils.Run(exec.Command("sh", "-c", fmt.Sprintf(`cat <<'EOF' | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+EOF`, sharedClaim, testNamespace)))
+		Expect(err).NotTo(HaveOccurred())
+
+		By("creating an Orchestrator with runtime: Sandbox that mounts the claim read-only")
+		_, err = utils.Run(exec.Command("sh", "-c", fmt.Sprintf(`cat <<'EOF' | kubectl apply -f -
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: Orchestrator
 metadata:
@@ -101,10 +119,15 @@ spec:
   runtime: Sandbox
   sandbox:
     storage: 1Gi
+    volumes:
+      - name: shared
+        claimName: %s
+        mountPath: /mnt/shared
+        readOnly: true
   tools:
     enabled: true
     schedule: true
-EOF`, orchestratorName, testNamespace)))
+EOF`, orchestratorName, testNamespace, sharedClaim)))
 		Expect(err).NotTo(HaveOccurred())
 
 		By("waiting for the daemon's Sandbox to become ready")
@@ -117,6 +140,12 @@ EOF`, orchestratorName, testNamespace)))
 		By("writing to the workspace volume")
 		_, err = kubectl("exec", podName, "-n", testNamespace, "--", "sh", "-c", "echo kept > /workspace/marker")
 		Expect(err).NotTo(HaveOccurred())
+
+		By("reading the mounted claim, which the daemon cannot write to")
+		_, err = kubectl("exec", podName, "-n", testNamespace, "--", "ls", "/mnt/shared")
+		Expect(err).NotTo(HaveOccurred())
+		_, err = kubectl("exec", podName, "-n", testNamespace, "--", "touch", "/mnt/shared/marker")
+		Expect(err).To(HaveOccurred())
 
 		By("suspending the Sandbox, which removes its pod")
 		patchSandbox(`{"operatingMode":"Suspended"}`)
@@ -144,6 +173,10 @@ EOF`, orchestratorName, testNamespace)))
 			_, err := kubectl("get", "sandbox", orchestratorName, "-n", testNamespace)
 			return err
 		}, sandboxTimeout, sandboxInterval).Should(MatchError(ContainSubstring("NotFound")))
+
+		By("keeping the mounted claim, which was never the Sandbox's")
+		_, err = kubectl("get", "persistentvolumeclaim", sharedClaim, "-n", testNamespace)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("parks the Orchestrator when its daemon idles out, and resumes it on request", func() {

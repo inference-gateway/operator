@@ -23401,6 +23401,56 @@ spec:
                     x-kubernetes-validations:
                     - message: spec.sandbox.storage is fixed when the Sandbox is created
                       rule: self == oldSelf
+                  volumes:
+                    description: |-
+                      Volumes mount existing PersistentVolumeClaims into the daemon's container,
+                      for an app or content its sessions share. The Sandbox never owns such a
+                      claim, so it outlives a suspension, the retention and the Orchestrator.
+                    items:
+                      description: |-
+                        SandboxVolume mounts a PersistentVolumeClaim of the Orchestrator's namespace
+                        into the daemon's container. The claim is created and filled elsewhere. A
+                        claim shared by pods on several nodes needs ReadWriteMany or ReadOnlyMany.
+                      properties:
+                        claimName:
+                          description: ClaimName is the PersistentVolumeClaim to mount.
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                        mountPath:
+                          description: MountPath is the absolute path the claim is
+                            mounted at.
+                          maxLength: 256
+                          pattern: ^/[^/]
+                          type: string
+                        name:
+                          description: Name identifies the volume within the Orchestrator.
+                          maxLength: 48
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                        readOnly:
+                          description: |-
+                            ReadOnly mounts the claim read-only, for content the daemon's agents
+                            copy before they change it, so the original stays as it is.
+                          type: boolean
+                      required:
+                      - claimName
+                      - mountPath
+                      - name
+                      type: object
+                      x-kubernetes-validations:
+                      - message: mountPath overlaps a path the operator mounts
+                        rule: '![''/workspace'', ''/home/infer/.infer/projects'',
+                          ''/var/lib/cloud/seed/nocloud''].exists(p, (self.mountPath
+                          + ''/'').startsWith(p + ''/''))'
+                    maxItems: 16
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                    x-kubernetes-validations:
+                    - message: spec.sandbox.volumes must not share a mountPath
+                      rule: self.all(a, self.exists_one(b, b.mountPath == a.mountPath))
                 type: object
               telemetry:
                 description: |-

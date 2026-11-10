@@ -689,8 +689,52 @@ spec:
   the pod it creates next. A pod that fails is recreated by agent-sandbox with a
   backoff (`failedPodPolicy: Recreate`).
 - `spec.sandbox.storage` (default `5Gi`) sizes both volumes and is fixed at creation.
+- `spec.sandbox.volumes` mounts PersistentVolumeClaims that already exist in the
+  Orchestrator's namespace into the daemon's container - an app installed once, or
+  content its sessions share. See [Mount existing claims](#mount-existing-claims).
 - `status.podName` names the Sandbox's pod once it is ready, for clients that
   port-forward to it.
+
+#### Mount existing claims
+
+A Sandbox's own volumes start empty, so an app installed by `spec.userData` is
+downloaded again on every pod. `spec.sandbox.volumes` mounts claims that are
+created and filled elsewhere:
+
+```yaml
+spec:
+  runtime: Sandbox
+  sandbox:
+    volumes:
+      - name: resolve
+        claimName: davinci-resolve
+        mountPath: /opt/resolve
+      - name: footage
+        claimName: raw-footage
+        mountPath: /mnt/footage
+        readOnly: true
+```
+
+- `readOnly: true` mounts the claim read-only, for content the agents copy into
+  `/workspace` before they change it. The original stays as it is.
+- The Sandbox never owns a mounted claim. A suspension, `spec.sandbox.retention`,
+  `spec.sandbox.shutdownTime` and deleting the Orchestrator all leave it and its
+  data in place.
+- A `mountPath` is absolute and cannot be, or lie under, a path the operator
+  mounts: `/workspace`, `/home/infer/.infer/projects` and
+  `/var/lib/cloud/seed/nocloud`. Two volumes cannot share one.
+- Changing the list cycles a running pod through `Suspended`, like any other
+  change to the daemon's pod.
+- A claim that does not exist leaves the pod unscheduled. The Orchestrator
+  reports it as `Ready=False` with reason `SandboxNotReady` and the scheduler's
+  message.
+- A `ReadWriteOnce` claim is shared by pods on one node only. Orchestrators on
+  several nodes need a `ReadWriteMany` or `ReadOnlyMany` claim.
+- A pod that mounts a claim sets `fsGroupChangePolicy: OnRootMismatch`, so a large
+  volume is not walked on every boot.
+
+For an app alone, an image with the app installed needs none of this - a node
+pulls it once and caches it.
 
 The pod follows agent-sandbox's
 [threat model](https://github.com/kubernetes-sigs/agent-sandbox/blob/main/docs/security/threat_model.md)

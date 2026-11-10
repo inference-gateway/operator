@@ -217,6 +217,108 @@ var _ = Describe("Orchestrator with runtime: Sandbox", func() {
 		)))
 	})
 
+	It("mounts existing claims into the daemon's container, read-only where asked, and never as claim templates", func() {
+		create("mounting", nil, sandboxSpec(&corev1alpha1.OrchestratorSandboxSpec{Volumes: []corev1alpha1.SandboxVolume{
+			{Name: "resolve", ClaimName: "davinci-resolve", MountPath: "/opt/resolve"},
+			{Name: "state", ClaimName: "raw-footage", MountPath: "/mnt/footage", ReadOnly: true},
+		}}))
+		reconcile("mounting")
+
+		sandbox := getSandbox("mounting")
+		claims, _, _ := unstructured.NestedSlice(sandbox.Object, "spec", "volumeClaimTemplates")
+		Expect(claims).To(HaveLen(2), "a mounted claim is not the Sandbox's to create or delete")
+
+		podSpec, _, _ := unstructured.NestedMap(sandbox.Object, "spec", "podTemplate", "spec")
+		Expect(podSpec["securityContext"]).To(HaveKeyWithValue("fsGroupChangePolicy", "OnRootMismatch"))
+		volumes, _, _ := unstructured.NestedSlice(podSpec, "volumes")
+		Expect(volumes).To(ContainElements(
+			SatisfyAll(
+				HaveKeyWithValue("name", "claim-resolve"),
+				HaveKeyWithValue("persistentVolumeClaim", Equal(map[string]any{"claimName": "davinci-resolve"})),
+			),
+			SatisfyAll(
+				HaveKeyWithValue("name", "claim-state"),
+				HaveKeyWithValue("persistentVolumeClaim", Equal(map[string]any{"claimName": "raw-footage", "readOnly": true})),
+			),
+		))
+		containers, _, _ := unstructured.NestedSlice(podSpec, "containers")
+		mounts, _, _ := unstructured.NestedSlice(containers[0].(map[string]any), "volumeMounts")
+		Expect(mounts).To(ContainElements(
+			Equal(map[string]any{"name": "claim-resolve", "mountPath": "/opt/resolve"}),
+			Equal(map[string]any{"name": "claim-state", "mountPath": "/mnt/footage", "readOnly": true}),
+			HaveKeyWithValue("mountPath", "/workspace"),
+			HaveKeyWithValue("mountPath", "/home/infer/.infer/projects"),
+		))
+	})
+
+	It("leaves the pod's security context as it was when no claim is mounted", func() {
+		create("unmounted", nil, sandboxSpec(nil))
+		reconcile("unmounted")
+		securityContext, _, _ := unstructured.NestedMap(getSandbox("unmounted").Object, "spec", "podTemplate", "spec", "securityContext")
+		Expect(securityContext).NotTo(HaveKey("fsGroupChangePolicy"))
+	})
+
+	It("cycles a running pod through Suspended when its mounted claims change", func() {
+		create("remounting", nil, sandboxSpec(nil))
+		reconcile("remounting")
+		reportSandbox("remounting", trueCondition("Ready"))
+
+		updateOrchestrator("remounting", func(spec *corev1alpha1.OrchestratorSpec) {
+			spec.Sandbox = &corev1alpha1.OrchestratorSandboxSpec{Volumes: []corev1alpha1.SandboxVolume{
+				{Name: "footage", ClaimName: "raw-footage", MountPath: "/mnt/footage", ReadOnly: true},
+			}}
+		})
+		reconcile("remounting")
+		Expect(sandboxSpecField("remounting", "operatingMode")).To(Equal("Suspended"))
+	})
+
+	It("reports why the Sandbox's pod is not scheduled, such as a claim that does not exist", func() {
+		create("unscheduled", nil, sandboxSpec(&corev1alpha1.OrchestratorSandboxSpec{Volumes: []corev1alpha1.SandboxVolume{
+			{Name: "footage", ClaimName: "missing", MountPath: "/mnt/footage"},
+		}}))
+		reconcile("unscheduled")
+		reportSandbox("unscheduled",
+			map[string]any{"type": "Ready", "status": "False", "reason": "DependenciesNotReady"},
+			map[string]any{"type": "PodScheduled", "status": "False", "reason": "Unschedulable"},
+		)
+		reconcile("unscheduled")
+
+		ready := readyCondition(getOrchestrator("unscheduled"))
+		Expect(ready.Reason).To(Equal("SandboxNotReady"))
+		Expect(ready.Message).To(ContainSubstring("not scheduled: Unschedulable"))
+	})
+
+	DescribeTable("rejects a spec.sandbox.volumes list the daemon's container cannot mount",
+		func(name, message string, volumes ...corev1alpha1.SandboxVolume) {
+			spec := sandboxSpec(&corev1alpha1.OrchestratorSandboxSpec{Volumes: volumes})
+			err := k8sClient.Create(ctx, &corev1alpha1.Orchestrator{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"}, Spec: spec})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(message))
+		},
+		Entry("the workspace's path", "over-workspace", "mountPath overlaps a path the operator mounts",
+			corev1alpha1.SandboxVolume{Name: "a", ClaimName: "c", MountPath: "/workspace"}),
+		Entry("a path under the workspace", "under-workspace", "mountPath overlaps a path the operator mounts",
+			corev1alpha1.SandboxVolume{Name: "a", ClaimName: "c", MountPath: "/workspace/footage"}),
+		Entry("a path under the state volume", "under-state", "mountPath overlaps a path the operator mounts",
+			corev1alpha1.SandboxVolume{Name: "a", ClaimName: "c", MountPath: "/home/infer/.infer/projects/x"}),
+		Entry("the user-data seed directory", "over-seed", "mountPath overlaps a path the operator mounts",
+			corev1alpha1.SandboxVolume{Name: "a", ClaimName: "c", MountPath: "/var/lib/cloud/seed/nocloud"}),
+		Entry("a relative path", "relative", "spec.sandbox.volumes[0].mountPath",
+			corev1alpha1.SandboxVolume{Name: "a", ClaimName: "c", MountPath: "mnt/footage"}),
+		Entry("the root", "root", "spec.sandbox.volumes[0].mountPath",
+			corev1alpha1.SandboxVolume{Name: "a", ClaimName: "c", MountPath: "/"}),
+		Entry("no claim", "claimless", "spec.sandbox.volumes[0].claimName",
+			corev1alpha1.SandboxVolume{Name: "a", MountPath: "/mnt/a"}),
+		Entry("a name that is not a DNS label", "misnamed", "spec.sandbox.volumes[0].name",
+			corev1alpha1.SandboxVolume{Name: "Raw_Footage", ClaimName: "c", MountPath: "/mnt/a"}),
+		Entry("two volumes at one path", "shared-path", "must not share a mountPath",
+			corev1alpha1.SandboxVolume{Name: "a", ClaimName: "c", MountPath: "/mnt/a"},
+			corev1alpha1.SandboxVolume{Name: "b", ClaimName: "d", MountPath: "/mnt/a"}),
+		Entry("two volumes of one name", "shared-name", "Duplicate value",
+			corev1alpha1.SandboxVolume{Name: "a", ClaimName: "c", MountPath: "/mnt/a"},
+			corev1alpha1.SandboxVolume{Name: "a", ClaimName: "d", MountPath: "/mnt/b"}),
+	)
+
 	It("sizes both volumes from spec.sandbox.storage, which is fixed afterwards", func() {
 		storage := resource.MustParse("2Gi")
 		create("sized", nil, sandboxSpec(&corev1alpha1.OrchestratorSandboxSpec{Storage: &storage}))

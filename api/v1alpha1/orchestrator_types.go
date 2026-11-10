@@ -230,6 +230,42 @@ type OrchestratorSandboxSpec struct {
 	// the isolation agent-sandbox recommends for untrusted, LLM-driven code.
 	// +optional
 	RuntimeClassName *string `json:"runtimeClassName,omitempty"`
+
+	// Volumes mount existing PersistentVolumeClaims into the daemon's container,
+	// for an app or content its sessions share. The Sandbox never owns such a
+	// claim, so it outlives a suspension, the retention and the Orchestrator.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	// +kubebuilder:validation:MaxItems=16
+	// +kubebuilder:validation:XValidation:rule="self.all(a, self.exists_one(b, b.mountPath == a.mountPath))",message="spec.sandbox.volumes must not share a mountPath"
+	Volumes []SandboxVolume `json:"volumes,omitempty"`
+}
+
+// SandboxVolume mounts a PersistentVolumeClaim of the Orchestrator's namespace
+// into the daemon's container. The claim is created and filled elsewhere. A
+// claim shared by pods on several nodes needs ReadWriteMany or ReadOnlyMany.
+// +kubebuilder:validation:XValidation:rule="!['/workspace', '/home/infer/.infer/projects', '/var/lib/cloud/seed/nocloud'].exists(p, (self.mountPath + '/').startsWith(p + '/'))",message="mountPath overlaps a path the operator mounts"
+type SandboxVolume struct {
+	// Name identifies the volume within the Orchestrator.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=48
+	Name string `json:"name"`
+
+	// ClaimName is the PersistentVolumeClaim to mount.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	ClaimName string `json:"claimName"`
+
+	// MountPath is the absolute path the claim is mounted at.
+	// +kubebuilder:validation:Pattern=`^/[^/]`
+	// +kubebuilder:validation:MaxLength=256
+	MountPath string `json:"mountPath"`
+
+	// ReadOnly mounts the claim read-only, for content the daemon's agents
+	// copy before they change it, so the original stays as it is.
+	// +optional
+	ReadOnly bool `json:"readOnly,omitempty"`
 }
 
 // UserDataSpec selects cloud-init user-data from a Secret, the shape KubeVirt's
