@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.37.0](https://github.com/inference-gateway/operator/compare/v0.36.0...v0.37.0) (2026-11-12)
+
+### ✨ Features
+
+* **gateway:** add spec.audio to turn the Audio API on ([#343](https://github.com/inference-gateway/operator/issues/343)) ([0be48e4](https://github.com/inference-gateway/operator/commit/0be48e4fb02344f45acea2549094ba7a0f122ead))
+
+### 🔧 Miscellaneous
+
+* **providers:** sync the provider list with the schema ([#342](https://github.com/inference-gateway/operator/issues/342)) ([1232e29](https://github.com/inference-gateway/operator/commit/1232e290eaebc77b6710d895d44a76db07c2bb33))
+
 ## [0.36.0](https://github.com/inference-gateway/operator/compare/v0.35.0...v0.36.0) (2026-11-10)
 
 ### ✨ Features
