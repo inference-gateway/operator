@@ -34,6 +34,7 @@ var SupportedProviders = []string{
 	"groq",
 	"llamacpp",
 	"minimax",
+	"mirelo",
 	"mistral",
 	"moonshot",
 	"nvidia",
