@@ -1293,6 +1293,34 @@ var _ = Describe("Gateway guardrails", func() {
 	})
 })
 
+var _ = Describe("Gateway audio", func() {
+	ctx := context.Background()
+
+	audioEnv := func(audio *corev1alpha1.AudioSpec) []corev1.EnvVar {
+		r := &GatewayReconciler{Client: testutil.NewFakeClient(), Scheme: gatewayTestScheme}
+		gateway := &corev1alpha1.Gateway{
+			ObjectMeta: metav1.ObjectMeta{Name: "gw", Namespace: "default"},
+			Spec:       corev1alpha1.GatewaySpec{Audio: audio},
+		}
+		return r.buildDeployment(ctx, gateway, false).Spec.Template.Spec.Containers[0].Env
+	}
+
+	enabled := corev1.EnvVar{Name: "AUDIO_ENABLED", Value: "true"}
+
+	DescribeTable("emits AUDIO_ENABLED only when audio is enabled",
+		func(audio *corev1alpha1.AudioSpec, want bool) {
+			if want {
+				Expect(audioEnv(audio)).To(ContainElement(enabled))
+				return
+			}
+			Expect(audioEnv(audio)).NotTo(ContainElement(HaveField("Name", "AUDIO_ENABLED")))
+		},
+		Entry("unset", nil, false),
+		Entry("disabled", &corev1alpha1.AudioSpec{}, false),
+		Entry("enabled", &corev1alpha1.AudioSpec{Enabled: true}, true),
+	)
+})
+
 var _ = Describe("Gateway MCP tool mode", func() {
 	ctx := context.Background()
 

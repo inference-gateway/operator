@@ -73,6 +73,12 @@ type GatewaySpec struct {
 	// +optional
 	A2A *A2ASpec `json:"a2a,omitempty"`
 
+	// Audio configures the gateway's Audio API. Defaults to disabled so the
+	// Audio column of the resource table always shows a value.
+	// +optional
+	// +kubebuilder:default={enabled: false}
+	Audio *AudioSpec `json:"audio,omitempty"`
+
 	// Resource requirements for the gateway pods
 	// +optional
 	Resources *ResourceRequirements `json:"resources,omitempty"`
@@ -810,6 +816,15 @@ type ModelRoutingSpec struct {
 	ConfigMapRef *corev1.ConfigMapKeySelector `json:"configMapRef,omitempty"`
 }
 
+// AudioSpec contains the Audio API configuration: speech, sound effects and
+// music under /v1/audio. The gateway serves none of them unless it is enabled.
+type AudioSpec struct {
+	// Enabled turns the Audio API on. Emitted as AUDIO_ENABLED.
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+}
+
 // GuardrailsSpec contains guardrails (OPA/Rego policy enforcement) configuration.
 type GuardrailsSpec struct {
 	// Enable guardrails policy enforcement
@@ -932,6 +947,7 @@ type GatewayCondition struct {
 // +kubebuilder:printcolumn:name="Providers",type=string,JSONPath=".status.providerSummary",description="Configured providers"
 // +kubebuilder:printcolumn:name="MCPS",type=integer,JSONPath=".status.mcpServerCount",description="Number of MCP servers connected (static + discovered)"
 // +kubebuilder:printcolumn:name="A2A",type=integer,JSONPath=".status.a2aAgentCount",description="Number of A2A agents registered (static + discovered)"
+// +kubebuilder:printcolumn:name="Audio",type=boolean,JSONPath=".spec.audio.enabled",description="Whether the Audio API is enabled"
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp",description="Age of the resource"
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

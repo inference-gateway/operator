@@ -167,6 +167,8 @@ name outside the list above is skipped - it is left out of
 - **A2A (Agent-to-Agent)**: Distributed agent communication - the `Gateway` relays A2A calls when `spec.a2a.enabled` is set, the `Orchestrator` drives multi-turn agent tasks
   - **Service Discovery**: Automatic discovery of `Agent` CRs via Kubernetes label selectors (Gateway and Orchestrator)
   - **Dynamic Agent Registration**: The gateway's `A2A_AGENTS` is re-rendered and the pod rolled when the selected set changes, and discovered agents are written to the orchestrator's mounted `agents.yaml`
+- **Audio**: The gateway's Audio API - speech, sound effects and music under `/v1/audio` - is served when `spec.audio.enabled` is set, and the `Audio` column of `kubectl get gateways` shows it
+  - **Local speech engine**: The built-in `local/qwen3-tts` model runs inside the gateway pod. It downloads about 1.4 GB into the pod when it starts and held about 6 GiB of memory per synthesis when measured, two at a time by default, so raise `spec.resources.limits.memory` well above the 1Gi default or the pod is killed on the first request
 - **Health Checks**: Automated health monitoring for external services
 
 ### Networking
@@ -1223,7 +1225,8 @@ Visibility:
 
 ```bash
 kubectl get gateway       # MCPS column shows static + discovered MCP servers,
-                          # A2A column (.status.a2aAgentCount) static + discovered A2A agents
+                          # A2A column (.status.a2aAgentCount) static + discovered A2A agents,
+                          # Audio column (.spec.audio.enabled) whether the Audio API is on
 kubectl get orchestrator  # MCPS column shows the discovered count
 ```
 

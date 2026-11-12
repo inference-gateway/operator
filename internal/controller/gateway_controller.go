@@ -959,6 +959,10 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		}
 	}
 
+	if audio := gateway.Spec.Audio; audio != nil && audio.Enabled {
+		envVars = append(envVars, corev1.EnvVar{Name: "AUDIO_ENABLED", Value: "true"})
+	}
+
 	if gr := gateway.Spec.Guardrails; gr != nil && gr.Enabled {
 		envVars = append(envVars,
 			corev1.EnvVar{Name: "GUARDRAILS_ENABLED", Value: "true"},
