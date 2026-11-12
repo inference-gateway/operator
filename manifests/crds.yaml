@@ -7026,6 +7026,10 @@ spec:
       jsonPath: .status.a2aAgentCount
       name: A2A
       type: integer
+    - description: Whether the Audio API is enabled
+      jsonPath: .spec.audio.enabled
+      name: Audio
+      type: boolean
     - description: Age of the resource
       jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -7184,6 +7188,18 @@ spec:
                           sends nothing for this long. Emitted as A2A_STREAM_IDLE_TIMEOUT; "0" disables it.
                         type: string
                     type: object
+                type: object
+              audio:
+                default:
+                  enabled: false
+                description: |-
+                  Audio configures the gateway's Audio API. Defaults to disabled so the
+                  Audio column of the resource table always shows a value.
+                properties:
+                  enabled:
+                    default: false
+                    description: Enabled turns the Audio API on. Emitted as AUDIO_ENABLED.
+                    type: boolean
                 type: object
               auth:
                 description: Authentication configuration
