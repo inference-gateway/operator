@@ -143,12 +143,14 @@ so it never drifts from the gateway:
 | `groq` | Fast inference with open models |
 | `llamacpp` | llama.cpp server |
 | `minimax` | MiniMax models |
+| `mirelo` | Mirelo AI sound-effect generation |
 | `mistral` | Mistral AI |
 | `moonshot` | Moonshot AI (Kimi) |
 | `nvidia` | NVIDIA NIM |
 | `ollama` | Local model serving |
 | `ollama_cloud` | Ollama Cloud |
 | `openai` | OpenAI API |
+| `webwright` | Webwright AI |
 | `zai` | Z.ai |
 
 In addition, `custom` points the gateway at any OpenAI-compatible endpoint via
