@@ -59,6 +59,9 @@ spec:
       clientSecretRef:
         name: inference-gateway-auth-secret
         key: OIDC_CLIENT_SECRET
+  # Required for the Mirelo provider below - POST /v1/audio/sfx 404s otherwise.
+  audio:
+    enabled: true
   providers:
     - name: OpenAI
       enabled: false
@@ -124,6 +127,16 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: GOOGLE_API_KEY
+    - name: Mirelo
+      enabled: true
+      env:
+        - name: MIRELO_API_URL
+          value: "https://api.mirelo.ai/v3"
+        - name: MIRELO_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: MIRELO_API_KEY
     - name: Custom
       enabled: true
       env:
@@ -224,5 +237,6 @@ stringData:
 #   DEEPSEEK_API_KEY: ""
 #   OLLAMA_API_KEY: ""
 #   GOOGLE_API_KEY: ""
+#   MIRELO_API_KEY: ""
 #   CUSTOM_API_URL: ""
 #   CUSTOM_API_KEY: ""
