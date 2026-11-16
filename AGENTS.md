@@ -52,7 +52,7 @@ When offline, the drift test skips locally but hard-fails in CI. Hand-edit the f
 
 ## Commits & releases
 
-semantic-release + conventional commits. Subjects like `feat(gateway): Add route weighting`, `fix(agent): Resolve status update error`, `docs: Update install example`. For API changes, commit regenerated output from `task generate` and `task manifests`.
+semantic-release + conventional commits. Subjects like `feat(gateway): add route weighting`, `fix(agent): resolve status update error`, `docs: update install example`. For API changes, commit regenerated output from `task generate` and `task manifests`.
 
 The operator image tag lives in `config/environments/prod/kustomization.yaml` (`images[].newTag`), which `task manifests` renders into `manifests/install.yaml`. At release time the local semantic-release plugin `.github/semantic-release/pin-operator-image.cjs` rewrites both to the released version and `@semantic-release/git` commits them, so the release tag (and an ArgoCD `path: manifests` install pinned to it) runs that release's image while `task manifests` still reproduces the committed manifest exactly. Self-check: `node .github/semantic-release/pin-operator-image.cjs`. The pinned semantic-release dependencies live next to it in `.github/semantic-release/package.json`. The release workflow installs them with `npm install --prefix .github/semantic-release`.
 
