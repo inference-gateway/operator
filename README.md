@@ -56,7 +56,7 @@ The operator follows cloud-native best practices and provides a unified control 
 
 **🤖 Supported AI Providers:**
 
-- Anthropic • Cloudflare • Cohere • DeepSeek • ElevenLabs • Google • Groq • llama.cpp • MiniMax • Mistral • Moonshot • NVIDIA • Ollama • Ollama Cloud • OpenAI • Z.ai • plus any OpenAI-compatible endpoint via `custom`
+- Anthropic • Cloudflare • Cohere • DeepSeek • ElevenLabs • Google • Groq • llama.cpp • MiniMax • Mirelo • Mistral • Moonshot • NVIDIA • Ollama • Ollama Cloud • OpenAI • Webwright • Z.ai • plus any OpenAI-compatible endpoint via `custom`
 
 **☸️ Kubernetes Native:**
 
@@ -1375,7 +1375,7 @@ task manifests-for-namespace NAMESPACE=my-namespace
 kubectl apply --server-side -f manifests/my-namespace/install.yaml
 ```
 
-**GitOps Method:** Use Kustomize patches in your ArgoCD Application or Flux Kustomization.
+**GitOps Method:** Kustomize namespace patches do not work - the upstream `install.yaml` hardcodes `namespace: inference-gateway-system` on every namespaced object and in the `operator-manager-rolebinding` subjects. Generate the manifests with `task manifests-for-namespace NAMESPACE=my-namespace`, commit `manifests/my-namespace/` to your GitOps repository, and point ArgoCD or Flux at that directory. See [Method 5 Option C](#option-c-gitops-with-custom-namespace).
 
 ### How do I upgrade the operator?
 
