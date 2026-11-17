@@ -1,0 +1,64 @@
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway
+  namespace: inference-gateway
+spec:
+  environment: development
+  image: "ghcr.io/inference-gateway/inference-gateway:latest"
+  server:
+    host: "0.0.0.0"
+    port: 8080
+    tls:
+      # The container and Service port is renamed from `http` to `https` and the
+      # health probes switch to HTTPS. With no certificateRef/keyRef the operator
+      # mounts the conventional `inference-gateway-tls` Secret at /app/tls instead.
+      enabled: true
+      certificateRef:
+        name: gateway-server-tls
+        key: tls.crt
+      keyRef:
+        name: gateway-server-tls
+        key: tls.key
+      # Inbound mutual TLS: callers must present a certificate signed by this CA
+      # (SERVER_TLS_CLIENT_CA_PATH). The kubelet has no client certificate, so the
+      # operator switches the liveness/readiness probes to tcpSocket.
+      clientCARef:
+        name: gateway-server-tls
+        key: ca.crt
+  client:
+    # Outbound mutual TLS to providers. caRef is trusted on top of the system
+    # roots, so public providers keep working, and certificateRef/keyRef are
+    # presented to providers that ask for a client certificate.
+    tls:
+      caRef:
+        name: gateway-client-tls
+        key: ca.crt
+      certificateRef:
+        name: gateway-client-tls
+        key: tls.crt
+      keyRef:
+        name: gateway-client-tls
+        key: tls.key
+  providers:
+    - name: OpenAI
+      env:
+        # Point this at a provider behind mTLS signed by the example CA to see the
+        # client certificate in use, for example a self-hosted OpenAI-compatible server.
+        # - name: OPENAI_API_URL
+        #   value: "https://my-llm.internal/v1"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: OPENAI_API_KEY
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inference-gateway-providers-secret
+  namespace: inference-gateway
+type: Opaque
+stringData:
+  OPENAI_API_KEY: ""

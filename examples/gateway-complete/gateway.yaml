@@ -14,10 +14,19 @@ metadata:
 spec:
   environment: development
   image: "ghcr.io/inference-gateway/inference-gateway:latest"
-  # ServiceAccount configuration for RBAC
-  # serviceAccount:
-  #   create: true
-  #   name: "custom-gateway-sa"
+  # The ServiceAccount the gateway pods run as. With create: true (the default)
+  # the operator creates and owns it. With create: false it must already exist.
+  # Without a name the gateway's own name is used. Reported in status.serviceAccountName.
+  serviceAccount:
+    create: true
+    name: "custom-gateway-sa"
+  # The Service in front of the gateway pods (named after the Gateway).
+  service:
+    type: ClusterIP # ClusterIP, NodePort, LoadBalancer or ExternalName
+    port: 8080 # Service port, forwarded to the container's server port
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9464"
   hpa:
     enabled: true
     config:
@@ -48,8 +57,9 @@ spec:
     tls:
       enabled: false
       # When enabled, the operator mounts the Secret `inference-gateway-tls` at
-      # /app/tls in the backend pod and exposes port 8443 for end-to-end TLS.
-      # Override the certificate with certificateRef/keyRef.
+      # /app/tls and serves HTTPS on the server port (renamed `https`).
+      # Override the certificate with certificateRef/keyRef - see
+      # ../gateway-with-mtls/ for those and for mutual TLS.
   auth:
     enabled: false
     provider: oidc
