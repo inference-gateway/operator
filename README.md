@@ -584,8 +584,7 @@ EOF
 kubectl logs -n orchestrators deploy/orchestrator-controlled-by-telegram -f
 ```
 
-A full end-to-end example - Gateway, two A2A worker Agents, and the Orchestrator
-- with a step-by-step walkthrough is available at
+A runnable Telegram example with a step-by-step walkthrough is available at
 [`examples/orchestrator/`](examples/orchestrator/).
 
 ### Link the daemon to a Gateway
@@ -629,19 +628,10 @@ with `tailscale.com/expose: "true"`, external-dns, a service mesh). The operator
 ships no such keys itself, and metadata those controllers add to the Service
 survives a reconcile.
 
-```bash
-# 1. The certificate must name the host clients dial: daemon-binding.orchestrators.svc
-#    in the cluster, or localhost through a port-forward
-kubectl create secret tls daemon-binding-tls -n orchestrators --cert=tls.crt --key=tls.key
-kubectl create secret generic daemon-binding -n orchestrators \
-  --from-literal=token="$(openssl rand -hex 24)"
-
-# 2. An Orchestrator that only serves the binding
-kubectl apply -f examples/daemon/orchestrator.yaml
-
-# 3. Reach it from your machine
-kubectl port-forward -n orchestrators svc/daemon-binding 52789
-```
+The certificate must name the host clients dial: `daemon-binding.orchestrators.svc`
+in the cluster, or `localhost` through a port-forward. See
+[`examples/daemon/`](examples/daemon/) for an Orchestrator that only serves the
+binding.
 
 ### Run the daemon in a Sandbox
 
@@ -1232,36 +1222,18 @@ kubectl get gateway       # MCPS column shows static + discovered MCP servers,
 kubectl get orchestrator  # MCPS column shows the discovered count
 ```
 
-For a runnable end-to-end demo (Gateway + Orchestrator + two discovered MCP
-servers built on the official MCP Go SDK), see
-[`examples/orchestrator/`](examples/orchestrator/).
+For a runnable MCP server to discover, see
+[`examples/mcp-server/`](examples/mcp-server/).
 
-#### Complete Configuration
+#### Focused Examples
 
-See [`examples/gateway-complete/gateway.yaml`](examples/gateway-complete/gateway.yaml) for a comprehensive configuration example with all features enabled.
-
-Focused examples:
+Each example shows one feature. `kubectl explain gateway.core.inference-gateway.com.spec` documents every field.
 
 - [`examples/gateway-with-guardrails/`](examples/gateway-with-guardrails/) - OPA/Rego guardrails (`spec.guardrails`)
 - [`examples/gateway-with-mtls/`](examples/gateway-with-mtls/) - server TLS, inbound and outbound mutual TLS (`spec.server.tls`, `spec.client.tls`)
 - [`examples/gateway-with-model-routing/`](examples/gateway-with-model-routing/) - model aliases with round-robin routing (`spec.routing`)
 - [`examples/agent-with-mcp/`](examples/agent-with-mcp/) - an Agent's MCP client (`spec.mcp`) and advertised URL (`spec.card.url`)
 - [`examples/orchestrator-telemetry-receiver/`](examples/orchestrator-telemetry-receiver/) - an Orchestrator OTLP receiver (`spec.telemetry.receiver`)
-
-### 🚀 Advanced Configuration
-
-For production deployments, use the complete configuration examples:
-
-```bash
-# Deploy production-ready gateway with authentication
-kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-complete/gateway.yaml
-
-# Deploy minimal gateway for development
-kubectl apply -f https://raw.githubusercontent.com/inference-gateway/operator/main/examples/gateway-minimal/gateway.yaml
-```
-
-For an A2A service discovery example, see
-[`examples/orchestrator/`](examples/orchestrator/).
 
 ### ✅ Configuration Validation
 
