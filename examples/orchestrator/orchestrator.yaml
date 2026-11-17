@@ -1,0 +1,20 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Orchestrator
+metadata:
+  name: telegram-bot
+  namespace: inference-gateway
+spec:
+  image: ghcr.io/inference-gateway/cli:latest
+  channels:
+    telegram:
+      enabled: true
+      tokenSecretRef:
+        name: telegram-bot-credentials
+        key: token
+      allowedUsersSecretRef:
+        name: telegram-bot-credentials
+        key: allowedUsers
+  gateway:
+    ref: simple-gateway
+  agent:
+    model: openai/gpt-4o-mini

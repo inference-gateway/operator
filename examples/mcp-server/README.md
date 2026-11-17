@@ -68,8 +68,6 @@ The MCP server itself lives in [`mcp-memory-server/`](mcp-memory-server/) and is
 
    `healthCheck` sets how often the gateway polls each server with `tools/list` and reconnects one that stops answering.
 
-   See the [`gateway-complete`](../gateway-complete/) example for a full Gateway configuration that includes MCP server references, and the [`orchestrator`](../orchestrator/) example for a deployment that uses `mcp.serviceDiscovery` to pick up MCP CRs by label automatically.
-
 ## Cleanup
 
 ```bash
