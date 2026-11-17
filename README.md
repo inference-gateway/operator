@@ -56,7 +56,7 @@ The operator follows cloud-native best practices and provides a unified control 
 
 **🤖 Supported AI Providers:**
 
-- Anthropic • Cloudflare • Cohere • DeepSeek • ElevenLabs • Google • Groq • llama.cpp • MiniMax • Mirelo • Mistral • Moonshot • NVIDIA • Ollama • Ollama Cloud • OpenAI • Webwright • Z.ai • plus any OpenAI-compatible endpoint via `custom`
+- Anthropic • Cloudflare • Cohere • DeepSeek • ElevenLabs • Google • Groq • llama.cpp • MiniMax • Mirelo • Mistral • Moonshot • NVIDIA • Ollama • Ollama Cloud • OpenAI • Webwright • Z.ai
 
 **☸️ Kubernetes Native:**
 
@@ -153,8 +153,12 @@ so it never drifts from the gateway:
 | `webwright` | Webwright AI |
 | `zai` | Z.ai |
 
-In addition, `custom` points the gateway at any OpenAI-compatible endpoint via
-the `CUSTOM_API_URL` and `CUSTOM_API_KEY` environment variables.
+The gateway reads `<PROVIDER_ID>_API_URL` and `<PROVIDER_ID>_API_KEY` only for
+these ids - there is no catch-all `custom` provider. To reach another
+OpenAI-compatible endpoint (vLLM, a proxy), override the URL of an OpenAI-compatible
+id such as `openai`, including its `/v1` base path. See
+[`examples/gpu`](examples/gpu/README.md#consuming-it-from-a-gateway) for a worked
+example.
 
 `providers[].name` has no CRD enum: it is validated at runtime and matched
 **case-insensitively**, so `OpenAI`, `openai` and `OPENAI` are equivalent. A
