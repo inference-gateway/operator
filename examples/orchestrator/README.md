@@ -6,17 +6,21 @@ End-to-end deployment of an `Orchestrator` that:
 - Reasons with an LLM via the **Inference Gateway** (DeepSeek in this example)
 - Delegates work to A2A worker **Agents** (`google-calendar-agent` in mock mode + `mock-agent`)
 - Persists conversation context in **Redis** so sessions survive pod restarts
+- Uses tools from three **MCP** servers running [`mcp-server-time`](mcp-server-time) (see [`06-mcps.yaml`](06-mcps.yaml)):
+  - `mcp-time-a` and `mcp-time-b` are labeled `mcp-group: group1` and found by `spec.mcp.serviceDiscovery`
+  - `mcp-time-direct` has no group label - the Orchestrator reaches it by URL through `spec.mcp.servers`, sending an `x-api-key` header read from the `mcp-time-credentials` Secret, limited to `get_time` by `includeTools`, with a 10-second `timeoutSeconds`
 
 ```text
               ┌─────────────────────┐
    Telegram ◀▶│    Orchestrator     │──▶ Gateway ──▶ DeepSeek
-   (long-poll)│   (infer daemon)    │      ▲
-              └─────────────────────┘      │
-                       │   │               │
-                       │   └──▶ Redis (conversation storage)
+   (long-poll)│   (infer daemon)    │
+              └─────────────────────┘
                        │
+                       ├──▶ Redis (conversation storage)
                        ├──▶ google-calendar-agent (A2A)
-                       └──▶ mock-agent (A2A)
+                       ├──▶ mock-agent (A2A)
+                       ├──▶ mcp-time-a, mcp-time-b (MCP, discovered by label)
+                       └──▶ mcp-time-direct (MCP, by URL + x-api-key header)
 ```
 
 ## Prerequisites
@@ -28,15 +32,22 @@ End-to-end deployment of an `Orchestrator` that:
 
 ## Run
 
-1. Edit [`01-secrets.yaml`](01-secrets.yaml) and replace the four `REPLACE_WITH_*` placeholders.
+1. Edit [`01-secrets.yaml`](01-secrets.yaml) and replace the three `REPLACE_WITH_*` placeholders.
 
-2. Apply everything:
+2. Build the local `mcp-server-time:dev` image and import it into the k3d cluster:
+
+   ```bash
+   docker build -t mcp-server-time:dev mcp-server-time
+   k3d image import mcp-server-time:dev --cluster dev
+   ```
+
+3. Apply everything:
 
    ```bash
    kubectl apply -f .
    ```
 
-3. Watch pods come up:
+4. Watch pods come up:
 
    ```bash
    kubectl get pods -n inference-gateway -w
@@ -45,14 +56,14 @@ End-to-end deployment of an `Orchestrator` that:
    kubectl get pods -n mcp -w
    ```
 
-4. Tail Orchestrator logs (the bot starts polling Telegram once `READY=true`):
+5. Tail Orchestrator logs (the bot starts polling Telegram once `READY=true`):
 
    ```bash
    kubectl get orchestrator -n orchestrator
    kubectl logs -n orchestrator deploy/orchestrator -f
    ```
 
-5. Send messages to your Telegram bot. Try:
+6. Send messages to your Telegram bot. Try:
    - *"What's on my calendar today?"* - delegated to `google-calendar-agent` (returns mock data)
    - *"Echo this back"* - exercises `mock-agent`
    - *"What's the capital of France?"* - answered directly via the Gateway's LLM
