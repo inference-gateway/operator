@@ -32,28 +32,21 @@ package providers
 
 import "strings"
 
-// CustomProvider is an operator-specific passthrough provider. It is NOT part of
-// the canonical schema enum: it lets users point the gateway at an arbitrary
-// OpenAI-compatible endpoint via CUSTOM_API_URL / CUSTOM_API_KEY. It is accepted
-// in addition to SupportedProviders for backward compatibility.
-const CustomProvider = "custom"
-
-// supportedSet is the lower-cased lookup built from SupportedProviders plus the
-// operator-specific CustomProvider. Go initializes SupportedProviders (declared
-// in zz_generated_providers.go) before this var, regardless of file ordering.
+// supportedSet is the lower-cased lookup built from SupportedProviders. Go
+// initializes SupportedProviders (declared in zz_generated_providers.go) before
+// this var, regardless of file ordering.
 var supportedSet = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(SupportedProviders)+1)
+	m := make(map[string]struct{}, len(SupportedProviders))
 	for _, p := range SupportedProviders {
 		m[strings.ToLower(p)] = struct{}{}
 	}
-	m[CustomProvider] = struct{}{}
 	return m
 }()
 
-// IsSupported reports whether name is a provider the operator recognizes. The
-// comparison is case-insensitive so spec values such as "OpenAI" or "Custom"
-// match. It returns true for every entry in SupportedProviders and for
-// CustomProvider.
+// IsSupported reports whether name is a provider id the gateway registers. The
+// comparison is case-insensitive so spec values such as "OpenAI" match. There is
+// no catch-all provider - point an OpenAI-compatible endpoint at a registered id
+// through its <ID>_API_URL and <ID>_API_KEY variables.
 func IsSupported(name string) bool {
 	_, ok := supportedSet[strings.ToLower(name)]
 	return ok

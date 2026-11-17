@@ -1523,6 +1523,34 @@ var _ = Describe("Gateway server and telemetry configuration", func() {
 		Expect(container.ReadinessProbe.HTTPGet.Port.IntValue()).To(Equal(9000))
 	})
 
+	It("passes spec.server.timeouts and spec.mcp.timeouts.request to the gateway", func() {
+		env := containerOf(gatewayWith(corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{
+				Timeouts: &corev1alpha1.ServerTimeouts{Read: "5s", Write: "6s", Idle: "10s"},
+			},
+			MCP: &corev1alpha1.MCPServersSpec{
+				Enabled:  true,
+				Timeouts: &corev1alpha1.MCPTimeouts{Request: "2s"},
+			},
+		})).Env
+
+		Expect(env).To(ContainElements(
+			corev1.EnvVar{Name: "SERVER_READ_TIMEOUT", Value: "5s"},
+			corev1.EnvVar{Name: "SERVER_WRITE_TIMEOUT", Value: "6s"},
+			corev1.EnvVar{Name: "SERVER_IDLE_TIMEOUT", Value: "10s"},
+			corev1.EnvVar{Name: "MCP_REQUEST_TIMEOUT", Value: "2s"},
+		))
+	})
+
+	It("leaves the timeouts to the gateway defaults when they are unset", func() {
+		for _, e := range containerOf(gatewayWith(corev1alpha1.GatewaySpec{
+			Server: &corev1alpha1.ServerSpec{Timeouts: &corev1alpha1.ServerTimeouts{Read: "5s"}},
+			MCP:    &corev1alpha1.MCPServersSpec{Enabled: true},
+		})).Env {
+			Expect(e.Name).NotTo(BeElementOf("SERVER_WRITE_TIMEOUT", "SERVER_IDLE_TIMEOUT", "MCP_REQUEST_TIMEOUT"))
+		}
+	})
+
 	It("emits TELEMETRY_METRICS_PORT only when metrics are enabled", func() {
 		gw := gatewayWith(corev1alpha1.GatewaySpec{
 			Telemetry: &corev1alpha1.TelemetrySpec{

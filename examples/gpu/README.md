@@ -109,19 +109,30 @@ this token into the runtime as the `API_KEY` env var.
 
 Auto-discovery (an optional `gpuRef`) is out of scope for this first cut. A Gateway
 consumes the connection Secret through the standard provider `env` / `secretKeyRef`
-mechanism - see the `Gateway` in [`gpu.yaml`](./gpu.yaml):
+mechanism - see the `Gateway` in [`gpu.yaml`](./gpu.yaml).
+
+The gateway only reads `<PROVIDER_ID>_API_URL` and `<PROVIDER_ID>_API_KEY` for the
+provider ids it registers. vLLM serves the OpenAI API, so the example wires it in as
+the `openai` provider. That replaces api.openai.com on this Gateway - use a separate
+Gateway if you also need hosted OpenAI.
+
+The connection Secret holds the bare runtime URL (`https://<id>-<port>.proxy.runpod.net`,
+no `/v1`), while the gateway expects the OpenAI base path. Declare the URL first and
+let Kubernetes expand it into `OPENAI_API_URL` with `/v1` appended:
 
 ```yaml
 providers:
-  - name: ornith
+  - name: openai
     enabled: true
     env:
-      - name: LLM_BASE_URL
+      - name: ORNITH_RUNTIME_URL
         valueFrom:
           secretKeyRef:
             name: ornith-connection
             key: url
-      - name: LLM_API_KEY
+      - name: OPENAI_API_URL
+        value: "$(ORNITH_RUNTIME_URL)/v1"
+      - name: OPENAI_API_KEY
         valueFrom:
           secretKeyRef:
             name: ornith-connection

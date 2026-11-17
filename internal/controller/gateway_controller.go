@@ -549,6 +549,26 @@ func clientTLSConfig(gateway *corev1alpha1.Gateway) *corev1alpha1.ClientTLSConfi
 	return gateway.Spec.Client.TLS
 }
 
+// serverTimeoutEnv passes spec.server.timeouts to the gateway as SERVER_*_TIMEOUT.
+// Unset fields are skipped so the gateway keeps its own defaults.
+func serverTimeoutEnv(gateway *corev1alpha1.Gateway) []corev1.EnvVar {
+	if gateway.Spec.Server == nil || gateway.Spec.Server.Timeouts == nil {
+		return nil
+	}
+	t := gateway.Spec.Server.Timeouts
+	var env []corev1.EnvVar
+	for _, e := range []corev1.EnvVar{
+		{Name: "SERVER_READ_TIMEOUT", Value: t.Read},
+		{Name: "SERVER_WRITE_TIMEOUT", Value: t.Write},
+		{Name: "SERVER_IDLE_TIMEOUT", Value: t.Idle},
+	} {
+		if e.Value != "" {
+			env = append(env, e)
+		}
+	}
+	return env
+}
+
 // clientTLSEnv points the gateway's outbound client at the mounted spec.client.tls material.
 func clientTLSEnv(gateway *corev1alpha1.Gateway) []corev1.EnvVar {
 	tls := clientTLSConfig(gateway)
@@ -809,6 +829,7 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 		}
 	}
 
+	envVars = append(envVars, serverTimeoutEnv(gateway)...)
 	envVars = append(envVars, clientTLSEnv(gateway)...)
 
 	tel := gateway.Spec.Telemetry
@@ -919,6 +940,9 @@ func (r *GatewayReconciler) buildContainer(ctx context.Context, gateway *corev1a
 				}(),
 			},
 		)
+		if t := gateway.Spec.MCP.Timeouts; t != nil && t.Request != "" {
+			envVars = append(envVars, corev1.EnvVar{Name: "MCP_REQUEST_TIMEOUT", Value: t.Request})
+		}
 		if url := mcpResourceURL(gateway); url != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "MCP_RESOURCE_URL", Value: url})
 		}

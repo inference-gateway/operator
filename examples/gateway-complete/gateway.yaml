@@ -138,19 +138,6 @@ spec:
             secretKeyRef:
               name: inference-gateway-providers-secret
               key: MIRELO_API_KEY
-    - name: Custom
-      enabled: true
-      env:
-        - name: CUSTOM_API_URL
-          valueFrom:
-            secretKeyRef:
-              name: inference-gateway-providers-secret
-              key: CUSTOM_API_URL
-        - name: CUSTOM_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: inference-gateway-providers-secret
-              key: CUSTOM_API_KEY
   mcp:
     enabled: false
     # expose serves GET /v1/mcp/tools and the JSON-RPC POST /mcp endpoint
@@ -240,5 +227,3 @@ stringData:
 #   OLLAMA_API_KEY: ""
 #   GOOGLE_API_KEY: ""
 #   MIRELO_API_KEY: ""
-#   CUSTOM_API_URL: ""
-#   CUSTOM_API_KEY: ""
