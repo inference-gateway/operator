@@ -67,7 +67,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.26.0 # Pin to specific version - also pins the operator image
+    targetRevision: main # tracks the latest release - set a release tag to pin the CRDs and operator image
     path: manifests # Use this directory
   destination:
     server: https://kubernetes.default.svc
@@ -154,9 +154,9 @@ kubectl apply --server-side -f install.yaml
 3. **Resource Validation**: New CRD versions may have additional validation rules
 
 ```bash
-# Safe upgrade process (use v0.26.0 or later, see the pinning note above)
-kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/crds.yaml
-kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
+# Safe upgrade process
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 ```
 
 ## Troubleshooting
