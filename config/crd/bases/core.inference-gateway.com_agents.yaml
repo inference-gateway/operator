@@ -136,8 +136,8 @@ spec:
                       model:
                         description: |-
                           Model is the model identifier in "provider/model" format.
-                          The provider prefix is split out and emitted as A2A_AGENT_CLIENT_PROVIDER;
-                          the remainder is emitted as A2A_AGENT_CLIENT_MODEL.
+                          The provider prefix is split out and emitted as A2A_AGENT_CLIENT_PROVIDER.
+                          The remainder is emitted as A2A_AGENT_CLIENT_MODEL.
                         type: string
                       systemPrompt:
                         description: SystemPrompt is the system prompt for the LLM.
@@ -427,7 +427,7 @@ spec:
                   servers:
                     description: |-
                       Servers is the list of MCP server base URLs (e.g. http://mcp:8080).
-                      Emitted as a comma-separated A2A_MCP_SERVERS; omitted when empty.
+                      Emitted as a comma-separated A2A_MCP_SERVERS - omitted when empty.
                     items:
                       type: string
                     type: array
@@ -6708,7 +6708,7 @@ spec:
                     default: false
                     description: |-
                       Enable telemetry collection. Master switch mapped to the Go ADK's
-                      A2A_TELEMETRY_ENABLED; when false the traces/metrics exporter blocks are ignored.
+                      A2A_TELEMETRY_ENABLED - when false the traces/metrics exporter blocks are ignored.
                     type: boolean
                   metrics:
                     default:
@@ -6774,7 +6774,7 @@ spec:
                     description: |-
                       Receiver configures an OTLP receiver that the orchestrator exposes so
                       that other processes (e.g. the gateway, A2A agents) can push spans to
-                      it. Only one process per pod can bind the receiver port; enabling both
+                      it. Only one process per pod can bind the receiver port - enabling both
                       receiver and channels causes a port conflict because agent subprocesses
                       spawned by the daemon would contend for it.
                     properties:

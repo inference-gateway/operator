@@ -14,11 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package schema reads the provider identifiers from the canonical Inference
-// Gateway OpenAPI schema (components.schemas.Provider.enum). It is the single
-// reader shared by the code generator (../gen) and the drift test in the parent
-// package, so both interpret the schema identically and cannot disagree about
-// what "the providers" are.
 package schema
 
 import (
@@ -52,7 +47,8 @@ func Source() string {
 	return DefaultSource
 }
 
-// openAPI is the minimal projection of the schema this package cares about.
+// openAPI is the minimal projection of the schema this package cares about. It uses JSON
+// tags because sigs.k8s.io/yaml converts YAML to JSON before decoding.
 type openAPI struct {
 	Components struct {
 		Schemas struct {
@@ -67,7 +63,6 @@ type openAPI struct {
 // identifiers from components.schemas.Provider.enum.
 func Providers(raw []byte) ([]string, error) {
 	var doc openAPI
-	// sigs.k8s.io/yaml converts YAML to JSON, so the JSON struct tags above apply.
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("parse schema: %w", err)
 	}
@@ -90,11 +85,16 @@ func Load(source string) ([]byte, error) {
 	return os.ReadFile(source)
 }
 
+const (
+	httpTimeout     = 30 * time.Second
+	httpMaxAttempts = 3
+)
+
 func loadHTTP(url string) ([]byte, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: httpTimeout}
 
 	var lastErr error
-	for attempt := 1; attempt <= 3; attempt++ {
+	for attempt := 1; attempt <= httpMaxAttempts; attempt++ {
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		if err != nil {
 			return nil, err

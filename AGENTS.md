@@ -44,6 +44,10 @@ All workflows run through [Task](https://taskfile.dev) (`task --list` for the fu
   where its meaning is obvious at a glance (0, 1, an empty string).
 - Tool directives are not comments and stay where the tool needs them (lint suppressions, build
   tags, compiler pragmas, code generation markers).
+- Exception - the Apache 2.0 license header (`hack/boilerplate.go.txt`) stays at the top of Go
+  files. It is a license notice, not documentation, and controller-gen stamps it into generated code.
+- Exception - field doc comments in `api/v1alpha1/*_types.go` stay on each field. controller-gen
+  turns them into the CRD `description` fields that `kubectl explain` shows.
 - No semicolons in documentation prose (Markdown files, doc comments): split the sentence or use
   a dash instead.
 - Examples (`examples/` directories, README snippets) are short and focused: one feature per

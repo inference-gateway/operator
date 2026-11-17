@@ -22,8 +22,8 @@ package providers
 
 // SupportedProviders is the set of provider identifiers defined by the canonical
 // Inference Gateway schema. It is the single source of truth shared with the
-// gateway, which generates the same list from the same schema. Do not edit by
-// hand; see the package documentation in providers.go.
+// gateway, which generates the same list from the same schema. Regenerate it with
+// task generate:providers instead of editing it by hand.
 var SupportedProviders = []string{
 	"anthropic",
 	"cloudflare",

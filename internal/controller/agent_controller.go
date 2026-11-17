@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -91,7 +92,7 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if err != nil {
 		if apierrors.IsConflict(err) {
 			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
-			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
+			return ctrl.Result{RequeueAfter: conflictRequeueDelay}, nil
 		}
 		logger.Error(err, "Failed to reconcile Deployment")
 		return ctrl.Result{}, err
@@ -128,11 +129,9 @@ func (r *AgentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 }
 
 // patchStatusReady writes the Agent status with the fetched card and a Ready=True condition.
-// Uses Status().Update rather than a merge patch so that false-valued bool fields (e.g.
-// capabilities.pushNotifications) actually land on the API object: a JSON merge patch
-// would diff the in-memory base (zero-valued bools marshal as false) against the modified
-// object (same false), produce an empty diff for those fields, and leave them absent from
-// the stored status - meaning printer columns sourced from them render blank.
+// It uses Status().Update rather than a merge patch because a merge patch drops false-valued
+// bool fields (e.g. capabilities.pushNotifications) from the stored status, which leaves
+// printer columns sourced from them blank.
 func (r *AgentReconciler) patchStatusReady(ctx context.Context, agent *corev1alpha1.Agent, card *corev1alpha1.Card) error {
 	agent.Status.Card = *card
 	agent.Status.Ready = true
@@ -212,24 +211,22 @@ func buildAgentService(agent *corev1alpha1.Agent) *corev1.Service {
 }
 
 // agentCardPaths are the well-known paths probed in order to retrieve the agent card.
-// The first entry is the current A2A protocol path; the second is the legacy fallback.
+// The first entry is the current A2A protocol path. The second is the legacy fallback.
 var agentCardPaths = []string{
 	"/.well-known/agent-card.json",
 	"/.well-known/agent.json",
 }
 
+// conflictRequeueDelay is how soon every reconciler retries after an update conflict.
+// The agent card timings are the timeout of a single request, the retry delay after a failed
+// fetch, and the re-validation interval of a fetched card. defaultAgentPort applies when
+// spec.port is unset, and is the shared default container port of the operator's workloads.
 const (
-	// agentCardFetchTimeout bounds a single agent card HTTP request.
-	agentCardFetchTimeout = 5 * time.Second
-
-	// agentCardRetryInterval is how soon to retry after a failed card fetch.
-	agentCardRetryInterval = 5 * time.Second
-
-	// agentCardRefreshInterval is how often a successfully fetched card is re-validated.
+	conflictRequeueDelay     = time.Second
+	agentCardFetchTimeout    = 5 * time.Second
+	agentCardRetryInterval   = 5 * time.Second
 	agentCardRefreshInterval = 30 * time.Second
-
-	// defaultAgentPort is the port used when an agent's spec.port is unset.
-	defaultAgentPort = int32(8080)
+	defaultAgentPort         = int32(8080)
 )
 
 // agentAdvertisedURL returns the URL the agent should report in its agent-card.
@@ -377,47 +374,71 @@ func (r *AgentReconciler) buildAgentDeployment(agent *corev1alpha1.Agent) *appsv
 // buildAgentEnvironmentVars creates environment variables from Agent spec.
 // LLM-related vars use the A2A_AGENT_CLIENT_* prefix that agent images actually read.
 func (r *AgentReconciler) buildAgentEnvironmentVars(agent *corev1alpha1.Agent) []corev1.EnvVar {
-	envVars := []corev1.EnvVar{}
-
-	// User-supplied env vars take the lowest precedence (prepended so operator vars win on conflict).
-	if agent.Spec.Env != nil {
-		envVars = append(envVars, *agent.Spec.Env...)
-	}
-
-	// Server / infrastructure vars
-	envVars = append(envVars,
-		corev1.EnvVar{Name: "TIMEZONE", Value: agent.Spec.Timezone},
-		corev1.EnvVar{Name: "PORT", Value: strconv.Itoa(int(agent.Spec.Port))},
-		corev1.EnvVar{Name: "HOST", Value: agent.Spec.Host},
-		// A2A_AGENT_URL is what the agent reports as its own URL in /.well-known/agent-card.json.
-		// The agent can't derive this itself, so the operator supplies a URL: spec.card.url
-		// takes precedence (for agents fronted by an Ingress/Gateway), falling back to the
-		// in-cluster Service URL.
-		corev1.EnvVar{Name: "A2A_AGENT_URL", Value: agentAdvertisedURL(agent)},
-		corev1.EnvVar{Name: "READ_TIMEOUT", Value: agent.Spec.ReadTimeout},
-		corev1.EnvVar{Name: "WRITE_TIMEOUT", Value: agent.Spec.WriteTimeout},
-		corev1.EnvVar{Name: "IDLE_TIMEOUT", Value: agent.Spec.IdleTimeout},
-		// Logging
-		corev1.EnvVar{Name: "LOG_LEVEL", Value: agent.Spec.Logging.Level},
-		corev1.EnvVar{Name: "LOG_FORMAT", Value: agent.Spec.Logging.Format},
-		// Queue
-		corev1.EnvVar{Name: "QUEUE_ENABLED", Value: strconv.FormatBool(agent.Spec.Queue.Enabled)},
-		corev1.EnvVar{Name: "QUEUE_MAX_SIZE", Value: strconv.Itoa(int(agent.Spec.Queue.MaxSize))},
-		corev1.EnvVar{Name: "QUEUE_CLEANUP_INTERVAL", Value: agent.Spec.Queue.CleanupInterval},
-		// TLS
-		corev1.EnvVar{Name: "TLS_ENABLED", Value: strconv.FormatBool(agent.Spec.TLS.Enabled)},
-		corev1.EnvVar{Name: "TLS_SECRET_REF", Value: agent.Spec.TLS.SecretRef},
-		// Agent loop
-		corev1.EnvVar{Name: "AGENT_ENABLED", Value: strconv.FormatBool(agent.Spec.Agent.Enabled)},
-		corev1.EnvVar{Name: "AGENT_MAX_CONVERSATION_HISTORY", Value: strconv.Itoa(int(agent.Spec.Agent.MaxConversationHistory))},
-	)
-
-	// Telemetry: master switch plus OTel-aligned exporter vars (Go ADK A2A_OTEL_* prefix).
+	envVars := userAgentEnvVars(agent)
+	envVars = append(envVars, agentServerEnvVars(agent)...)
+	envVars = append(envVars, agentLoggingEnvVars(agent)...)
+	envVars = append(envVars, agentQueueEnvVars(agent)...)
+	envVars = append(envVars, agentTLSEnvVars(agent)...)
+	envVars = append(envVars, agentLoopEnvVars(agent)...)
 	envVars = append(envVars, agentTelemetryEnvVars(agent.Spec.Telemetry)...)
-
-	// MCP client: master switch plus connection knobs (Go ADK A2A_MCP_* prefix).
 	envVars = append(envVars, agentMCPEnvVars(agent.Spec.MCP)...)
+	return append(envVars, agentLLMEnvVars(agent)...)
+}
 
+// userAgentEnvVars returns the user-supplied spec.env. They come first so operator-managed vars win on conflict.
+func userAgentEnvVars(agent *corev1alpha1.Agent) []corev1.EnvVar {
+	if agent.Spec.Env == nil {
+		return []corev1.EnvVar{}
+	}
+	return append([]corev1.EnvVar{}, *agent.Spec.Env...)
+}
+
+// agentServerEnvVars returns the server settings. A2A_AGENT_URL is the URL the agent advertises
+// in its agent card, which it cannot derive itself (see agentAdvertisedURL).
+func agentServerEnvVars(agent *corev1alpha1.Agent) []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: "TIMEZONE", Value: agent.Spec.Timezone},
+		{Name: "PORT", Value: strconv.Itoa(int(agent.Spec.Port))},
+		{Name: "HOST", Value: agent.Spec.Host},
+		{Name: "A2A_AGENT_URL", Value: agentAdvertisedURL(agent)},
+		{Name: "READ_TIMEOUT", Value: agent.Spec.ReadTimeout},
+		{Name: "WRITE_TIMEOUT", Value: agent.Spec.WriteTimeout},
+		{Name: "IDLE_TIMEOUT", Value: agent.Spec.IdleTimeout},
+	}
+}
+
+func agentLoggingEnvVars(agent *corev1alpha1.Agent) []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: "LOG_LEVEL", Value: agent.Spec.Logging.Level},
+		{Name: "LOG_FORMAT", Value: agent.Spec.Logging.Format},
+	}
+}
+
+func agentQueueEnvVars(agent *corev1alpha1.Agent) []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: "QUEUE_ENABLED", Value: strconv.FormatBool(agent.Spec.Queue.Enabled)},
+		{Name: "QUEUE_MAX_SIZE", Value: strconv.Itoa(int(agent.Spec.Queue.MaxSize))},
+		{Name: "QUEUE_CLEANUP_INTERVAL", Value: agent.Spec.Queue.CleanupInterval},
+	}
+}
+
+func agentTLSEnvVars(agent *corev1alpha1.Agent) []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: "TLS_ENABLED", Value: strconv.FormatBool(agent.Spec.TLS.Enabled)},
+		{Name: "TLS_SECRET_REF", Value: agent.Spec.TLS.SecretRef},
+	}
+}
+
+func agentLoopEnvVars(agent *corev1alpha1.Agent) []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: "AGENT_ENABLED", Value: strconv.FormatBool(agent.Spec.Agent.Enabled)},
+		{Name: "AGENT_MAX_CONVERSATION_HISTORY", Value: strconv.Itoa(int(agent.Spec.Agent.MaxConversationHistory))},
+	}
+}
+
+// agentLLMEnvVars maps spec.agent.llm onto the A2A_AGENT_CLIENT_* vars the agent images read.
+func agentLLMEnvVars(agent *corev1alpha1.Agent) []corev1.EnvVar {
+	var envVars []corev1.EnvVar
 	llm := agent.Spec.Agent.LLM
 
 	if llm.Model != "" {
@@ -493,14 +514,9 @@ func (r *AgentReconciler) buildAgentEnvironmentVars(agent *corev1alpha1.Agent) [
 	return envVars
 }
 
-// agentTelemetryEnvVars maps spec.telemetry onto the Go ADK's OpenTelemetry env
-// vars, mirroring adl-cli's internal/templates/telemetry_env.go for the Go
-// (A2A_) prefix. A2A_TELEMETRY_ENABLED is always emitted; the OTEL_* exporter
-// vars only when telemetry is enabled.
-//
-// The Go ADK exposes a single shared OTLP endpoint pair (no per-signal OTLP
-// fields), so when both traces and metrics push over OTLP the traces endpoint
-// wins and the metrics endpoint can't be expressed - adl-cli does the same.
+// agentTelemetryEnvVars maps spec.telemetry onto the Go ADK's A2A_OTEL_* env vars, mirroring
+// adl-cli. A2A_TELEMETRY_ENABLED is always emitted, the exporter vars only when enabled.
+// The ADK has one shared OTLP endpoint, so the traces endpoint wins over the metrics one.
 func agentTelemetryEnvVars(tel corev1alpha1.TelemetrySpec) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{
 		{Name: "A2A_TELEMETRY_ENABLED", Value: strconv.FormatBool(tel.Enabled)},
@@ -535,12 +551,7 @@ func agentTelemetryEnvVars(tel corev1alpha1.TelemetrySpec) []corev1.EnvVar {
 		envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_METRICS_EXPORTER", Value: "none"})
 	}
 
-	// Shared OTLP endpoint/protocol: prefer traces, fall back to metrics.
-	otlp := tracesOTLP
-	if otlp == nil {
-		otlp = metricsOTLP
-	}
-	if otlp != nil {
+	if otlp := cmp.Or(tracesOTLP, metricsOTLP); otlp != nil {
 		if otlp.Endpoint != "" {
 			envVars = append(envVars, corev1.EnvVar{Name: "A2A_OTEL_EXPORTER_OTLP_ENDPOINT", Value: otlp.Endpoint})
 		}
@@ -561,11 +572,9 @@ func agentTelemetryEnvVars(tel corev1alpha1.TelemetrySpec) []corev1.EnvVar {
 	return envVars
 }
 
-// agentMCPEnvVars maps spec.mcp onto the Go ADK's MCP client env vars (A2A_MCP_*
-// prefix from adk#251). A2A_MCP_ENABLED is always emitted; the connection knobs
-// only when the client is enabled. A2A_MCP_SERVERS is emitted only when at least
-// one server URL is set, and the string knobs only when non-empty, so a
-// zero-valued field never clobbers the ADK's own default with an empty value.
+// agentMCPEnvVars maps spec.mcp onto the Go ADK's A2A_MCP_* client env vars (adk#251).
+// A2A_MCP_ENABLED is always emitted, the connection knobs only when the client is enabled.
+// Empty servers and string knobs are skipped so a zero value never clobbers the ADK default.
 func agentMCPEnvVars(mcp corev1alpha1.MCPClientSpec) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{
 		{Name: "A2A_MCP_ENABLED", Value: strconv.FormatBool(mcp.Enabled)},

@@ -82,6 +82,6 @@ The flow shown here generalises to any MCP server you want to deploy:
 
 1. Write your MCP server (Go, Python, TypeScript, …). For Go, the [`mcp-memory-server/main.go`](mcp-memory-server/main.go) source is a ~100-line template - copy it, swap the tools, and you're done.
 2. Build a container image: `docker build -t <name>:<tag> .`
-3. Make it reachable from your cluster - for local k3d: `k3d image import <name>:<tag> --cluster dev`; otherwise push to a registry your cluster can pull from.
+3. Make it reachable from your cluster - for local k3d: `k3d image import <name>:<tag> --cluster dev`. Otherwise push to a registry your cluster can pull from.
 4. Reference the image from an `MCP` resource (see [`mcp.yaml`](mcp.yaml)).
 5. Register it with a Gateway via `spec.mcp.servers` (or via `spec.mcp.serviceDiscovery` for label-based auto-discovery).

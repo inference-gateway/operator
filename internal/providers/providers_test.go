@@ -62,12 +62,9 @@ func TestSupportedProvidersHasNoDuplicates(t *testing.T) {
 	}
 }
 
-// TestSupportedProvidersMatchSchema is the shared-types divergence guard. It
-// fails when this package's SupportedProviders disagrees with the canonical
-// schema's components.schemas.Provider.enum, i.e. when the operator and gateway
-// have drifted apart. In CI the schema must be reachable and any mismatch is a
-// hard failure; locally the test skips when the schema cannot be fetched
-// (offline) rather than producing a false failure.
+// TestSupportedProvidersMatchSchema fails when SupportedProviders drifts from the canonical
+// schema's components.schemas.Provider.enum, the list the gateway is generated from too.
+// In CI an unreachable schema is a hard failure. Locally the test skips when offline.
 func TestSupportedProvidersMatchSchema(t *testing.T) {
 	source := schema.Source()
 

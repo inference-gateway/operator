@@ -870,7 +870,7 @@ var _ = Describe("Gateway MCP service discovery", func() {
 					Labels:    map[string]string{"discoverable": "true"},
 				},
 				Spec:   corev1alpha1.MCPSpec{Server: &corev1alpha1.MCPServerSpec{Port: 3000}},
-				Status: corev1alpha1.MCPStatus{URL: "http://static-a:8080"}, // collides with static below
+				Status: corev1alpha1.MCPStatus{URL: "http://static-a:8080"},
 			},
 		)
 		gw := makeGateway(

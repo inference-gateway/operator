@@ -48,18 +48,15 @@ import (
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
-// OrchestratorReconciler reconciles an Orchestrator object.
+// OrchestratorReconciler reconciles an Orchestrator object. SetupWithManager detects
+// SandboxAvailable (the cluster serves the agent-sandbox Sandboxes runtime: Sandbox needs)
+// and sets PodReader to the uncached API reader, so the operator never caches every pod.
 type OrchestratorReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	// SandboxAvailable says the cluster serves agent-sandbox Sandboxes, which
-	// runtime: Sandbox needs. SetupWithManager detects it.
 	SandboxAvailable bool
-
-	// PodReader reads a Sandbox's pod uncached, so the operator never caches
-	// every pod in the cluster. SetupWithManager uses the manager's API reader.
-	PodReader client.Reader
+	PodReader        client.Reader
 }
 
 // orchestratorContainerName is the daemon's container in either runtime.
@@ -102,14 +99,9 @@ var daemonSwitchEnvVars = []string{
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
-// Reconcile drives an Orchestrator resource toward its desired state.
-//
-// The controller manages a singleton Deployment (replicas=1, strategy=Recreate)
-// that runs the Inference Gateway CLI's `infer daemon`, plus a Service per port it serves:
-// the AG-UI binding (spec.daemon.binding) and the OTLP receiver (spec.telemetry.receiver).
-// When spec.a2a.serviceDiscovery.enabled is true, the controller also discovers Agent CRs
-// matching the configured selector and writes them into a ConfigMap mounted as
-// ~/.infer/agents.yaml inside the orchestrator pod for hot-reload without restarts.
+// Reconcile runs `infer daemon` as a singleton workload plus a Service per port it serves
+// (the AG-UI binding and the OTLP receiver). The agents and MCP servers it talks to, static
+// and discovered, are written to ConfigMaps mounted into the orchestrator pod.
 func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -145,23 +137,21 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	// Reconcile the agents ConfigMap (handles both static and discovered agents).
 	discoveredAgentURLs, agentsYAML, err := r.reconcileAgentsConfigMap(ctx, &orch)
 	if err != nil {
 		if apierrors.IsConflict(err) {
 			logger.V(1).Info("agents configmap reconciliation conflict, requeueing", "error", err)
-			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
+			return ctrl.Result{RequeueAfter: conflictRequeueDelay}, nil
 		}
 		logger.Error(err, "failed to reconcile agents configmap")
 		return ctrl.Result{}, err
 	}
 
-	// Reconcile the MCPs ConfigMap (handles both static and discovered MCP servers).
 	discoveredMCPURLs, mcpYAML, err := r.reconcileMCPsConfigMap(ctx, &orch)
 	if err != nil {
 		if apierrors.IsConflict(err) {
 			logger.V(1).Info("mcps configmap reconciliation conflict, requeueing", "error", err)
-			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
+			return ctrl.Result{RequeueAfter: conflictRequeueDelay}, nil
 		}
 		logger.Error(err, "failed to reconcile mcps configmap")
 		return ctrl.Result{}, err
@@ -175,7 +165,7 @@ func (r *OrchestratorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 		if apierrors.IsConflict(err) {
 			logger.V(1).Info("workload reconciliation conflict, requeueing", "error", err)
-			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
+			return ctrl.Result{RequeueAfter: conflictRequeueDelay}, nil
 		}
 		logger.Error(err, "failed to reconcile workload", "runtime", orch.Spec.Runtime)
 		return ctrl.Result{}, err
@@ -223,17 +213,11 @@ func deploymentState(deployment *appsv1.Deployment) workloadState {
 	return workloadState{reason: corev1alpha1.ReasonDeploymentNotAvailable, message: "orchestrator deployment has no available replicas yet"}
 }
 
-// reconcileAgentsConfigMap discovers Agent CRs matching the service discovery selector,
-// builds an agents.yaml combining static and discovered agents, and writes it to a ConfigMap
-// owned by the Orchestrator. Returns the sorted list of discovered agent URLs and the
-// rendered agents.yaml content (used to stamp a hash annotation on the Deployment so the
-// pod is rolled when the content changes - required because the ConfigMap is mounted with
-// subPath, which Kubernetes does not propagate live updates for).
-//
-// Note on INFER_A2A_AGENTS: the env var is retained for backward compatibility when
-// service discovery is disabled. When service discovery is enabled the ConfigMap mount
-// is the source of truth for all agents (static + discovered), so INFER_A2A_AGENTS
-// becomes redundant; it will be removed in a future version.
+// reconcileAgentsConfigMap writes the static and discovered agents as agents.yaml to a
+// ConfigMap the Orchestrator owns. It returns the sorted discovered URLs and the rendered
+// agents.yaml, whose hash on the pod template rolls the pod since a subPath mount never
+// updates. With discovery on, this mount supersedes INFER_A2A_AGENTS, which stays only for
+// backward compatibility.
 func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, orch *corev1alpha1.Orchestrator) ([]string, string, error) {
 	logger := log.FromContext(ctx)
 
@@ -241,28 +225,19 @@ func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, o
 		return nil, "", nil
 	}
 
-	// Discover matching Agent CRs.
 	discoveredAgents, err := r.discoverAgents(ctx, orch)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to discover agents: %w", err)
 	}
 
-	// Derive sorted, unique URL list for status.
 	discoveredURLs := make([]string, 0, len(discoveredAgents))
 	for _, agent := range discoveredAgents {
-		port := agent.Spec.Port
-		if port == 0 {
-			port = 8080
-		}
-		url := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", agent.Name, agent.Namespace, port)
-		discoveredURLs = append(discoveredURLs, url)
+		discoveredURLs = append(discoveredURLs, discoveredAgentURL(&agent))
 	}
 	sort.Strings(discoveredURLs)
 
-	// Build agents.yaml content.
 	agentsYAML := buildAgentsYAML(orch.Spec.A2A.Agents, discoveredAgents)
 
-	// Create or update the ConfigMap.
 	cmName := orch.Name + "-agents"
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -291,7 +266,6 @@ func (r *OrchestratorReconciler) reconcileAgentsConfigMap(ctx context.Context, o
 		return nil, "", err
 	}
 
-	// Update only when content changes to avoid spurious updates.
 	if found.Data == nil || found.Data["agents.yaml"] != agentsYAML {
 		found.Data = cm.Data
 		logger.Info("updating agents configmap", "ConfigMap.Name", cmName, "agentCount", len(discoveredAgents))
@@ -328,14 +302,22 @@ func (r *OrchestratorReconciler) discoverAgents(ctx context.Context, orch *corev
 	return agentList.Items, nil
 }
 
-// buildAgentsYAML constructs an agents.yaml document combining static (from spec.a2a.agents)
-// and discovered Agent CRs. Discovered entries take precedence on URL collision.
-// The format matches the CLI's AgentsConfig schema.
+// discoveredAgentURL returns the in-cluster Service URL of a discovered Agent.
+func discoveredAgentURL(agent *corev1alpha1.Agent) string {
+	port := agent.Spec.Port
+	if port == 0 {
+		port = defaultAgentPort
+	}
+	return fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", agent.Name, agent.Namespace, port)
+}
+
+// buildAgentsYAML constructs an agents.yaml document in the CLI's AgentsConfig schema.
+// Static spec.a2a.agents get synthetic names (kept for backward compat), followed by the
+// discovered Agent CRs sorted by name for determinism.
 func buildAgentsYAML(staticAgents []string, discoveredAgents []corev1alpha1.Agent) string {
 	var sb strings.Builder
 	sb.WriteString("agents:\n")
 
-	// Static agents with synthetic names (kept for backward compat).
 	for i, url := range staticAgents {
 		fmt.Fprintf(&sb, "  - name: static-agent-%d\n", i)
 		fmt.Fprintf(&sb, "    url: %s\n", url)
@@ -343,17 +325,12 @@ func buildAgentsYAML(staticAgents []string, discoveredAgents []corev1alpha1.Agen
 		sb.WriteString("    run: false\n")
 	}
 
-	// Discovered agents, sorted by name for determinism.
 	sorted := make([]corev1alpha1.Agent, len(discoveredAgents))
 	copy(sorted, discoveredAgents)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 
 	for _, agent := range sorted {
-		port := agent.Spec.Port
-		if port == 0 {
-			port = 8080
-		}
-		url := fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", agent.Name, agent.Namespace, port)
+		url := discoveredAgentURL(&agent)
 		fmt.Fprintf(&sb, "  - name: %s\n", agent.Name)
 		fmt.Fprintf(&sb, "    url: %s\n", url)
 		sb.WriteString("    enabled: true\n")
@@ -521,7 +498,7 @@ func mcpURL(mcp *corev1alpha1.MCP) string {
 		return mcp.Status.URL
 	}
 	scheme := "http"
-	var port int32 = 8080
+	port := defaultServerPort
 	path := "/mcp"
 	if mcp.Spec.Server != nil {
 		if mcp.Spec.Server.Port != 0 {
@@ -538,7 +515,7 @@ func mcpURL(mcp *corev1alpha1.MCP) string {
 }
 
 // reconcileDeployment ensures the Orchestrator's singleton Deployment exists and matches the spec.
-// agentsYAML and mcpYAML are the rendered ConfigMap contents; their hashes are stamped as
+// agentsYAML and mcpYAML are the rendered ConfigMap contents - their hashes are stamped as
 // pod template annotations so the Deployment rolls when the contents change (subPath mounts
 // do not propagate updates).
 func (r *OrchestratorReconciler) reconcileDeployment(ctx context.Context, orch *corev1alpha1.Orchestrator, agentsYAML, mcpYAML string) (*appsv1.Deployment, error) {
@@ -604,7 +581,6 @@ func buildOrchestratorPodTemplate(orch *corev1alpha1.Orchestrator, agentsYAML, m
 
 	podAnnotations := map[string]string{}
 
-	// Mount the agents ConfigMap when service discovery is enabled.
 	if orch.Spec.A2A.Enabled && orch.Spec.A2A.ServiceDiscovery.Enabled {
 		cmName := orch.Name + "-agents"
 		podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
@@ -660,11 +636,8 @@ func buildOrchestratorPodTemplate(orch *corev1alpha1.Orchestrator, agentsYAML, m
 }
 
 // buildOrchestratorEnvironmentVars translates OrchestratorSpec into INFER_* environment variables
-// per the spec ↔ CLI config mapping documented in the Orchestrator CRD.
-//
-// Note: INFER_A2A_AGENTS is retained for backward compatibility. When service discovery is
-// enabled, the agents ConfigMap mount (~/.infer/agents.yaml) is the source of truth for all
-// agents (static + discovered). INFER_A2A_AGENTS will be removed in a future release.
+// per the spec ↔ CLI config mapping documented in the Orchestrator CRD. INFER_A2A_AGENTS stays
+// for backward compatibility, the agents ConfigMap mount supersedes it when discovery is on.
 func buildOrchestratorEnvironmentVars(orch *corev1alpha1.Orchestrator) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
@@ -1149,7 +1122,6 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *corev1a
 		LastTransitionTime: metav1.Now(),
 	})
 
-	// Reflect the outcome of the last agent discovery pass.
 	if orch.Spec.A2A.Enabled && orch.Spec.A2A.ServiceDiscovery.Enabled {
 		discoveredCondition := metav1.Condition{
 			Type:               "Discovered",
@@ -1162,7 +1134,6 @@ func (r *OrchestratorReconciler) updateStatus(ctx context.Context, orch *corev1a
 		setCondition(&orch.Status.Conditions, discoveredCondition)
 	}
 
-	// Reflect the outcome of the last MCP discovery pass.
 	if orch.Spec.MCP.Enabled && orch.Spec.MCP.ServiceDiscovery.Enabled {
 		discoveredMCPCondition := metav1.Condition{
 			Type:               "MCPsDiscovered",
@@ -1219,12 +1190,20 @@ func setCondition(conditions *[]metav1.Condition, newCond metav1.Condition) {
 	*conditions = append(*conditions, newCond)
 }
 
+// discoverySelects reports whether a service discovery selector matches the labels.
+// A nil or empty selector matches everything, an invalid one matches nothing.
+func discoverySelects(selector *metav1.LabelSelector, objLabels map[string]string) bool {
+	if selector == nil {
+		return true
+	}
+	parsed, err := metav1.LabelSelectorAsSelector(selector)
+	return err == nil && parsed.Matches(labels.Set(objLabels))
+}
+
 // agentToOrchestratorRequests maps an Agent event to the set of Orchestrator reconcile requests
 // whose service discovery configuration selects that Agent.
 //
-// hurt readability for marginal LOC savings.
-//
-//nolint:dupl // structurally parallel to mcpToOrchestratorRequests; merging via generics would
+//nolint:dupl // parallel to mcpToOrchestratorRequests, generics would hurt readability
 func (r *OrchestratorReconciler) agentToOrchestratorRequests(ctx context.Context, obj client.Object) []ctrl.Request {
 	agent, ok := obj.(*corev1alpha1.Agent)
 	if !ok {
@@ -1251,15 +1230,8 @@ func (r *OrchestratorReconciler) agentToOrchestratorRequests(ctx context.Context
 			continue
 		}
 
-		// nil / empty selector matches all Agents in the namespace.
-		if orch.Spec.A2A.ServiceDiscovery.Selector != nil {
-			selector, err := metav1.LabelSelectorAsSelector(orch.Spec.A2A.ServiceDiscovery.Selector)
-			if err != nil {
-				continue
-			}
-			if !selector.Matches(labels.Set(agent.Labels)) {
-				continue
-			}
+		if !discoverySelects(orch.Spec.A2A.ServiceDiscovery.Selector, agent.Labels) {
+			continue
 		}
 
 		requests = append(requests, ctrl.Request{
@@ -1275,9 +1247,7 @@ func (r *OrchestratorReconciler) agentToOrchestratorRequests(ctx context.Context
 // mcpToOrchestratorRequests maps an MCP event to the set of Orchestrator reconcile requests
 // whose MCP service discovery configuration selects that MCP.
 //
-// hurt readability for marginal LOC savings.
-//
-//nolint:dupl // structurally parallel to agentToOrchestratorRequests; merging via generics would
+//nolint:dupl // parallel to agentToOrchestratorRequests, generics would hurt readability
 func (r *OrchestratorReconciler) mcpToOrchestratorRequests(ctx context.Context, obj client.Object) []ctrl.Request {
 	mcp, ok := obj.(*corev1alpha1.MCP)
 	if !ok {
@@ -1304,14 +1274,8 @@ func (r *OrchestratorReconciler) mcpToOrchestratorRequests(ctx context.Context, 
 			continue
 		}
 
-		if orch.Spec.MCP.ServiceDiscovery.Selector != nil {
-			selector, err := metav1.LabelSelectorAsSelector(orch.Spec.MCP.ServiceDiscovery.Selector)
-			if err != nil {
-				continue
-			}
-			if !selector.Matches(labels.Set(mcp.Labels)) {
-				continue
-			}
+		if !discoverySelects(orch.Spec.MCP.ServiceDiscovery.Selector, mcp.Labels) {
+			continue
 		}
 
 		requests = append(requests, ctrl.Request{

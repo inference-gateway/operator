@@ -29,12 +29,10 @@ import (
 	utils "github.com/inference-gateway/operator/test/utils"
 )
 
+// projectImage is the operator image built and loaded for the suite. createdCluster
+// records whether the suite created the k3d cluster, so only then does it delete it.
 var (
-	// projectImage is the name of the image which will be build and loaded
-	// with the code source changes to be tested.
-	projectImage = "ghcr.io/inference-gateway/operator:latest"
-
-	// Flag to track if we created the cluster as part of the test
+	projectImage   = "ghcr.io/inference-gateway/operator:latest"
 	createdCluster = false
 )
 

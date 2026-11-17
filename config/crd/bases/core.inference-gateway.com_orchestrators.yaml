@@ -63,13 +63,11 @@ spec:
             type: object
           spec:
             description: |-
-              OrchestratorSpec defines the desired state of Orchestrator.
-
-              An Orchestrator deploys the Inference Gateway CLI's `infer daemon`: an
-              LLM-driven loop that listens on chat channels, serves devices over its AG-UI
-              binding, and fans out to A2A Agents and tools (incl. MCP). It always runs one
-              daemon, as a Recreate Deployment or an agent-sandbox Sandbox, because one
-              daemon owns its channels and sessions.
+              OrchestratorSpec defines the desired state of Orchestrator, which deploys the Inference
+              Gateway CLI's `infer daemon`: an LLM-driven loop that listens on chat channels, serves
+              devices over its AG-UI binding, and fans out to A2A Agents and tools (incl. MCP). It always
+              runs one daemon, as a Recreate Deployment or an agent-sandbox Sandbox, because one daemon
+              owns its channels and sessions.
             properties:
               a2a:
                 description: OrchestratorA2ASpec configures Agent-to-Agent integration.
@@ -821,7 +819,7 @@ spec:
                     default: false
                     description: |-
                       Enable telemetry collection. Master switch mapped to the Go ADK's
-                      A2A_TELEMETRY_ENABLED; when false the traces/metrics exporter blocks are ignored.
+                      A2A_TELEMETRY_ENABLED - when false the traces/metrics exporter blocks are ignored.
                     type: boolean
                   metrics:
                     default:
@@ -887,7 +885,7 @@ spec:
                     description: |-
                       Receiver configures an OTLP receiver that the orchestrator exposes so
                       that other processes (e.g. the gateway, A2A agents) can push spans to
-                      it. Only one process per pod can bind the receiver port; enabling both
+                      it. Only one process per pod can bind the receiver port - enabling both
                       receiver and channels causes a port conflict because agent subprocesses
                       spawned by the daemon would contend for it.
                     properties:

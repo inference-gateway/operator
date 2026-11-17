@@ -38,46 +38,29 @@ import (
 	corev1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
+// MCP server defaults and the names, env vars, kinds, labels and URL schemes of the
+// resources the MCP controller renders.
 const (
-	// Default values
-	defaultPort        = int32(3000)
-	defaultMaxReplicas = int32(10)
-
-	// Container and volume names
-	mcpContainerName = "mcp"
-	defaultCommand   = "/mcp-server"
-	tlsVolumeSuffix  = "-volume"
-	tlsMountPath     = "/etc/tls"
-
-	// Environment variables
-	envServerHost = "SERVER_HOST"
-	envServerPort = "SERVER_PORT"
-
-	// Default server host
-	defaultServerHost = "0.0.0.0"
-
-	// Kubernetes resource kinds
+	defaultPort          = int32(3000)
+	defaultMaxReplicas   = int32(10)
+	mcpContainerName     = "mcp"
+	defaultCommand       = "/mcp-server"
+	tlsVolumeSuffix      = "-volume"
+	tlsMountPath         = "/etc/tls"
+	envServerHost        = "SERVER_HOST"
+	envServerPort        = "SERVER_PORT"
+	defaultServerHost    = "0.0.0.0"
 	deploymentKind       = "Deployment"
 	deploymentAPIVersion = "apps/v1"
-
-	// Labels
-	appLabel = "app"
-
-	// Port names
-	httpPortName = "http"
-
-	// Service names
-	serviceSuffix = "-service"
-
-	// URL schemes
-	httpScheme  = "http"
-	httpsScheme = "https"
+	appLabel             = "app"
+	httpPortName         = "http"
+	serviceSuffix        = "-service"
+	httpScheme           = "http"
+	httpsScheme          = "https"
 )
 
-var (
-	// Variables for values that need addresses
-	defaultMinReplicas = int32(1)
-)
+// defaultMinReplicas is a var because callers take its address.
+var defaultMinReplicas = int32(1)
 
 // MCPReconciler reconciles a MCP object
 type MCPReconciler struct {
@@ -560,8 +543,8 @@ func (r *MCPReconciler) buildServiceURL(mcp *corev1alpha1.MCP, service *corev1.S
 }
 
 // mcpProtocolPath returns the MCP protocol path for the given MCP CR, defaulting
-// to "/mcp" when unset. The kubebuilder default fills this in for new resources;
-// the explicit fallback keeps older objects and unit-test fixtures working.
+// to "/mcp" when unset. The kubebuilder default fills this in for new resources.
+// The explicit fallback keeps older objects and unit-test fixtures working.
 func mcpProtocolPath(mcp *corev1alpha1.MCP) string {
 	if mcp.Spec.Server == nil || mcp.Spec.Server.Path == "" {
 		return "/mcp"

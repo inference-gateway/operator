@@ -261,7 +261,7 @@ spec:
   kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/standard-install.yaml
   ```
 
-  `install.yaml` does not bundle them. v1.5.1 is the version this repo tests against (`GATEWAY_API_VERSION` in `Taskfile.yaml`); newer standard-channel releases work too.
+  `install.yaml` does not bundle them. v1.5.1 is the version this repo tests against (`GATEWAY_API_VERSION` in `Taskfile.yaml`). Newer standard-channel releases work too.
 
 - **[agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox)** (optional) - only for Orchestrators with `runtime: Sandbox`. Install it before the operator starts, or restart the operator afterwards, so it watches Sandboxes. v1.0.8 is the version this repo tests against (`AGENT_SANDBOX_VERSION` in `Taskfile.yaml`):
 
@@ -544,7 +544,7 @@ When the Telegram channel is enabled, the Deployment is forced to a singleton
 `getUpdates` consumer per bot token - running two replicas would cause them
 to terminate each other with `409 Conflict`. For high-availability today, run
 multiple `Orchestrator` resources with different tokens and disjoint
-`allowedUsers` (manual sharding); webhook mode and shared state would be
+`allowedUsers` (manual sharding) - webhook mode and shared state would be
 required for true scale-out and are out of scope.
 
 ```bash
@@ -831,7 +831,7 @@ kubectl apply --server-side -f https://github.com/inference-gateway/operator/rel
 
 The operator Deployment uses the `Recreate` strategy, so an upgrade terminates the running operator
 pod before starting the new one. Existing Gateway, Agent, MCP, Orchestrator and GPU workloads keep
-serving during that gap; only reconciliation pauses until the new pod is ready.
+serving during that gap - only reconciliation pauses until the new pod is ready.
 
 ## 🗑️ Uninstallation
 
@@ -1108,7 +1108,7 @@ for static servers, `metadata.name` for discovered `MCP` CRs) becomes the tool
 namespace, so tools reach the model as `mcp_<name>_<tool>` - for example
 `mcp_time_get_current_time` rather than a long host-derived alias. To be used as an
 alias a name must match `^[a-z0-9_-]+$`, be unique across static and discovered
-servers, and must not be the reserved alias `tools`; a name that fails these rules is
+servers, and must not be the reserved alias `tools`. A name that fails these rules is
 rendered as a bare URL and the gateway falls back to deriving the alias from the host.
 
 ```yaml
@@ -1180,7 +1180,7 @@ spec:
   server:
     port: 8080
     # Endpoint path the operator appends when building the in-cluster URL.
-    # Defaults to "/mcp"; override if your server listens elsewhere.
+    # Defaults to "/mcp". Override if your server listens elsewhere.
     path: "/mcp"
 ```
 
@@ -1284,7 +1284,7 @@ kubectl get gateways -A
 kubectl describe gateway my-first-gateway
 
 # Check generated resources (the Deployment and Service are named after the
-# Gateway; the routing ConfigMap, HTTPRoute, upstream Gateway and HPA are the
+# Gateway - the routing ConfigMap, HTTPRoute, upstream Gateway and HPA are the
 # ones labeled app=<gateway-name>)
 kubectl get deployment,service my-first-gateway
 kubectl get configmaps,httproutes,hpa -l app=my-first-gateway
@@ -1395,7 +1395,7 @@ kubectl apply --server-side -f https://github.com/inference-gateway/operator/rel
 ```
 
 The operator Deployment uses the `Recreate` strategy, so the old operator pod is terminated before
-the new one starts. Running Gateway instances are unaffected; reconciliation pauses briefly.
+the new one starts. Running Gateway instances are unaffected - reconciliation pauses briefly.
 
 ### What happens to my Gateways if I delete the operator?
 

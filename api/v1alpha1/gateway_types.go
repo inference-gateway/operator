@@ -183,7 +183,7 @@ type CustomHorizontalPodAutoscalerSpec struct {
 // prometheus = pull). Omitting a signal disables it.
 type TelemetrySpec struct {
 	// Enable telemetry collection. Master switch mapped to the Go ADK's
-	// A2A_TELEMETRY_ENABLED; when false the traces/metrics exporter blocks are ignored.
+	// A2A_TELEMETRY_ENABLED - when false the traces/metrics exporter blocks are ignored.
 	// +optional
 	// +kubebuilder:default=false
 	Enabled bool `json:"enabled,omitempty"`
@@ -199,7 +199,7 @@ type TelemetrySpec struct {
 
 	// Receiver configures an OTLP receiver that the orchestrator exposes so
 	// that other processes (e.g. the gateway, A2A agents) can push spans to
-	// it. Only one process per pod can bind the receiver port; enabling both
+	// it. Only one process per pod can bind the receiver port - enabling both
 	// receiver and channels causes a port conflict because agent subprocesses
 	// spawned by the daemon would contend for it.
 	// +optional
@@ -477,14 +477,14 @@ type MCPServersSpec struct {
 	// the RFC 9728 `resource` (served at GET /.well-known/oauth-protected-resource/mcp)
 	// and in the resource_metadata of the 401 challenge. Emitted as MCP_RESOURCE_URL.
 	// Defaults to "<scheme>://<first GatewayAPI HTTPRoute hostname>/mcp" when routing
-	// is enabled; set it explicitly when the ingress rewrites scheme or Host, otherwise
+	// is enabled - set it explicitly when the ingress rewrites scheme or Host, otherwise
 	// the gateway derives the URL from the inbound request and advertises the wrong one.
 	// +optional
 	ResourceURL string `json:"resourceUrl,omitempty"`
 
 	// ToolMode controls how MCP tools are exposed to the model. "selector" injects
 	// two meta-tools (mcp_tools_get / mcp_tools_execute) and resolves discovery and
-	// dispatch gateway-side; "direct" injects every tool schema on every request.
+	// dispatch gateway-side - "direct" injects every tool schema on every request.
 	// Emitted as MCP_TOOL_MODE.
 	// +optional
 	// +kubebuilder:validation:Enum=selector;direct
@@ -556,7 +556,7 @@ type A2ASpec struct {
 	// ResourceURL pins the canonical public /a2a URL the gateway publishes on its agent
 	// card and as the RFC 9728 `resource` at GET /.well-known/oauth-protected-resource/a2a.
 	// Emitted as A2A_RESOURCE_URL. Defaults to "<scheme>://<first GatewayAPI HTTPRoute
-	// hostname>/a2a"; set it explicitly when the ingress rewrites scheme or Host.
+	// hostname>/a2a" - set it explicitly when the ingress rewrites scheme or Host.
 	// +optional
 	ResourceURL string `json:"resourceUrl,omitempty"`
 
@@ -566,7 +566,7 @@ type A2ASpec struct {
 
 	// CardRefreshInterval is how often agent cards are re-fetched in the background so
 	// unreachable agents are retried and skill changes picked up. Emitted as
-	// A2A_CARD_REFRESH_INTERVAL; "0" disables the background refresh.
+	// A2A_CARD_REFRESH_INTERVAL - "0" disables the background refresh.
 	// +optional
 	CardRefreshInterval string `json:"cardRefreshInterval,omitempty"`
 }
@@ -576,13 +576,13 @@ type A2AAgent struct {
 	// Name is the agent's alias in A2A_AGENTS ("<name>=<url>"). It prefixes the agent's
 	// skill ids on the gateway card and every task id the gateway hands out. To be used
 	// as an alias the name must match ^[a-z0-9_-]+$ and be unique across static and
-	// discovered agents; otherwise the entry is rendered as a bare URL and the gateway
+	// discovered agents - otherwise the entry is rendered as a bare URL and the gateway
 	// derives an alias from the host.
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
-	// URL is the agent's base URL. Per-agent credentials go in the URL as basic auth;
-	// the gateway does not forward the caller's bearer token to agents.
+	// URL is the agent's base URL. Per-agent credentials go in the URL as basic auth.
+	// The gateway does not forward the caller's bearer token to agents.
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 }
@@ -613,7 +613,7 @@ type A2ATimeouts struct {
 	Client string `json:"client,omitempty"`
 
 	// StreamIdle is the idle cutoff for a relayed stream: the relay closes when the agent
-	// sends nothing for this long. Emitted as A2A_STREAM_IDLE_TIMEOUT; "0" disables it.
+	// sends nothing for this long. Emitted as A2A_STREAM_IDLE_TIMEOUT - "0" disables it.
 	// +optional
 	// +kubebuilder:default="5m"
 	StreamIdle string `json:"streamIdle,omitempty"`
@@ -668,7 +668,7 @@ type MCPServer struct {
 	// Server name. Rendered as the server's alias in MCP_SERVERS ("<name>=<url>"), so
 	// it becomes the tool namespace: tools are exposed to the model as mcp_<name>_<tool>.
 	// To be used as an alias the name must match ^[a-z0-9_-]+$, be unique across static
-	// and discovered servers, and must not be the reserved alias "tools"; otherwise the
+	// and discovered servers, and must not be the reserved alias "tools" - otherwise the
 	// entry is rendered as a bare URL and the gateway derives an alias from the host.
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
@@ -721,11 +721,9 @@ type ServiceSpec struct {
 }
 
 // RoutingSpec configures north-south traffic using the Kubernetes Gateway
-// API. It is the v1alpha1 successor to the (removed) Ingress field.
-//
-// NOTE: The "Gateway" referenced under RoutingSpec is the upstream
-// gateway.networking.k8s.io/v1.Gateway listener resource - NOT this CRD's
-// own Gateway type.
+// API. It is the v1alpha1 successor to the (removed) Ingress field. The "Gateway" it
+// references is the upstream gateway.networking.k8s.io/v1.Gateway listener resource -
+// NOT this CRD's own Gateway type.
 type RoutingSpec struct {
 	// Enable routing (operator-managed Gateway and/or HTTPRoute creation).
 	// +optional
@@ -733,7 +731,7 @@ type RoutingSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
 
 	// Gateway configures the upstream Gateway API Gateway resource.
-	// If ParentRefs is set, the operator does NOT create a Gateway; it
+	// If ParentRefs is set, the operator does NOT create a Gateway - it
 	// only creates an HTTPRoute attached to the referenced parents.
 	// +optional
 	Gateway *RoutingGatewaySpec `json:"gateway,omitempty"`
@@ -794,10 +792,8 @@ type RoutingHTTPRouteSpec struct {
 
 // ModelRoutingSpec configures gateway-native round-robin model routing over
 // upstream provider pools (gateway env vars ROUTING_ENABLED / ROUTING_CONFIG_PATH).
-//
-// NOTE: This is unrelated to RoutingSpec above. RoutingSpec configures
-// north-south Kubernetes Gateway API traffic; ModelRoutingSpec configures the
-// gateway's internal model-alias -> provider/model pool routing.
+// It is unrelated to RoutingSpec, which configures north-south Kubernetes Gateway API
+// traffic. ModelRoutingSpec configures the gateway's model-alias -> provider/model pools.
 type ModelRoutingSpec struct {
 	// Enable model routing. Maps to ROUTING_ENABLED on the gateway container.
 	// +optional
