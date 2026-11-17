@@ -9,6 +9,10 @@ A full-featured Inference Gateway deployment showcasing all available options:
 - **Audio API** (`spec.audio.enabled: true`) - required by the Mirelo provider for `POST /v1/audio/sfx`
 - **MCP servers** (disabled by default, toggle with `mcp.enabled: true`)
 - **Kubernetes Gateway API** (`spec.gatewayAPI`) - an operator-managed `Gateway` and `HTTPRoute` with TLS via cert-manager
+- **Service** (`spec.service`) - the gateway Service's `type`, `port` and `annotations`
+- **ServiceAccount** (`spec.serviceAccount`) - an operator-created `custom-gateway-sa` the pods run as
+
+Focused examples cover the remaining features: [`gateway-with-guardrails`](../gateway-with-guardrails/), [`gateway-with-mtls`](../gateway-with-mtls/) and [`gateway-with-model-routing`](../gateway-with-model-routing/).
 
 Use this as a reference when you need to understand what each field does, or as a starting template to trim down to your specific needs.
 

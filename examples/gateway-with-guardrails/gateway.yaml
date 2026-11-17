@@ -1,0 +1,69 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+# Rego policies referenced by spec.guardrails.configMapRef. Every key is mounted
+# as a file under /etc/inference-gateway/guardrails (GUARDRAILS_POLICY_DIR).
+# Each .rego file must be in `package guardrails` and expose a `main` rule
+# returning one of the actions allow, block (with a message), redact or warn.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guardrails-policies
+  namespace: inference-gateway
+data:
+  allow_all.rego: |
+    package guardrails
+
+    default main := {"action": "allow"}
+  block_pii.rego: |
+    package guardrails
+
+    # Simplified card check for the demo - the gateway's built-in detectors
+    # include Luhn validation.
+    main := {"action": "block", "message": "request contains sensitive payment information"} if {
+        contains(input.request.body, "4111")
+    }
+---
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: inference-gateway
+  namespace: inference-gateway
+spec:
+  environment: development
+  image: "ghcr.io/inference-gateway/inference-gateway:latest"
+  guardrails:
+    # GUARDRAILS_ENABLED=true and GUARDRAILS_POLICY_DIR=/etc/inference-gateway/guardrails
+    enabled: true
+    # GUARDRAILS_FAIL_MODE: deny becomes `closed` (block when a policy fails to
+    # evaluate), allow becomes `open` (let the request through).
+    failMode: deny
+    configMapRef:
+      name: guardrails-policies
+    # Optional: also delegate to an external guardrail service.
+    # GUARDRAILS_EXTERNAL_URL / GUARDRAILS_EXTERNAL_TIMEOUT (timeout is only
+    # emitted when externalUrl is set).
+    # externalUrl: "http://guardrail-service.inference-gateway.svc.cluster.local:8080"
+    # externalTimeout: "5s"
+  providers:
+    - name: OpenAI
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: inference-gateway-providers-secret
+              key: OPENAI_API_KEY
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: inference-gateway-providers-secret
+  namespace: inference-gateway
+type: Opaque
+stringData:
+  OPENAI_API_KEY: ""
