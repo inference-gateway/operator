@@ -1,0 +1,75 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inference-gateway
+  labels:
+    inference-gateway.com/managed: "true"
+---
+# A throwaway CA for the example: a self-signed issuer mints the CA, and a CA
+# issuer signs the gateway's server and client certificates with it.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned
+  namespace: inference-gateway
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: example-ca
+  namespace: inference-gateway
+spec:
+  isCA: true
+  commonName: example-ca
+  secretName: example-ca
+  issuerRef:
+    name: selfsigned
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: example-ca
+  namespace: inference-gateway
+spec:
+  ca:
+    secretName: example-ca
+---
+# Served by the gateway on its server port (spec.server.tls).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-server
+  namespace: inference-gateway
+spec:
+  secretName: gateway-server-tls
+  commonName: inference-gateway
+  dnsNames:
+    - inference-gateway
+    - inference-gateway.inference-gateway.svc
+    - inference-gateway.inference-gateway.svc.cluster.local
+    - localhost
+  usages:
+    - server auth
+  issuerRef:
+    name: example-ca
+    kind: Issuer
+---
+# Presented by callers to the gateway, and by the gateway to providers
+# (spec.client.tls).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-client
+  namespace: inference-gateway
+spec:
+  secretName: gateway-client-tls
+  commonName: inference-gateway-client
+  usages:
+    - client auth
+  issuerRef:
+    name: example-ca
+    kind: Issuer

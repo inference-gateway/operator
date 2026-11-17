@@ -1244,6 +1244,14 @@ servers built on the official MCP Go SDK), see
 
 See [`examples/gateway-complete/gateway.yaml`](examples/gateway-complete/gateway.yaml) for a comprehensive configuration example with all features enabled.
 
+Focused examples:
+
+- [`examples/gateway-with-guardrails/`](examples/gateway-with-guardrails/) - OPA/Rego guardrails (`spec.guardrails`)
+- [`examples/gateway-with-mtls/`](examples/gateway-with-mtls/) - server TLS, inbound and outbound mutual TLS (`spec.server.tls`, `spec.client.tls`)
+- [`examples/gateway-with-model-routing/`](examples/gateway-with-model-routing/) - model aliases with round-robin routing (`spec.routing`)
+- [`examples/agent-with-mcp/`](examples/agent-with-mcp/) - an Agent's MCP client (`spec.mcp`) and advertised URL (`spec.card.url`)
+- [`examples/orchestrator-telemetry-receiver/`](examples/orchestrator-telemetry-receiver/) - an Orchestrator OTLP receiver (`spec.telemetry.receiver`)
+
 ### 🚀 Advanced Configuration
 
 For production deployments, use the complete configuration examples:
