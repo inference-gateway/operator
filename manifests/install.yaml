@@ -144,8 +144,8 @@ spec:
                       model:
                         description: |-
                           Model is the model identifier in "provider/model" format.
-                          The provider prefix is split out and emitted as A2A_AGENT_CLIENT_PROVIDER;
-                          the remainder is emitted as A2A_AGENT_CLIENT_MODEL.
+                          The provider prefix is split out and emitted as A2A_AGENT_CLIENT_PROVIDER.
+                          The remainder is emitted as A2A_AGENT_CLIENT_MODEL.
                         type: string
                       systemPrompt:
                         description: SystemPrompt is the system prompt for the LLM.
@@ -435,7 +435,7 @@ spec:
                   servers:
                     description: |-
                       Servers is the list of MCP server base URLs (e.g. http://mcp:8080).
-                      Emitted as a comma-separated A2A_MCP_SERVERS; omitted when empty.
+                      Emitted as a comma-separated A2A_MCP_SERVERS - omitted when empty.
                     items:
                       type: string
                     type: array
@@ -6716,7 +6716,7 @@ spec:
                     default: false
                     description: |-
                       Enable telemetry collection. Master switch mapped to the Go ADK's
-                      A2A_TELEMETRY_ENABLED; when false the traces/metrics exporter blocks are ignored.
+                      A2A_TELEMETRY_ENABLED - when false the traces/metrics exporter blocks are ignored.
                     type: boolean
                   metrics:
                     default:
@@ -6782,7 +6782,7 @@ spec:
                     description: |-
                       Receiver configures an OTLP receiver that the orchestrator exposes so
                       that other processes (e.g. the gateway, A2A agents) can push spans to
-                      it. Only one process per pod can bind the receiver port; enabling both
+                      it. Only one process per pod can bind the receiver port - enabling both
                       receiver and channels causes a port conflict because agent subprocesses
                       spawned by the daemon would contend for it.
                     properties:
@@ -7083,13 +7083,13 @@ spec:
                             Name is the agent's alias in A2A_AGENTS ("<name>=<url>"). It prefixes the agent's
                             skill ids on the gateway card and every task id the gateway hands out. To be used
                             as an alias the name must match ^[a-z0-9_-]+$ and be unique across static and
-                            discovered agents; otherwise the entry is rendered as a bare URL and the gateway
+                            discovered agents - otherwise the entry is rendered as a bare URL and the gateway
                             derives an alias from the host.
                           type: string
                         url:
                           description: |-
-                            URL is the agent's base URL. Per-agent credentials go in the URL as basic auth;
-                            the gateway does not forward the caller's bearer token to agents.
+                            URL is the agent's base URL. Per-agent credentials go in the URL as basic auth.
+                            The gateway does not forward the caller's bearer token to agents.
                           type: string
                       required:
                       - name
@@ -7100,7 +7100,7 @@ spec:
                     description: |-
                       CardRefreshInterval is how often agent cards are re-fetched in the background so
                       unreachable agents are retried and skill changes picked up. Emitted as
-                      A2A_CARD_REFRESH_INTERVAL; "0" disables the background refresh.
+                      A2A_CARD_REFRESH_INTERVAL - "0" disables the background refresh.
                     type: string
                   enabled:
                     default: false
@@ -7112,7 +7112,7 @@ spec:
                       ResourceURL pins the canonical public /a2a URL the gateway publishes on its agent
                       card and as the RFC 9728 `resource` at GET /.well-known/oauth-protected-resource/a2a.
                       Emitted as A2A_RESOURCE_URL. Defaults to "<scheme>://<first GatewayAPI HTTPRoute
-                      hostname>/a2a"; set it explicitly when the ingress rewrites scheme or Host.
+                      hostname>/a2a" - set it explicitly when the ingress rewrites scheme or Host.
                     type: string
                   serviceDiscovery:
                     description: |-
@@ -7194,7 +7194,7 @@ spec:
                         default: 5m
                         description: |-
                           StreamIdle is the idle cutoff for a relayed stream: the relay closes when the agent
-                          sends nothing for this long. Emitted as A2A_STREAM_IDLE_TIMEOUT; "0" disables it.
+                          sends nothing for this long. Emitted as A2A_STREAM_IDLE_TIMEOUT - "0" disables it.
                         type: string
                     type: object
                 type: object
@@ -7408,7 +7408,7 @@ spec:
                   gateway:
                     description: |-
                       Gateway configures the upstream Gateway API Gateway resource.
-                      If ParentRefs is set, the operator does NOT create a Gateway; it
+                      If ParentRefs is set, the operator does NOT create a Gateway - it
                       only creates an HTTPRoute attached to the referenced parents.
                     properties:
                       gatewayClassName:
@@ -8386,7 +8386,7 @@ spec:
                       the RFC 9728 `resource` (served at GET /.well-known/oauth-protected-resource/mcp)
                       and in the resource_metadata of the 401 challenge. Emitted as MCP_RESOURCE_URL.
                       Defaults to "<scheme>://<first GatewayAPI HTTPRoute hostname>/mcp" when routing
-                      is enabled; set it explicitly when the ingress rewrites scheme or Host, otherwise
+                      is enabled - set it explicitly when the ingress rewrites scheme or Host, otherwise
                       the gateway derives the URL from the inbound request and advertises the wrong one.
                     type: string
                   servers:
@@ -8402,7 +8402,7 @@ spec:
                             Server name. Rendered as the server's alias in MCP_SERVERS ("<name>=<url>"), so
                             it becomes the tool namespace: tools are exposed to the model as mcp_<name>_<tool>.
                             To be used as an alias the name must match ^[a-z0-9_-]+$, be unique across static
-                            and discovered servers, and must not be the reserved alias "tools"; otherwise the
+                            and discovered servers, and must not be the reserved alias "tools" - otherwise the
                             entry is rendered as a bare URL and the gateway derives an alias from the host.
                           type: string
                         url:
@@ -8510,7 +8510,7 @@ spec:
                     description: |-
                       ToolMode controls how MCP tools are exposed to the model. "selector" injects
                       two meta-tools (mcp_tools_get / mcp_tools_execute) and resolves discovery and
-                      dispatch gateway-side; "direct" injects every tool schema on every request.
+                      dispatch gateway-side - "direct" injects every tool schema on every request.
                       Emitted as MCP_TOOL_MODE.
                     enum:
                     - selector
@@ -15119,7 +15119,7 @@ spec:
                     default: false
                     description: |-
                       Enable telemetry collection. Master switch mapped to the Go ADK's
-                      A2A_TELEMETRY_ENABLED; when false the traces/metrics exporter blocks are ignored.
+                      A2A_TELEMETRY_ENABLED - when false the traces/metrics exporter blocks are ignored.
                     type: boolean
                   metrics:
                     default:
@@ -15185,7 +15185,7 @@ spec:
                     description: |-
                       Receiver configures an OTLP receiver that the orchestrator exposes so
                       that other processes (e.g. the gateway, A2A agents) can push spans to
-                      it. Only one process per pod can bind the receiver port; enabling both
+                      it. Only one process per pod can bind the receiver port - enabling both
                       receiver and channels causes a port conflict because agent subprocesses
                       spawned by the daemon would contend for it.
                     properties:
@@ -15410,13 +15410,10 @@ spec:
             type: object
           spec:
             description: |-
-              GPUSpec defines the desired state of GPU.
-
-              A GPU resource represents one externally managed, GPU-backed inference-runtime
-              allocation reachable over HTTP. The Kubernetes cluster is the control plane
-              only: GPU hardware, drivers, scheduling and inference execution stay with an
-              external infrastructure provider (e.g. RunPod). It is NOT a worker node, a
-              device, an `nvidia.com/gpu` request, or a replacement for the device plugin/DRA.
+              GPUSpec defines the desired state of GPU: one externally managed, GPU-backed inference
+              runtime reachable over HTTP. The cluster is the control plane only - hardware, drivers,
+              scheduling and inference stay with an external provider (e.g. RunPod). It is NOT a worker
+              node, a device, an `nvidia.com/gpu` request, or a replacement for the device plugin/DRA.
             properties:
               command:
                 description: Command overrides the container command/args passed to
@@ -22729,13 +22726,11 @@ spec:
             type: object
           spec:
             description: |-
-              OrchestratorSpec defines the desired state of Orchestrator.
-
-              An Orchestrator deploys the Inference Gateway CLI's `infer daemon`: an
-              LLM-driven loop that listens on chat channels, serves devices over its AG-UI
-              binding, and fans out to A2A Agents and tools (incl. MCP). It always runs one
-              daemon, as a Recreate Deployment or an agent-sandbox Sandbox, because one
-              daemon owns its channels and sessions.
+              OrchestratorSpec defines the desired state of Orchestrator, which deploys the Inference
+              Gateway CLI's `infer daemon`: an LLM-driven loop that listens on chat channels, serves
+              devices over its AG-UI binding, and fans out to A2A Agents and tools (incl. MCP). It always
+              runs one daemon, as a Recreate Deployment or an agent-sandbox Sandbox, because one daemon
+              owns its channels and sessions.
             properties:
               a2a:
                 description: OrchestratorA2ASpec configures Agent-to-Agent integration.
@@ -23487,7 +23482,7 @@ spec:
                     default: false
                     description: |-
                       Enable telemetry collection. Master switch mapped to the Go ADK's
-                      A2A_TELEMETRY_ENABLED; when false the traces/metrics exporter blocks are ignored.
+                      A2A_TELEMETRY_ENABLED - when false the traces/metrics exporter blocks are ignored.
                     type: boolean
                   metrics:
                     default:
@@ -23553,7 +23548,7 @@ spec:
                     description: |-
                       Receiver configures an OTLP receiver that the orchestrator exposes so
                       that other processes (e.g. the gateway, A2A agents) can push spans to
-                      it. Only one process per pod can bind the receiver port; enabling both
+                      it. Only one process per pod can bind the receiver port - enabling both
                       receiver and channels causes a port conflict because agent subprocesses
                       spawned by the daemon would contend for it.
                     properties:

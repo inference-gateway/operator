@@ -627,7 +627,7 @@ var _ = Describe("MCPReconciler", func() {
 				},
 				Status: appsv1.DeploymentStatus{
 					Replicas:      1,
-					ReadyReplicas: 0, // Not ready
+					ReadyReplicas: 0,
 				},
 			}
 

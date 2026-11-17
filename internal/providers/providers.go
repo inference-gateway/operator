@@ -14,18 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package providers exposes the set of AI/ML provider identifiers that the
-// Inference Gateway understands.
-//
-// The list lives in exactly one place: the canonical schema at
-// github.com/inference-gateway/schemas (openapi.yaml,
-// components.schemas.Provider.enum). It is projected into SupportedProviders
-// (see zz_generated_providers.go) by the generator under ./gen. The gateway
-// generates its own provider constants from the same schema, so the two cannot
-// silently drift: TestSupportedProvidersMatchSchema in providers_test.go fails
-// when this package and the live schema disagree.
-//
-// Regenerate the list with `task verify-shared-types`.
 package providers
 
 //go:generate go run ./gen

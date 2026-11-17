@@ -36,13 +36,9 @@ import (
 	testutil "github.com/inference-gateway/operator/internal/controller/testutil"
 )
 
-// These specs cover the issue #75 acceptance criteria that the existing suite
-// did not yet assert: that a minimal Gateway produces a Service + ServiceAccount
-// (alongside the already-covered Deployment), and a negative path where an
-// invalid spec surfaces a status condition and leaves no partial resources.
-// They use the shared testutil fixture builders to demonstrate reuse across
-// controllers.
-
+// These specs cover the issue #75 acceptance criteria: a minimal Gateway produces a
+// Service and ServiceAccount, and an invalid spec surfaces a status condition and leaves
+// no partial resources.
 var _ = Describe("Gateway core resource generation", func() {
 	const (
 		timeout  = time.Second * 10

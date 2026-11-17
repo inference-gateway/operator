@@ -28,8 +28,11 @@ import (
 	"time"
 )
 
-// defaultRunPodBaseURL is the RunPod REST API v1 base URL.
-const defaultRunPodBaseURL = "https://rest.runpod.io/v1"
+// defaultRunPodBaseURL is the RunPod REST API v1 base URL, and runPodHTTPTimeout bounds each call.
+const (
+	defaultRunPodBaseURL = "https://rest.runpod.io/v1"
+	runPodHTTPTimeout    = 30 * time.Second
+)
 
 // runPodProvider implements Provider against the RunPod REST API using only the
 // standard library. The external pod is named "igw-gpu-<uid>" so reconciliation
@@ -40,8 +43,8 @@ type runPodProvider struct {
 	client  *http.Client
 }
 
-// NewRunPodProvider builds a RunPod driver. baseURL is overridable for testing;
-// empty uses the public API.
+// NewRunPodProvider builds a RunPod driver. baseURL is overridable for testing,
+// and empty uses the public API.
 func NewRunPodProvider(apiKey, baseURL string) Provider {
 	if baseURL == "" {
 		baseURL = defaultRunPodBaseURL
@@ -49,7 +52,7 @@ func NewRunPodProvider(apiKey, baseURL string) Provider {
 	return &runPodProvider{
 		apiKey:  apiKey,
 		baseURL: strings.TrimRight(baseURL, "/"),
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  &http.Client{Timeout: runPodHTTPTimeout},
 	}
 }
 
@@ -149,7 +152,7 @@ func (p *runPodProvider) findByName(ctx context.Context, name string) (*runpodPo
 
 // toAllocation maps a RunPod pod to a provider Allocation. fallbackPort is used
 // for the proxy URL when the pod does not echo an http port (e.g. right after
-// create); it is ignored when the pod reports its ports.
+// create). It is ignored when the pod reports its ports.
 func (p *runPodProvider) toAllocation(pod runpodPod, fallbackPort int32) Allocation {
 	port := httpPort(pod.Ports)
 	if port == 0 {

@@ -14,12 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Command gen regenerates SupportedProviders in the parent providers package
-// from the canonical Inference Gateway schema (components.schemas.Provider.enum).
-//
-// It is invoked via `go generate ./internal/providers/...` (see the //go:generate
-// directive in providers.go) or `task verify-shared-types`. The schema source
-// defaults to the canonical URL and can be overridden with OPENAPI_SCHEMA_SOURCE.
 package main
 
 import (
@@ -106,6 +100,6 @@ package providers
 
 // SupportedProviders is the set of provider identifiers defined by the canonical
 // Inference Gateway schema. It is the single source of truth shared with the
-// gateway, which generates the same list from the same schema. Do not edit by
-// hand; see the package documentation in providers.go.
+// gateway, which generates the same list from the same schema. Regenerate it with
+// task generate:providers instead of editing it by hand.
 `

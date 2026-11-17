@@ -2,7 +2,7 @@
 
 End-to-end deployment of an `Orchestrator` that:
 
-- Receives messages from a chat channel (currently **Telegram**; more channels coming)
+- Receives messages from a chat channel (currently **Telegram**, more channels coming)
 - Reasons with an LLM via the **Inference Gateway** (DeepSeek in this example)
 - Delegates work to A2A worker **Agents** (`google-calendar-agent` in mock mode + `mock-agent`)
 - Persists conversation context in **Redis** so sessions survive pod restarts
@@ -27,7 +27,7 @@ End-to-end deployment of an `Orchestrator` that:
 
 - Kubernetes cluster with the Inference Gateway operator installed (`task cluster:create && task install && task deploy` from the repo root)
 - A **Telegram bot token** - DM [@BotFather](https://t.me/BotFather), use `/newbot`, follow the prompts
-- Your **Telegram user ID** - DM [@userinfobot](https://t.me/userinfobot); it replies with your numeric ID
+- Your **Telegram user ID** - DM [@userinfobot](https://t.me/userinfobot) - it replies with your numeric ID
 - A **DeepSeek API key** - sign up at [platform.deepseek.com](https://platform.deepseek.com)
 
 ## Run

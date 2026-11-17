@@ -41,14 +41,12 @@ import (
 	gpu "github.com/inference-gateway/operator/internal/gpu"
 )
 
+// gpuFinalizer guards deletion so the external allocation is released first.
+// connectionSecretSuffix is appended to the GPU name for its connection Secret.
+// The gpu*Requeue values are the requeue cadences per lifecycle phase.
 const (
-	// gpuFinalizer guards deletion so the external allocation is released first.
-	gpuFinalizer = "core.inference-gateway.com/gpu-cleanup"
-
-	// connectionSecretSuffix is appended to the GPU name for its connection Secret.
+	gpuFinalizer           = "core.inference-gateway.com/gpu-cleanup"
 	connectionSecretSuffix = "-connection"
-
-	// Requeue cadences.
 	gpuProvisioningRequeue = 10 * time.Second
 	gpuFailedRequeue       = 2 * time.Minute
 	gpuCleanupRequeue      = 30 * time.Second
@@ -60,18 +58,15 @@ const (
 // GPUReconciler reconciles a GPU object by driving a pluggable provider through
 // the lease lifecycle: provision, wait for HTTP readiness, publish a connection
 // Secret, enforce MaxRuntime, and release the allocation on deletion/expiry.
+// NewProvider, CheckReady (the HTTP readiness probe) and Now (the clock) are overridable
+// in tests and default to gpu.NewProvider, an HTTP probe and time.Now.
 type GPUReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	// NewProvider builds a provider driver from its name and management API key.
-	// Overridable in tests; defaults to gpu.NewProvider.
 	NewProvider func(name, apiKey string) (gpu.Provider, error)
-	// CheckReady probes the runtime's HTTP readiness endpoint (optionally
-	// authenticated with the per-allocation token). Overridable in tests.
-	CheckReady func(ctx context.Context, url, token string) error
-	// Now is the clock, overridable in tests to drive MaxRuntime expiry.
-	Now func() time.Time
+	CheckReady  func(ctx context.Context, url, token string) error
+	Now         func() time.Time
 }
 
 // +kubebuilder:rbac:groups=core.inference-gateway.com,resources=gpus,verbs=get;list;watch;create;update;patch;delete
@@ -109,9 +104,7 @@ func (r *GPUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
-	// Expired resources are terminal until the spec changes (guards against
-	// silently re-leasing an expensive GPU on its own).
-	if g.Status.Phase == corev1alpha1.GPUPhaseExpired && g.Status.ObservedGeneration == g.Generation {
+	if expiredForCurrentSpec(&g) {
 		return ctrl.Result{}, nil
 	}
 
@@ -120,8 +113,7 @@ func (r *GPUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return r.fail(ctx, &g, "ProviderUnavailable", err)
 	}
 
-	// Enforce MaxRuntime once the allocation has a deadline.
-	if g.Status.ExpiresAt != nil && !r.Now().Before(g.Status.ExpiresAt.Time) {
+	if r.maxRuntimeReached(&g) {
 		return r.expire(ctx, &g, provider)
 	}
 
@@ -129,6 +121,16 @@ func (r *GPUReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return r.provision(ctx, &g, provider)
 	}
 	return r.observe(ctx, &g, provider)
+}
+
+// expiredForCurrentSpec reports an Expired GPU whose spec has not changed since. It stays
+// terminal so an expensive GPU is never silently re-leased.
+func expiredForCurrentSpec(g *corev1alpha1.GPU) bool {
+	return g.Status.Phase == corev1alpha1.GPUPhaseExpired && g.Status.ObservedGeneration == g.Generation
+}
+
+func (r *GPUReconciler) maxRuntimeReached(g *corev1alpha1.GPU) bool {
+	return g.Status.ExpiresAt != nil && !r.Now().Before(g.Status.ExpiresAt.Time)
 }
 
 // providerFor reads the management credential from the referenced Secret and
@@ -467,7 +469,7 @@ func endpointPort(g *corev1alpha1.GPU) int32 {
 	if g.Spec.Endpoint.Port != 0 {
 		return g.Spec.Endpoint.Port
 	}
-	return 8080
+	return defaultServerPort
 }
 
 func generateToken() (string, error) {

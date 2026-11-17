@@ -14,9 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package gpu defines the pluggable provider interface used by the GPU
-// controller to lease externally hosted, GPU-backed inference runtimes, plus
-// the concrete provider drivers (currently RunPod).
 package gpu
 
 import (
@@ -30,24 +27,21 @@ import (
 var ErrNotFound = errors.New("gpu: allocation not found")
 
 // AllocationState is the provider-reported lifecycle state of an allocation.
+// StateRunning means the infrastructure is up, not that the HTTP inference endpoint is
+// ready. The controller confirms readiness itself.
 type AllocationState string
 
 const (
-	// StatePending means the allocation is reserved but not yet running.
-	StatePending AllocationState = "Pending"
-	// StateRunning means the underlying infrastructure is up. It does NOT imply
-	// the HTTP inference endpoint is ready; the controller confirms that itself.
-	StateRunning AllocationState = "Running"
-	// StateFailed means the provider reported a terminal failure.
-	StateFailed AllocationState = "Failed"
-	// StateTerminated means the allocation has been released.
+	StatePending    AllocationState = "Pending"
+	StateRunning    AllocationState = "Running"
+	StateFailed     AllocationState = "Failed"
 	StateTerminated AllocationState = "Terminated"
 )
 
-// ProvisionRequest describes a runtime to lease. UID/Namespace/Name identify the
-// owning Kubernetes object; UID is the idempotency key providers tag external
-// resources with so reconciliation recovers an existing allocation instead of
-// creating a duplicate.
+// ProvisionRequest describes a runtime to lease. UID/Namespace/Name identify the owning
+// Kubernetes object, and UID is the idempotency key that lets reconciliation recover an
+// existing allocation. EndpointToken is injected as API_KEY to protect the inference
+// endpoint without exposing the provider management API key.
 type ProvisionRequest struct {
 	UID       string
 	Namespace string
@@ -58,9 +52,6 @@ type ProvisionRequest struct {
 	GPUTypes []string
 	Port     int32
 
-	// EndpointToken is a per-allocation credential injected into the runtime
-	// (as the API_KEY env var) so the inference endpoint is protected without
-	// exposing the provider management API key.
 	EndpointToken string
 }
 

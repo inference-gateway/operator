@@ -34,7 +34,7 @@ func TestRunPodProvisionCreatesPod(t *testing.T) {
 		}
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/pods":
-			_, _ = w.Write([]byte(`[]`)) // no existing pod -> triggers create
+			_, _ = w.Write([]byte(`[]`))
 		case r.Method == http.MethodPost && r.URL.Path == "/pods":
 			_ = json.NewDecoder(r.Body).Decode(&posted)
 			_, _ = w.Write([]byte(`{"id":"abc123","desiredStatus":"RUNNING","ports":["8080/http"]}`))

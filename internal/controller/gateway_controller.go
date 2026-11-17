@@ -110,7 +110,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		if apierrors.IsConflict(err) {
 			logger.V(1).Info("Deployment reconciliation conflict, requeueing", "error", err)
-			return ctrl.Result{RequeueAfter: time.Second * 1}, nil
+			return ctrl.Result{RequeueAfter: conflictRequeueDelay}, nil
 		}
 		logger.Error(err, "Failed to reconcile Deployment")
 		return ctrl.Result{}, err
@@ -354,26 +354,18 @@ func (r *GatewayReconciler) updateProvidersSummary(ctx context.Context, gateway 
 // a self-signed issuer (e.g. Keycloak) during OIDC discovery.
 const oidcCACertPath = "/usr/local/share/ca-certificates/oidc-ca.crt"
 
+// Gateway pod mount paths and defaults. modelRoutingInlineKey is the ConfigMap key of an inline
+// spec.routing.config. tlsMountDir holds the conventional inference-gateway-tls Secret when
+// spec.server.tls sets no certificateRef/keyRef, and the other tls*MountDir paths hold the
+// spec.server.tls refs (inbound) and spec.client.tls material (calls to providers).
 const (
-	// modelRoutingConfigDir is where the routing YAML ConfigMap is mounted in the
-	// gateway pod; ROUTING_CONFIG_PATH points at the file within it.
 	modelRoutingConfigDir = "/etc/inference-gateway/routing"
-	// modelRoutingInlineKey is the ConfigMap key used for inline spec.routing.config.
 	modelRoutingInlineKey = "routing.yaml"
-	// guardrailsPolicyDir is the default directory where Rego policy files are mounted.
-	guardrailsPolicyDir = "/etc/inference-gateway/guardrails"
-	// tlsMountDir is where the conventional inference-gateway-tls Secret is mounted
-	// when spec.server.tls sets no certificateRef/keyRef.
-	tlsMountDir = "/app/tls"
-	// tlsCertMountDir and tlsKeyMountDir are where spec.server.tls.certificateRef and
-	// keyRef are mounted; SERVER_TLS_CERT_PATH/SERVER_TLS_KEY_PATH point into them.
-	tlsCertMountDir = "/app/tls/cert"
-	tlsKeyMountDir  = "/app/tls/key"
-	// tlsClientCAMountDir is where spec.server.tls.clientCARef is mounted, the CA
-	// bundle the gateway verifies inbound client certificates against.
-	tlsClientCAMountDir = "/app/tls/client-ca"
-	// clientTLS*MountDir are where spec.client.tls is mounted, the material the
-	// gateway uses when calling providers.
+	guardrailsPolicyDir   = "/etc/inference-gateway/guardrails"
+	tlsMountDir           = "/app/tls"
+	tlsCertMountDir       = "/app/tls/cert"
+	tlsKeyMountDir        = "/app/tls/key"
+	tlsClientCAMountDir   = "/app/tls/client-ca"
 	clientTLSCAMountDir   = "/app/tls/client/ca"
 	clientTLSCertMountDir = "/app/tls/client/cert"
 	clientTLSKeyMountDir  = "/app/tls/client/key"
@@ -1274,7 +1266,7 @@ func (r *GatewayReconciler) reconcileService(ctx context.Context, gateway *corev
 
 // reconcileRouting orchestrates creation and deletion of the upstream
 // Gateway and HTTPRoute resources implementing north-south routing.
-// gateway here is the project CR; gw* helpers below construct upstream
+// gateway here is the project CR - gw* helpers below construct upstream
 // gateway.networking.k8s.io types.
 func (r *GatewayReconciler) reconcileRouting(ctx context.Context, gateway *corev1alpha1.Gateway) error {
 	logger := log.FromContext(ctx)
@@ -1326,7 +1318,7 @@ func (r *GatewayReconciler) deleteOwnedRouting(ctx context.Context, gateway *cor
 
 // modelRoutingConfigSource returns the ConfigMap name and key holding the routing
 // YAML, or "","" when model routing is disabled or no config source is set. For
-// inline spec.routing.config the operator owns "<name>-routing"; for
+// inline spec.routing.config the operator owns "<name>-routing" - for
 // configMapRef the user's ConfigMap name/key are used verbatim.
 func modelRoutingConfigSource(gateway *corev1alpha1.Gateway) (name, key string) {
 	mr := gateway.Spec.Routing
@@ -1641,7 +1633,7 @@ func mcpHealthCheckEnvVars(hc *corev1alpha1.MCPHealthCheck) []corev1.EnvVar {
 }
 
 // mcpResourceURL returns the canonical public /mcp URL advertised as the RFC 9728
-// `resource`. An explicit spec.mcp.resourceUrl wins; otherwise it is derived from
+// `resource`. An explicit spec.mcp.resourceUrl wins - otherwise it is derived from
 // the first HTTPRoute hostname when routing is enabled. Empty means "let the
 // gateway derive it from the request".
 func mcpResourceURL(gateway *corev1alpha1.Gateway) string {
@@ -1652,8 +1644,8 @@ func mcpResourceURL(gateway *corev1alpha1.Gateway) string {
 }
 
 // a2aResourceURL returns the canonical public /a2a URL the gateway publishes on its
-// agent card and as the RFC 9728 `resource`. An explicit spec.a2a.resourceUrl wins;
-// otherwise it is derived from the first HTTPRoute hostname when routing is enabled.
+// agent card and as the RFC 9728 `resource`. An explicit spec.a2a.resourceUrl wins.
+// Otherwise it is derived from the first HTTPRoute hostname when routing is enabled.
 func a2aResourceURL(gateway *corev1alpha1.Gateway) string {
 	if url := gateway.Spec.A2A.ResourceURL; url != "" {
 		return url
@@ -1937,18 +1929,15 @@ func (r *GatewayReconciler) reconcileServiceAccount(ctx context.Context, gateway
 		},
 	}
 
-	// Set owner reference
 	err := controllerutil.SetControllerReference(gateway, serviceAccount, r.Scheme)
 	if err != nil {
 		return fmt.Errorf("failed to set controller reference: %w", err)
 	}
 
-	// Check if ServiceAccount already exists
 	existing := &corev1.ServiceAccount{}
 	err = r.Get(ctx, types.NamespacedName{Name: serviceAccountName, Namespace: gateway.Namespace}, existing)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			// Create new ServiceAccount
 			err = r.Create(ctx, serviceAccount)
 			if err != nil {
 				logger.Error(err, "Failed to create ServiceAccount", "serviceAccount", serviceAccountName)
@@ -1959,7 +1948,6 @@ func (r *GatewayReconciler) reconcileServiceAccount(ctx context.Context, gateway
 			return fmt.Errorf("failed to get ServiceAccount: %w", err)
 		}
 	} else {
-		// Update existing ServiceAccount if needed
 		existing.Labels = serviceAccount.Labels
 		err = r.Update(ctx, existing)
 		if err != nil {
@@ -2115,14 +2103,11 @@ func (a *aliasedEndpoints) sorted() []string {
 	return a.entries
 }
 
-// assembleMCPServerEntries returns the union of static spec.mcp.servers[] entries and
-// MCP CRs discovered via spec.mcp.serviceDiscovery, rendered as "name=url" so the
-// gateway namespaces tools as mcp_<name>_<tool> instead of deriving an alias from the
-// host. Entries are deduped on URL and sorted for determinism. A name that is not a
-// valid alias (does not match ^[a-z0-9_-]+$, is the reserved "tools", or collides with
-// an alias already used) is dropped, leaving a bare URL so the server still reaches the
-// gateway with a host-derived alias. Discovery errors are logged and ignored so a
-// transient API failure does not blank out the static list.
+// assembleMCPServerEntries returns the static spec.mcp.servers[] plus discovered MCP CRs as
+// sorted, URL-deduped "name=url" entries, so the gateway namespaces tools as mcp_<name>_<tool>.
+// An invalid alias (not ^[a-z0-9_-]+$, the reserved "tools", or a duplicate) leaves a bare URL
+// with a host-derived alias. Discovery errors are logged and ignored so a transient API
+// failure does not blank out the static list.
 func (r *GatewayReconciler) assembleMCPServerEntries(ctx context.Context, gateway *corev1alpha1.Gateway) []string {
 	servers := newAliasedEndpoints("MCP server", mcpAliasReserved, gateway.Name, len(gateway.Spec.MCP.Servers))
 
@@ -2136,7 +2121,7 @@ func (r *GatewayReconciler) assembleMCPServerEntries(ctx context.Context, gatewa
 			log.FromContext(ctx).Error(err, "failed to discover MCPs; using static MCP_SERVERS only")
 		}
 		for _, mcp := range discovered {
-			servers.add(ctx, mcp.Name, gatewayMCPURL(&mcp))
+			servers.add(ctx, mcp.Name, mcpURL(&mcp))
 		}
 	}
 
@@ -2237,30 +2222,6 @@ func (r *GatewayReconciler) discoverMCPs(ctx context.Context, gateway *corev1alp
 	}
 
 	return mcpList.Items, nil
-}
-
-// gatewayMCPURL returns the URL for an MCP CR. It prefers Status.URL (already TLS-
-// and path-aware, populated by the MCP controller) and falls back to a deterministic
-// construction when status has not been populated yet.
-func gatewayMCPURL(mcp *corev1alpha1.MCP) string {
-	if mcp.Status.URL != "" {
-		return mcp.Status.URL
-	}
-	scheme := "http"
-	var port int32 = 8080
-	path := "/mcp"
-	if mcp.Spec.Server != nil {
-		if mcp.Spec.Server.Port != 0 {
-			port = mcp.Spec.Server.Port
-		}
-		if mcp.Spec.Server.TLS != nil && mcp.Spec.Server.TLS.Enabled {
-			scheme = "https"
-		}
-		if mcp.Spec.Server.Path != "" {
-			path = mcp.Spec.Server.Path
-		}
-	}
-	return fmt.Sprintf("%s://%s-service.%s.svc.cluster.local:%d%s", scheme, mcp.Name, mcp.Namespace, port, path)
 }
 
 // serviceDiscovery is the namespace-and-selector view both spec.mcp.serviceDiscovery

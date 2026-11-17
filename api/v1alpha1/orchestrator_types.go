@@ -22,13 +22,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// OrchestratorSpec defines the desired state of Orchestrator.
-//
-// An Orchestrator deploys the Inference Gateway CLI's `infer daemon`: an
-// LLM-driven loop that listens on chat channels, serves devices over its AG-UI
-// binding, and fans out to A2A Agents and tools (incl. MCP). It always runs one
-// daemon, as a Recreate Deployment or an agent-sandbox Sandbox, because one
-// daemon owns its channels and sessions.
+// OrchestratorSpec defines the desired state of Orchestrator, which deploys the Inference
+// Gateway CLI's `infer daemon`: an LLM-driven loop that listens on chat channels, serves
+// devices over its AG-UI binding, and fans out to A2A Agents and tools (incl. MCP). It always
+// runs one daemon, as a Recreate Deployment or an agent-sandbox Sandbox, because one daemon
+// owns its channels and sessions.
 // +kubebuilder:validation:XValidation:rule="!has(self.sandbox) || self.runtime == 'Sandbox'",message="spec.sandbox needs spec.runtime: Sandbox"
 // +kubebuilder:validation:XValidation:rule="!has(self.userData) || self.runtime == 'Sandbox'",message="spec.userData needs spec.runtime: Sandbox"
 type OrchestratorSpec struct {

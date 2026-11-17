@@ -21,13 +21,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// GPUSpec defines the desired state of GPU.
-//
-// A GPU resource represents one externally managed, GPU-backed inference-runtime
-// allocation reachable over HTTP. The Kubernetes cluster is the control plane
-// only: GPU hardware, drivers, scheduling and inference execution stay with an
-// external infrastructure provider (e.g. RunPod). It is NOT a worker node, a
-// device, an `nvidia.com/gpu` request, or a replacement for the device plugin/DRA.
+// GPUSpec defines the desired state of GPU: one externally managed, GPU-backed inference
+// runtime reachable over HTTP. The cluster is the control plane only - hardware, drivers,
+// scheduling and inference stay with an external provider (e.g. RunPod). It is NOT a worker
+// node, a device, an `nvidia.com/gpu` request, or a replacement for the device plugin/DRA.
 type GPUSpec struct {
 	// Provider selects the GPU infrastructure provider driver.
 	// +kubebuilder:validation:Enum=runpod

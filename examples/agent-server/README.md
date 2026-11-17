@@ -1,6 +1,6 @@
 # Agent Server Example
 
-Deploy a **Google Calendar Agent** - an A2A (Agent-to-Agent) worker that can create, read, update, and delete Google Calendar events. In this example it runs in **mock mode** (`GOOGLE_CALENDAR_MOCK_MODE=true`), so no real Google credentials are needed; all calendar operations return synthetic mock data.
+Deploy a **Google Calendar Agent** - an A2A (Agent-to-Agent) worker that can create, read, update, and delete Google Calendar events. In this example it runs in **mock mode** (`GOOGLE_CALENDAR_MOCK_MODE=true`), so no real Google credentials are needed. All calendar operations return synthetic mock data.
 
 The agent exposes an A2A-compatible HTTP endpoint and can be registered with an Inference Gateway Orchestrator for LLM-driven task delegation.
 
@@ -28,7 +28,7 @@ The agent exposes an A2A-compatible HTTP endpoint and can be registered with an 
      -n agents
    ```
 
-   > The Secret must be in the `agents` namespace - the Agent's secret reference is namespace-local. `spec.agent.apiKey` is deprecated and ignored by the controller; only `spec.agent.llm.apiKeySecretRef` is read.
+   > The Secret must be in the `agents` namespace - the Agent's secret reference is namespace-local. `spec.agent.apiKey` is deprecated and ignored by the controller. Only `spec.agent.llm.apiKeySecretRef` is read.
 
 3. Apply the manifest:
 

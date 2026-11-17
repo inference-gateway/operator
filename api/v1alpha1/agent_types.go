@@ -141,7 +141,7 @@ type MCPClientSpec struct {
 	Enabled bool `json:"enabled,omitempty"`
 
 	// Servers is the list of MCP server base URLs (e.g. http://mcp:8080).
-	// Emitted as a comma-separated A2A_MCP_SERVERS; omitted when empty.
+	// Emitted as a comma-separated A2A_MCP_SERVERS - omitted when empty.
 	// +optional
 	Servers []string `json:"servers,omitempty"`
 
@@ -247,8 +247,8 @@ type LLMSpec struct {
 	BaseURL string `json:"baseURL,omitempty"`
 
 	// Model is the model identifier in "provider/model" format.
-	// The provider prefix is split out and emitted as A2A_AGENT_CLIENT_PROVIDER;
-	// the remainder is emitted as A2A_AGENT_CLIENT_MODEL.
+	// The provider prefix is split out and emitted as A2A_AGENT_CLIENT_PROVIDER.
+	// The remainder is emitted as A2A_AGENT_CLIENT_MODEL.
 	// +optional
 	Model string `json:"model,omitempty"`
 

@@ -82,7 +82,7 @@ spec:
 ```
 
 > **Pin to v0.26.0 or later.** Only tags from v0.26.0 on have the operator image pinned in
-> `manifests/install.yaml`; earlier tags reference `ghcr.io/inference-gateway/operator:latest`, so
+> `manifests/install.yaml`. Earlier tags reference `ghcr.io/inference-gateway/operator:latest`, so
 > pinning `targetRevision` to one of them pins the CRDs but still deploys the current operator
 > image. That image starts the Orchestrator and GPU controllers, whose CRDs those older manifests
 > do not contain, and the manager exits on startup.
@@ -149,7 +149,7 @@ kubectl apply --server-side -f install.yaml
 
 1. **CRDs**: Always upgrade CRDs before upgrading the operator
 2. **Pod Replacement**: The operator Deployment uses the `Recreate` strategy, so the old operator
-   pod is terminated before the new one starts. Managed workloads keep serving; only reconciliation
+   pod is terminated before the new one starts. Managed workloads keep serving - only reconciliation
    pauses until the new pod is ready.
 3. **Resource Validation**: New CRD versions may have additional validation rules
 

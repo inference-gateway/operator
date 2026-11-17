@@ -43,9 +43,6 @@ const testNamespace = "inference-gateway"
 var _ = Describe("Operator", Ordered, func() {
 	var controllerPodName string
 
-	// Before running the tests, set up the environment by creating the namespace,
-	// enforce the restricted security policy to the namespace, installing CRDs,
-	// and deploying the controller.
 	BeforeAll(func() {
 		By("creating operator namespace")
 		cmd := exec.Command("kubectl", "create", "namespace", namespace)
@@ -71,8 +68,6 @@ var _ = Describe("Operator", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the inference-gateway operator")
 	})
 
-	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
-	// and deleting the namespace.
 	AfterAll(func() {
 		By("undeploying the inference-gateway operator")
 		cmd := exec.Command("task", "undeploy")
@@ -87,8 +82,6 @@ var _ = Describe("Operator", Ordered, func() {
 		_, _ = utils.Run(cmd)
 	})
 
-	// After each test, check for failures and collect logs, events,
-	// and pod descriptions for debugging.
 	AfterEach(func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {

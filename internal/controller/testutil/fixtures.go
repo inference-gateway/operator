@@ -14,11 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package testutil holds reusable building blocks for the controller test
-// suite: a scheme registered with the project + Gateway API types, a fake
-// client constructor, and typed CR builders (Gateway/Agent/MCP) that use the
-// functional-options pattern. Centralising fixtures here keeps the per-controller
-// specs short and consistent and lets helpers be shared across controllers.
 package testutil
 
 import (
