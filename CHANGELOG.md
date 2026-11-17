@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.37.1](https://github.com/inference-gateway/operator/compare/v0.37.0...v0.37.1) (2026-11-17)
+
+### 🐛 Bug Fixes
+
+* **gateway:** apply server and mcp request timeouts to the gateway env ([#363](https://github.com/inference-gateway/operator/issues/363)) ([03322a4](https://github.com/inference-gateway/operator/commit/03322a45749532b63fe48d2f5efa15c1e75a4b2c))
+
+### 👷 CI
+
+* align Dependabot schedule and grouping ([#350](https://github.com/inference-gateway/operator/issues/350)) ([a9ec246](https://github.com/inference-gateway/operator/commit/a9ec246b2dc4c4574e8dc6a345369da9c07e84dd))
+* **deps:** bump go.opentelemetry.io/otel/sdk from 1.45.0 to 1.47.0 ([#346](https://github.com/inference-gateway/operator/issues/346)) ([c98a06c](https://github.com/inference-gateway/operator/commit/c98a06c9529282b5e69b18924fa57241d3bfd88f))
+* set up orchestrators from repos.yaml ([#351](https://github.com/inference-gateway/operator/issues/351)) ([99c4f6b](https://github.com/inference-gateway/operator/commit/99c4f6bf2355e0c64024479046d5fdaa517d21e4))
+
+### 📚 Documentation
+
+* add guardrails, mtls, agent mcp and receiver examples ([#364](https://github.com/inference-gateway/operator/issues/364)) ([f8dbeec](https://github.com/inference-gateway/operator/commit/f8dbeecd32d955c3873324fe0ae4ffccf5cbd30d))
+* Add Mirelo and Webwright to provider list and correct FAQ namespace advice ([#353](https://github.com/inference-gateway/operator/issues/353)) ([0c5ff1f](https://github.com/inference-gateway/operator/commit/0c5ff1f5149be3055f589bbc7fc87ff4e8c23e12))
+* align gateway, agent and install docs with the controllers ([#362](https://github.com/inference-gateway/operator/issues/362)) ([4ba29fe](https://github.com/inference-gateway/operator/commit/4ba29fe855ab1eae8f3b4b0714abd253d2195b4a)), closes [#357](https://github.com/inference-gateway/operator/issues/357)
+* **orchestrator:** fix example secret namespace and mcp build step ([#360](https://github.com/inference-gateway/operator/issues/360)) ([3d7319c](https://github.com/inference-gateway/operator/commit/3d7319c7c0c7460f10885a549536ca1d5fcc7f39))
+* **providers:** document mirelo and webwright ([#344](https://github.com/inference-gateway/operator/issues/344)) ([7f410fd](https://github.com/inference-gateway/operator/commit/7f410fdfcfc0534936d629f00a3736e3c7e6ce8b))
+* use lowercase commit subjects in AGENTS.md examples ([#354](https://github.com/inference-gateway/operator/issues/354)) ([c0d20cb](https://github.com/inference-gateway/operator/commit/c0d20cbdc70ecb832d76ce3fe8d940041655044f))
+* wire gpu example through openai and drop custom provider ([#361](https://github.com/inference-gateway/operator/issues/361)) ([c613bee](https://github.com/inference-gateway/operator/commit/c613bee8135e654af0b9513876d577ad8b492422))
+
+### 🔧 Miscellaneous
+
+* **deps:** bump flox dependencies to latest ([#348](https://github.com/inference-gateway/operator/issues/348)) ([baaeb1e](https://github.com/inference-gateway/operator/commit/baaeb1e3e3fa9f7d2cc758564cbac80f97935c96))
+* **deps:** bump flox dependencies to latest ([#349](https://github.com/inference-gateway/operator/issues/349)) ([9dfad6d](https://github.com/inference-gateway/operator/commit/9dfad6d513a05c79dfeb4a3525a2b15c75992a28))
+
 ## [0.37.0](https://github.com/inference-gateway/operator/compare/v0.36.0...v0.37.0) (2026-11-12)
 
 ### ✨ Features
