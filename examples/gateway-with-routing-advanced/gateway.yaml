@@ -34,9 +34,10 @@ spec:
         issuer: "letsencrypt-prod"
         # secretName auto-generates to "<gateway-name>-tls" if omitted
     httpRoute:
+      # Only the first hostname is set on the operator-managed Gateway listener,
+      # so further hostnames would never match it. Use one per Gateway CR.
       hostnames:
         - "api.inference-gateway.local"
-        - "gateway.example.com"
   resources:
     requests:
       cpu: "100m"

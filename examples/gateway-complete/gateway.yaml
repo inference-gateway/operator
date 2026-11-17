@@ -48,7 +48,8 @@ spec:
     tls:
       enabled: false
       # When enabled, the operator mounts the Secret `inference-gateway-tls` at
-      # /app/tls in the backend pod and exposes port 8443 for end-to-end TLS.
+      # /app/tls in the backend pod and serves HTTPS on spec.server.port (default
+      # 8080) for end-to-end TLS - the port keeps its number and is named `https`.
       # Override the certificate with certificateRef/keyRef.
   auth:
     enabled: false
@@ -221,7 +222,8 @@ type: Opaque
 stringData:
   OIDC_CLIENT_SECRET: ""
 ---
-# Uncomment and fill in the keys you want to enable:
+# Uncomment and fill in. Keep every key used by a provider with `enabled: true`
+# above - a missing key leaves the pod in CreateContainerConfigError.
 # apiVersion: v1
 # kind: Secret
 # metadata:

@@ -46,8 +46,10 @@ An Inference Gateway exposed via the Kubernetes **Gateway API** (`gateway.networ
 5. Port-forward Envoy and send a test request:
 
    ```bash
-   # Find the Envoy service for this Gateway and port-forward it
-   kubectl -n envoy-gateway-system port-forward svc/envoy-inference-gateway-inference-gateway 8080:80 &
+   # Envoy Gateway names the data-plane Service envoy-<namespace>-<gateway-name>-<hash>, so look it up by label
+   ENVOY_SVC=$(kubectl -n envoy-gateway-system get svc -o name \
+     -l gateway.envoyproxy.io/owning-gateway-namespace=inference-gateway,gateway.envoyproxy.io/owning-gateway-name=inference-gateway)
+   kubectl -n envoy-gateway-system port-forward "$ENVOY_SVC" 8080:80 &
 
    curl http://api.inference-gateway.local:8080/v1/chat/completions \
      -H "Content-Type: application/json" \
