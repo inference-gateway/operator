@@ -56,8 +56,9 @@ spec:
   maxRuntime: 2h
 ---
 # A Gateway consumes the generated connection Secret (ornith-connection) through
-# the standard provider env/secretKeyRef mechanism. No GPU-specific wiring is
-# needed on the Gateway side.
+# the standard provider env/secretKeyRef mechanism. vLLM speaks the OpenAI API,
+# so it is wired in as the gateway's `openai` provider, which reads
+# OPENAI_API_URL and OPENAI_API_KEY. This replaces api.openai.com on this Gateway.
 apiVersion: core.inference-gateway.com/v1alpha1
 kind: Gateway
 metadata:
@@ -67,17 +68,21 @@ spec:
   environment: development
   image: "ghcr.io/inference-gateway/inference-gateway:latest"
   providers:
-    - name: ornith
+    - name: openai
       enabled: true
       env:
-        # The runtime endpoint URL published by the GPU controller.
-        - name: LLM_BASE_URL
+        # The bare runtime URL published by the GPU controller (no /v1).
+        - name: ORNITH_RUNTIME_URL
           valueFrom:
             secretKeyRef:
               name: ornith-connection
               key: url
+        # The gateway expects the OpenAI base path, so append /v1. Kubernetes
+        # expands $(ORNITH_RUNTIME_URL) because it is declared above.
+        - name: OPENAI_API_URL
+          value: "$(ORNITH_RUNTIME_URL)/v1"
         # The per-allocation token (NOT the RunPod management key).
-        - name: LLM_API_KEY
+        - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
               name: ornith-connection

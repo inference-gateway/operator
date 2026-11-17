@@ -38,8 +38,7 @@ func TestIsSupported(t *testing.T) {
 		{name: "ollama_cloud", in: "ollama_cloud", want: true},
 		{name: "llamacpp", in: "llamacpp", want: true},
 		{name: "llamacpp is case-insensitive", in: "Llamacpp", want: true},
-		{name: "custom passthrough", in: "custom", want: true},
-		{name: "custom is case-insensitive", in: "Custom", want: true},
+		{name: "custom is not a gateway provider", in: "custom", want: false},
 		{name: "unknown provider", in: "totally-made-up", want: false},
 		{name: "empty", in: "", want: false},
 	}
