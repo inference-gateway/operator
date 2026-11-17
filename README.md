@@ -295,8 +295,8 @@ This command will:
 For production environments, pin to a specific version:
 
 ```bash
-# Install version v0.26.0 (replace with desired version)
-kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
+# Replace <version> with a release tag from https://github.com/inference-gateway/operator/releases
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/download/<version>/install.yaml
 ```
 
 ### Method 3: GitOps/ArgoCD-Friendly Installation
@@ -314,7 +314,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.26.0
+    targetRevision: main # tracks the latest release - set a release tag to pin
     path: manifests
   destination:
     server: https://kubernetes.default.svc
@@ -385,7 +385,6 @@ manifests instead and point ArgoCD at your own repository:
 ```bash
 git clone https://github.com/inference-gateway/operator.git
 cd operator
-git checkout v0.26.0
 
 # Rewrites the namespace across the whole manifest
 task manifests-for-namespace NAMESPACE=my-custom-namespace
@@ -828,9 +827,6 @@ To upgrade the operator to a newer version:
 ```bash
 # Upgrade to latest version
 kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
-
-# Or upgrade to specific version (v0.26.0 or later)
-kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
 ```
 
 The operator Deployment uses the `Recreate` strategy, so an upgrade terminates the running operator
@@ -1396,9 +1392,6 @@ Simply reapply the installation with a newer version:
 ```bash
 # Upgrade to latest
 kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
-
-# Or upgrade to specific version (v0.26.0 or later)
-kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
 ```
 
 The operator Deployment uses the `Recreate` strategy, so the old operator pod is terminated before

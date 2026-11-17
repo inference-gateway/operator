@@ -32,16 +32,14 @@ For the simple things, prefer filters. For platform-wide quotas/CORS, prefer Pol
       privateKeySecretRef:
         name: letsencrypt-prod
       solvers:
-        - http01:
-            gatewayHTTPRoute:
-              parentRefs:
-                - name: inference-gateway-advanced
-                  namespace: inference-gateway
-                  kind: Gateway
-                  group: gateway.networking.k8s.io
+        - dns01:
+            cloudflare:
+              apiTokenSecretRef:
+                name: cloudflare-api-token
+                key: api-token
   EOF
   ```
-  > Note: cert-manager's Gateway API integration uses `gatewayHTTPRoute` solvers, not `ingress` solvers - different shape than the legacy Ingress flow.
+  > Note: this uses a DNS-01 solver because, with `tls.enabled: true`, the operator-managed `inference-gateway-advanced` Gateway has a single HTTPS listener on port 443 - cert-manager's Gateway API HTTP-01 solver (`gatewayHTTPRoute`) needs a Gateway with a listener on port 80. Swap `cloudflare` for your DNS provider, and create the `cloudflare-api-token` Secret in the `cert-manager` namespace. To use HTTP-01 instead, point `gatewayHTTPRoute.parentRefs` at a Gateway that serves your hostnames on port 80.
 - For the **advanced-mode** example: a pre-existing shared Gateway named `shared-platform-gateway` in the `platform-system` namespace, with an `allowedRoutes` policy permitting routes from the `inference-gateway` namespace.
 - DNS records pointing your hostnames at the Envoy load-balancer IP
 - An [OpenAI API key](https://platform.openai.com/api-keys)

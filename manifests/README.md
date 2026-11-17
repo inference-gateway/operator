@@ -9,8 +9,10 @@ This directory contains installation manifests for the Inference Gateway Operato
 Complete installation including CRDs and operator deployment.
 
 ```bash
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 ```
+
+> `--server-side` is required: the Agent, Gateway and MCP CRDs are larger than the 262144 bytes a client-side `last-applied-configuration` annotation can hold.
 
 **Includes:**
 
@@ -33,7 +35,7 @@ kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/d
 Only the Custom Resource Definitions (CRDs).
 
 ```bash
-kubectl apply -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
 ```
 
 **Includes:**
@@ -65,7 +67,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/inference-gateway/operator
-    targetRevision: v0.26.0 # Pin to specific version - also pins the operator image
+    targetRevision: main # tracks the latest release - set a release tag to pin the CRDs and operator image
     path: manifests # Use this directory
   destination:
     server: https://kubernetes.default.svc
@@ -76,6 +78,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true # the CRDs exceed the client-side apply annotation limit
 ```
 
 > **Pin to v0.26.0 or later.** Only tags from v0.26.0 on have the operator image pinned in
@@ -113,7 +116,7 @@ kubectl create namespace my-inference-system
 # Install with custom namespace
 curl -L https://github.com/inference-gateway/operator/releases/latest/download/install.yaml | \
   sed 's/namespace: inference-gateway-system/namespace: my-inference-system/g' | \
-  kubectl apply -f -
+  kubectl apply --server-side -f -
 ```
 
 ### Custom Namespace Installation
@@ -124,11 +127,11 @@ The operator defaults to `inference-gateway-system` but can be deployed to any n
 # Method 1: Using sed replacement
 curl -L https://github.com/inference-gateway/operator/releases/latest/download/install.yaml | \
   sed 's/inference-gateway-system/my-custom-namespace/g' | \
-  kubectl apply -f -
+  kubectl apply --server-side -f -
 
 # Method 2: Generate custom manifests (development)
 task manifests-for-namespace NAMESPACE=my-custom-namespace
-kubectl apply -f manifests/my-custom-namespace/install.yaml
+kubectl apply --server-side -f manifests/my-custom-namespace/install.yaml
 ```
 
 ### Air-Gapped Installation
@@ -139,7 +142,7 @@ curl -L -O https://github.com/inference-gateway/operator/releases/latest/downloa
 curl -L -O https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
 
 # Apply in air-gapped environment
-kubectl apply -f install.yaml
+kubectl apply --server-side -f install.yaml
 ```
 
 ## Upgrade Considerations
@@ -151,9 +154,9 @@ kubectl apply -f install.yaml
 3. **Resource Validation**: New CRD versions may have additional validation rules
 
 ```bash
-# Safe upgrade process (use v0.26.0 or later, see the pinning note above)
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/crds.yaml
-kubectl apply -f https://github.com/inference-gateway/operator/releases/download/v0.26.0/install.yaml
+# Safe upgrade process
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/crds.yaml
+kubectl apply --server-side -f https://github.com/inference-gateway/operator/releases/latest/download/install.yaml
 ```
 
 ## Troubleshooting
