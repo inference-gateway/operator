@@ -15,12 +15,13 @@ All workflows run through [Task](https://taskfile.dev) (`task --list` for the fu
 - `task manifests` - regenerate CRDs, RBAC, and `manifests/install.yaml` + `crds.yaml`.
 - `task run` - run the controller locally from `cmd/main.go`.
 
-`task test` fetches envtest binaries and Gateway API CRDs, so it needs network on first run. `go build`/`go test` run offline.
+`task test` fetches envtest binaries and the Gateway API + agent-sandbox CRDs, so it needs network on first run (fetched copies land in `test/crds/`, gitignored). `go build`/`go test` run offline.
 
 ## Layout
 
-- `api/v1alpha1/` - CRD types (`gateway_types.go`, `agent_types.go`, `mcp_types.go`, `orchestrator_types.go`, `gpu_types.go`) plus generated deepcopy.
+- `api/v1alpha1/` - CRD types (`gateway_types.go`, `agent_types.go`, `mcp_types.go`, `orchestrator_types.go`, `gpu_types.go`), the shared workload `PodSpec` (`pod_types.go`, not a CRD, no reconciler), plus generated deepcopy.
 - `internal/controller/` - reconcilers, one per CRD, with matching `*_test.go`.
+- `internal/gpu/` - external GPU allocation providers behind a shared interface (currently RunPod).
 - `internal/providers/` - shared provider list (see below).
 - `config/` - kustomize bases.
 - `manifests/` - generated release artifacts (committed).
